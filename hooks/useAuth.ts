@@ -30,11 +30,19 @@ export const useAuth = () => {
     user,
     loading,
     signOut: async () => {
+      console.log('useAuth: signOut called');
       // 1. Clear local state immediately to update UI
       setSession(null);
       setUser(null);
+      console.log('useAuth: Local state cleared');
       // 2. Perform actual sign out
-      return await supabase.auth.signOut();
+      await supabase.auth.signOut();
+      console.log('useAuth: Supabase signOut complete');
+      // 3. Reload page on web to ensure clean state
+      if (typeof window !== 'undefined') {
+        console.log('useAuth: Reloading page...');
+        window.location.href = '/';
+      }
     },
   };
 };

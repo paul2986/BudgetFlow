@@ -19,6 +19,7 @@ import { useCurrency, CURRENCIES, Currency } from '../hooks/useCurrency';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../hooks/useAuth';
 import StandardHeader from '../components/StandardHeader';
 import { DEFAULT_CATEGORIES, Budget } from '../types/budget';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName, renameCustomExpenseCategory } from '../utils/storage';
@@ -48,6 +49,7 @@ export default function SettingsScreen() {
   const { appData, data, clearAllData, refreshData, activeBudget, addBudget, renameBudget, deleteBudget, duplicateBudget, setActiveBudget, user, isSyncing } = useBudgetData();
   const { themedStyles, isPad } = useThemedStyles();
   const { showToast } = useToast();
+  const { signOut } = useAuth();
 
   // Auth state for Settings UI
   const [email, setEmail] = useState('');
@@ -815,7 +817,7 @@ export default function SettingsScreen() {
                     if (Platform.OS === 'web') {
                       const confirmed = (window as any).confirm('Are you sure you want to sign out?');
                       if (confirmed) {
-                        await supabase.auth.signOut();
+                        await signOut();
                       }
                     } else {
                       Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
@@ -824,7 +826,7 @@ export default function SettingsScreen() {
                           text: 'Sign Out',
                           style: 'destructive',
                           onPress: async () => {
-                            await supabase.auth.signOut();
+                            await signOut();
                             showToast('Signed out successfully', 'success');
                           },
                         },
@@ -1893,7 +1895,7 @@ export default function SettingsScreen() {
                 if (Platform.OS === 'web') {
                   const confirmed = (window as any).confirm('Are you sure you want to sign out?');
                   if (confirmed) {
-                    await supabase.auth.signOut();
+                    await signOut();
                     showToast('Signed out successfully', 'success');
                   }
                 } else {
@@ -1903,7 +1905,7 @@ export default function SettingsScreen() {
                       text: 'Sign Out',
                       style: 'destructive',
                       onPress: async () => {
-                        await supabase.auth.signOut();
+                        await signOut();
                         showToast('Signed out successfully', 'success');
                       },
                     },

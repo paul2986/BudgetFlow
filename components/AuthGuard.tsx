@@ -105,6 +105,19 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     // IMPORTANT: All hooks must be called before any conditional returns
     const insets = useSafeAreaInsets();
 
+    // Set body background to match login screen on web
+    useEffect(() => {
+        if (Platform.OS === 'web' && !user) {
+            const loginBgColor = isDarkMode ? '#0F1419' : '#F8F9FA';
+            document.body.style.backgroundColor = loginBgColor;
+            // Also update the theme-color meta tag
+            const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+            if (metaThemeColor) {
+                metaThemeColor.setAttribute('content', loginBgColor);
+            }
+        }
+    }, [user, isDarkMode]);
+
     if (loading) {
         return (
             <View style={[themedStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -151,19 +164,6 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
             setAuthLoading(false);
         }
     };
-
-    // Set body background to match login screen on web
-    useEffect(() => {
-        if (Platform.OS === 'web' && !user) {
-            const loginBgColor = isDarkMode ? '#0F1419' : '#F8F9FA';
-            document.body.style.backgroundColor = loginBgColor;
-            // Also update the theme-color meta tag
-            const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-            if (metaThemeColor) {
-                metaThemeColor.setAttribute('content', loginBgColor);
-            }
-        }
-    }, [user, isDarkMode]);
 
     return (
         <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
