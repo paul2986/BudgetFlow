@@ -71,7 +71,6 @@ export const useBudgetData = () => {
   const isLoadingRef = useRef(false);
   const lastRefreshTimeRef = useRef<number>(0);
 
-  // Stable refresh function that doesn't depend on other state
   // Stable refresh function that avoids overwriting local state if Supabase has less data
   const refreshFromStorage = useCallback(async () => {
     // DO NOT refresh if we are currently saving or if the queue is running
@@ -95,23 +94,69 @@ export const useBudgetData = () => {
           .eq('user_id', user.id)
           .single();
 
+        if (error) {
+          console.error('useBudgetData: Supabase fetch error:', error);
+        }
+
         if (!error && supabaseData?.app_data) {
           const remoteData = supabaseData.app_data as AppDataV2;
-          console.log('useBudgetData: Cloud data found, adopting it');
 
-          setAppData(remoteData);
-          const active = getActiveBudget(remoteData);
-          if (active) {
-            setData({
-              people: active.people || [],
-              expenses: active.expenses || [],
-              householdSettings: active.householdSettings || { distributionMethod: 'even' }
+          // Determine "freshness" using modifiedAt of active budgets or fallback to budget array length/content
+          const activeLocal = getActiveBudget(localApp);
+          const activeRemote = getActiveBudget(remoteData);
+
+          const localModified = activeLocal?.modifiedAt || 0;
+          const remoteModified = activeRemote?.modifiedAt || 0;
+
+          console.log('useBudgetData: Sync conflict check', {
+            localModified,
+            remoteModified,
+            localBudgets: localApp.budgets.length,
+            remoteBudgets: remoteData.budgets.length
+          });
+
+          // Logic: "Last Write Wins" based on the ACTIVE budget's modifiedAt
+          // If remote is newer (>), take it.
+          // If local is newer (>), PUSH it to cloud.
+          // If equal, take remote (to be safe/consistent).
+
+          if (remoteModified >= localModified) {
+            console.log('useBudgetData: Cloud data is newer or equal, adopting it');
+            setAppData(remoteData);
+            const active = getActiveBudget(remoteData);
+            if (active) {
+              setData({
+                people: active.people || [],
+                expenses: active.expenses || [],
+                householdSettings: active.householdSettings || { distributionMethod: 'even' }
+              });
+            }
+            await saveAppData(remoteData);
+          } else {
+            console.log('useBudgetData: Local data is newer, pushing to cloud...');
+            // We can push asynchronously to not block UI
+            const { error: pushError } = await supabase.from('user_data').upsert({
+              user_id: user.id,
+              app_data: localApp,
+              updated_at: new Date().toISOString()
             });
+            if (pushError) console.error('useBudgetData: Failed to push newer local state to cloud:', pushError);
+            else console.log('useBudgetData: Successfully pushed newer local state to cloud');
+
+            // Keep local state as is, but ensure appData state is synced
+            setAppData(localApp);
+            const active = getActiveBudget(localApp);
+            if (active) {
+              setData({
+                people: active.people || [],
+                expenses: active.expenses || [],
+                householdSettings: active.householdSettings || { distributionMethod: 'even' }
+              });
+            }
           }
-          await saveAppData(remoteData);
           return;
         } else if (error && error.code === 'PGRST116') {
-          // No cloud data yet, push local if it exists
+          // No cloud data yet, push local if it exists and has real data
           if (localApp.budgets.length > 0) {
             console.log('useBudgetData: No cloud data, pushing local state to cloud');
             await supabase.from('user_data').upsert({
@@ -123,7 +168,8 @@ export const useBudgetData = () => {
         }
       }
 
-      // Fallback to local
+      // Fallback to local if not logged in or Supabase empty/failed (and logic above fell through)
+      console.log('useBudgetData: Using local data');
       setAppData(localApp);
       const active = getActiveBudget(localApp);
       if (active) {
