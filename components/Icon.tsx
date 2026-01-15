@@ -7,6 +7,7 @@ import { useTheme } from '../hooks/useTheme';
 interface IconProps {
   name: keyof typeof Ionicons.glyphMap;
   size?: number;
+  color?: string;
   style?: any;
 }
 
@@ -17,15 +18,15 @@ const styles = StyleSheet.create({
   },
 });
 
-export default function Icon({ name, size = 24, style }: IconProps) {
+export default function Icon({ name, size = 24, color, style }: IconProps) {
   const { currentColors } = useTheme();
-  
+
   return (
     <View style={styles.container}>
       <Ionicons
         name={name}
         size={size}
-        color={style?.color || currentColors.text}
+        color={color || style?.color || currentColors.text}
         style={style}
       />
     </View>

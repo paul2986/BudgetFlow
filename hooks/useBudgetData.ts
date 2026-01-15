@@ -10,8 +10,11 @@ import {
   duplicateBudget as storageDuplicateBudget,
   updateBudget as storageUpdateBudget,
   clearAllAppData as storageClearAllAppData,
+  saveAppData,
 } from '../utils/storage';
 import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget } from '../types/budget';
+import { supabase } from '../utils/supabase';
+import { useAuth } from './useAuth';
 
 // Local type for the editable slice of a budget
 type BudgetSlice = {
@@ -50,6 +53,7 @@ const safeAsyncResult = async <T>(
 };
 
 export const useBudgetData = () => {
+  const { user } = useAuth();
   const [appData, setAppData] = useState<AppDataV2>({ version: 2, budgets: [], activeBudgetId: '' });
   const [data, setData] = useState<BudgetSlice>({
     people: [],
@@ -59,6 +63,7 @@ export const useBudgetData = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Save operation queue to prevent concurrent saves
   const saveQueue = useRef<(() => Promise<{ success: boolean; error?: Error }>)[]>([]);
@@ -75,13 +80,13 @@ export const useBudgetData = () => {
         { version: 2, budgets: [], activeBudgetId: '' },
         'loadAppData'
       );
-      
+
       console.log('useBudgetData: loaded app data:', {
         budgetsCount: loadedApp.budgets?.length || 0,
         activeBudgetId: loadedApp.activeBudgetId,
         budgetNames: loadedApp.budgets?.map(b => b.name) || []
       });
-      
+
       setAppData(loadedApp);
       const active = getActiveBudget(loadedApp);
       if (active) {
@@ -121,7 +126,7 @@ export const useBudgetData = () => {
         { version: 2, budgets: [], activeBudgetId: '' },
         'getCurrentData-loadAppData'
       );
-      
+
       const active = getActiveBudget(loadedApp);
       if (!active) {
         console.log('useBudgetData: No active budget found, returning empty data');
@@ -201,6 +206,55 @@ export const useBudgetData = () => {
     }
   }, [refreshFromStorage]);
 
+  // Supabase sync effect
+  useEffect(() => {
+    const syncWithSupabase = async () => {
+      if (!user) return;
+
+      console.log('useBudgetData: Syncing with Supabase for user:', user.id);
+      setIsSyncing(true);
+
+      try {
+        const { data: supabaseData, error } = await supabase
+          .from('user_data')
+          .select('app_data')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('useBudgetData: Supabase fetch error:', error);
+          return;
+        }
+
+        if (supabaseData?.app_data) {
+          console.log('useBudgetData: Data found on Supabase, comparing with local...');
+          const remoteData = supabaseData.app_data as AppDataV2;
+
+          // Simple conflict resolution: Remote wins for now if it exists
+          // In a more complex app, we'd check timestamps
+          await saveAppData(remoteData);
+          await refreshFromStorage();
+          setRefreshTrigger(prev => prev + 1);
+        } else {
+          console.log('useBudgetData: No data on Supabase, pushing local data...');
+          const currentLocal = await loadAppData();
+          if (currentLocal.budgets.length > 0) {
+            await supabase.from('user_data').upsert({
+              user_id: user.id,
+              app_data: currentLocal
+            });
+          }
+        }
+      } catch (err) {
+        console.error('useBudgetData: Sync failed:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    syncWithSupabase();
+  }, [user, refreshFromStorage]);
+
   // Load data only once on mount
   useEffect(() => {
     // Wrap in async function to handle any potential promise rejections
@@ -211,7 +265,7 @@ export const useBudgetData = () => {
         console.error('useBudgetData: Error initializing data:', error);
       }
     };
-    
+
     initializeData();
   }, [loadData]);
 
@@ -296,7 +350,7 @@ export const useBudgetData = () => {
           { version: 2, budgets: [], activeBudgetId: '' },
           'saveData-loadAppData'
         );
-        
+
         const active = getActiveBudget(baseApp);
         if (!active || !active.id) {
           throw new Error('Active budget not available - cannot save data without a budget');
@@ -307,7 +361,7 @@ export const useBudgetData = () => {
           ...active,
           ...newData,
         };
-        
+
         const result = await safeAsyncResult(
           () => storageUpdateBudget(updatedActive),
           'storageUpdateBudget'
@@ -316,11 +370,24 @@ export const useBudgetData = () => {
         if (result.success) {
           console.log('useBudgetData: Data saved successfully');
           // Also update appData's active budget in memory to keep in sync
-          setAppData((prev) => {
-            const activeId = prev.activeBudgetId || active.id;
-            const budgets = prev.budgets.length ? prev.budgets.map((b) => (b.id === activeId ? updatedActive : b)) : [updatedActive];
-            return { version: 2 as const, activeBudgetId: activeId, budgets };
-          });
+          const activeId = appData.activeBudgetId || active.id;
+          const budgets = appData.budgets.length ? appData.budgets.map((b) => (b.id === activeId ? updatedActive : b)) : [updatedActive];
+          const fullAppData = { version: 2 as const, activeBudgetId: activeId, budgets };
+
+          setAppData(fullAppData);
+
+          // Push to Supabase if user is logged in
+          if (user) {
+            console.log('useBudgetData: Pushing update to Supabase...');
+            supabase.from('user_data').upsert({
+              user_id: user.id,
+              app_data: fullAppData
+            }).then(({ error }) => {
+              if (error) console.error('useBudgetData: Supabase push error:', error);
+              else console.log('useBudgetData: Supabase sync successful');
+            });
+          }
+
           return { success: true };
         } else {
           console.error('useBudgetData: Save failed, reverting state:', result.error);
@@ -346,7 +413,7 @@ export const useBudgetData = () => {
   const addBudget = useCallback(
     async (name: string) => {
       console.log('useBudgetData: addBudget called with name:', name);
-      
+
       // Use setTimeout to defer the async operation and prevent UI blocking
       return new Promise<{ success: boolean; error?: Error; budget?: Budget }>((resolve) => {
         setTimeout(async () => {
@@ -409,7 +476,7 @@ export const useBudgetData = () => {
   const deleteBudget = useCallback(
     async (budgetId: string) => {
       console.log('useBudgetData: deleteBudget called with budgetId:', budgetId);
-      
+
       // Use setTimeout to defer the async operation and prevent UI blocking
       return new Promise<{ success: boolean; error?: Error }>((resolve) => {
         setTimeout(async () => {
@@ -442,7 +509,7 @@ export const useBudgetData = () => {
   const duplicateBudget = useCallback(
     async (budgetId: string, customName?: string) => {
       console.log('useBudgetData: duplicateBudget called with:', { budgetId, customName });
-      
+
       // Use setTimeout to defer the async operation and prevent UI blocking
       return new Promise<{ success: boolean; error?: Error; budget?: Budget }>((resolve) => {
         setTimeout(async () => {
@@ -904,6 +971,8 @@ export const useBudgetData = () => {
     data,
     loading,
     saving,
+    isSyncing,
+    user,
     refreshTrigger, // Add this to help components know when data has changed
     // budget ops
     addBudget,

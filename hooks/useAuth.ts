@@ -1,14 +1,34 @@
-
-// This file has been removed as part of the offline-first refactor
-// Authentication is no longer used in this app
+import { useState, useEffect } from 'react';
+import { supabase } from '../utils/supabase';
+import { Session, User } from '@supabase/supabase-js';
 
 export const useAuth = () => {
-  console.warn('useAuth is deprecated. This app no longer uses authentication.');
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return {
-    user: null,
-    loading: false,
-    signIn: async () => ({ error: new Error('Authentication disabled') }),
-    signOut: async () => ({ error: new Error('Authentication disabled') }),
-    signUp: async () => ({ error: new Error('Authentication disabled') }),
+    session,
+    user,
+    loading,
+    signOut: () => supabase.auth.signOut(),
   };
 };

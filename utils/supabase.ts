@@ -1,9 +1,16 @@
+import { createClient } from '@supabase/supabase-js';
+import 'react-native-url-polyfill/auto';
 
-// This file has been removed as part of the offline-first refactor
-// Supabase is no longer used in this app
+const SUPABASE_URL = 'https://mjcdgsfgmafzplaqsmxe.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_W3CorTAoeq6Dckyfb9AjVA_CKkIn4eb';
 
-console.warn('Supabase utilities are deprecated. This app is now fully offline and self-contained.');
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+    },
+});
 
-export const supabase = null;
-export const AUTH_REDIRECT = '';
-export const AUTH_REDIRECT_HTTPS = '';
+export const AUTH_REDIRECT = 'budgetflow://auth/callback';
+export const AUTH_REDIRECT_HTTPS = 'https://budget-flow-blue.vercel.app/auth/callback';

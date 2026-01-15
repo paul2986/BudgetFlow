@@ -1,7 +1,18 @@
-
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import Button from '../components/Button';
-import { Text, View, ScrollView, TouchableOpacity, Alert, TextInput, Modal, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import {
+  Text,
+  View,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator
+} from 'react-native';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
 import { useCurrency, CURRENCIES, Currency } from '../hooks/useCurrency';
@@ -9,12 +20,13 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import StandardHeader from '../components/StandardHeader';
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { DEFAULT_CATEGORIES, Budget } from '../types/budget';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName, renameCustomExpenseCategory } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 
-type SettingsSection = 
+type SettingsSection =
   | 'budgets'
+  | 'account'
   | 'categories'
   | 'currency'
   | 'theme'
@@ -33,10 +45,16 @@ const formatDate = (timestamp: number): string => {
 export default function SettingsScreen() {
   const { currentColors, themeMode, setThemeMode } = useTheme();
   const { currency, setCurrency } = useCurrency();
-  const { appData, data, clearAllData, refreshData, activeBudget, addBudget, renameBudget, deleteBudget, duplicateBudget, setActiveBudget } = useBudgetData();
+  const { appData, data, clearAllData, refreshData, activeBudget, addBudget, renameBudget, deleteBudget, duplicateBudget, setActiveBudget, user, isSyncing } = useBudgetData();
   const { themedStyles, isPad } = useThemedStyles();
   const { showToast } = useToast();
-  
+
+  // Auth state for Settings UI
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
   // iPad split view state
   const [selectedSection, setSelectedSection] = useState<SettingsSection>('budgets');
 
@@ -63,7 +81,7 @@ export default function SettingsScreen() {
   const [showCreateBudgetModal, setShowCreateBudgetModal] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [operationInProgress, setOperationInProgress] = useState(false);
-  const buttonRefs = useRef<{ [key: string]: TouchableOpacity | null }>({});
+  const buttonRefs = useRef<{ [key: string]: any }>({});
 
   const handleDistributionMethodChange = (method: 'even' | 'income-based') => {
     console.log('Distribution method change:', method);
@@ -130,7 +148,7 @@ export default function SettingsScreen() {
   const isInUse = (category: string): boolean => {
     if (!data?.expenses) return false;
     const normalized = normalizeCategoryName(category);
-    return data.expenses.some((e) => normalizeCategoryName((e as any).categoryTag || 'Misc') === normalized);
+    return data.expenses.some((e) => normalizeCategoryName(e.categoryTag || 'Misc') === normalized);
   };
 
   const handleDeleteCategory = (category: string) => {
@@ -177,7 +195,7 @@ export default function SettingsScreen() {
     setRenaming(true);
     try {
       const result = await renameCustomExpenseCategory(categoryToRename, newCategoryName.trim());
-      
+
       if (result.success) {
         await refreshCategories();
         await refreshData();
@@ -214,7 +232,7 @@ export default function SettingsScreen() {
     }
 
     const normalized = normalizeCategoryName(trimmedName);
-    
+
     if (DEFAULT_CATEGORIES.includes(normalized)) {
       Alert.alert('Error', 'This category name conflicts with a default category.');
       return;
@@ -374,7 +392,7 @@ export default function SettingsScreen() {
   const handleDropdownPress = useCallback((budgetId: string) => {
     const buttonRef = buttonRefs.current[budgetId];
     if (buttonRef) {
-      buttonRef.measure((x, y, width, height, pageX, pageY) => {
+      buttonRef.measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
         setDropdownPosition({
           x: pageX - 180 + width,
           y: pageY + height + 8,
@@ -389,7 +407,7 @@ export default function SettingsScreen() {
 
   const DropdownMenu = ({ budget }: { budget: Budget }) => {
     const isActive = activeBudget?.id === budget.id;
-    
+
     return (
       <Modal
         visible={dropdownBudgetId === budget.id}
@@ -435,11 +453,11 @@ export default function SettingsScreen() {
                 onPress={() => handleSetActiveBudget(budget.id)}
                 activeOpacity={0.7}
               >
-                <Icon name="checkmark-circle" size={18} color={currentColors.success} />
+                <Icon name="checkmark-circle" size={18} style={{ color: currentColors.success }} />
                 <Text style={[themedStyles.text, { marginLeft: 12, fontSize: 15 }]}>Set as Active</Text>
               </TouchableOpacity>
             )}
-            
+
             <TouchableOpacity
               style={{
                 flexDirection: 'row',
@@ -454,10 +472,10 @@ export default function SettingsScreen() {
               }}
               activeOpacity={0.7}
             >
-              <Icon name="create" size={18} color={currentColors.text} />
+              <Icon name="create" size={18} style={{ color: currentColors.text }} />
               <Text style={[themedStyles.text, { marginLeft: 12, fontSize: 15 }]}>Rename</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={{
                 flexDirection: 'row',
@@ -468,10 +486,10 @@ export default function SettingsScreen() {
               onPress={() => handleDuplicateBudget(budget.id, budget.name)}
               activeOpacity={0.7}
             >
-              <Icon name="copy" size={18} color={currentColors.text} />
+              <Icon name="copy" size={18} style={{ color: currentColors.text }} />
               <Text style={[themedStyles.text, { marginLeft: 12, fontSize: 15 }]}>Duplicate</Text>
             </TouchableOpacity>
-            
+
             {budgets.length > 1 && (
               <TouchableOpacity
                 style={{
@@ -490,10 +508,10 @@ export default function SettingsScreen() {
                 activeOpacity={0.7}
               >
                 <Icon name="trash" size={18} color={isActive ? currentColors.textSecondary : currentColors.error} />
-                <Text style={[themedStyles.text, { 
-                  marginLeft: 12, 
-                  fontSize: 15, 
-                  color: isActive ? currentColors.textSecondary : currentColors.error 
+                <Text style={[themedStyles.text, {
+                  marginLeft: 12,
+                  fontSize: 15,
+                  color: isActive ? currentColors.textSecondary : currentColors.error
                 }]}>
                   {isActive ? 'Cannot Delete Active' : 'Delete'}
                 </Text>
@@ -510,9 +528,9 @@ export default function SettingsScreen() {
     if (!currencySearchQuery.trim()) {
       return CURRENCIES;
     }
-    
+
     const query = currencySearchQuery.toLowerCase().trim();
-    return CURRENCIES.filter(curr => 
+    return CURRENCIES.filter(curr =>
       curr.name.toLowerCase().includes(query) ||
       curr.code.toLowerCase().includes(query) ||
       curr.symbol.toLowerCase().includes(query)
@@ -522,6 +540,7 @@ export default function SettingsScreen() {
   // Navigation items for iPad sidebar
   const navigationItems = [
     { id: 'budgets' as SettingsSection, icon: 'folder-outline', label: 'Budgets', subtitle: `${appData?.budgets?.length || 0} budget${(appData?.budgets?.length || 0) !== 1 ? 's' : ''}` },
+    { id: 'account' as SettingsSection, icon: 'person-outline', label: 'Cloud Sync', subtitle: user ? user.email : 'Backup your data' },
     { id: 'categories' as SettingsSection, icon: 'pricetags-outline', label: 'Categories', subtitle: 'Manage expense categories' },
     { id: 'currency' as SettingsSection, icon: 'card-outline', label: 'Currency', subtitle: `${currency.symbol} ${currency.code}` },
     { id: 'theme' as SettingsSection, icon: 'color-palette-outline', label: 'Theme', subtitle: themeMode.charAt(0).toUpperCase() + themeMode.slice(1) },
@@ -590,13 +609,13 @@ export default function SettingsScreen() {
               {budgets.length > 0 ? budgets.map((budget) => {
                 const isActive = activeBudget?.id === budget.id;
                 const isEditing = editingBudgetId === budget.id;
-                
+
                 return (
-                  <View 
-                    key={budget.id} 
+                  <View
+                    key={budget.id}
                     style={[
-                      themedStyles.card, 
-                      { 
+                      themedStyles.card,
+                      {
                         position: 'relative',
                         borderWidth: isActive ? 2 : 1,
                         borderColor: isActive ? currentColors.success : currentColors.border,
@@ -624,7 +643,7 @@ export default function SettingsScreen() {
                               onPress={() => handleRenameBudget(budget.id)}
                               style={{ padding: 8 }}
                             >
-                              <Icon name="checkmark" size={20} color={currentColors.success} />
+                              <Icon name="checkmark" size={20} style={{ color: currentColors.success }} />
                             </TouchableOpacity>
                             <TouchableOpacity
                               onPress={() => {
@@ -633,7 +652,7 @@ export default function SettingsScreen() {
                               }}
                               style={{ padding: 8 }}
                             >
-                              <Icon name="close" size={20} color={currentColors.error} />
+                              <Icon name="close" size={20} style={{ color: currentColors.error }} />
                             </TouchableOpacity>
                           </View>
                         ) : (
@@ -645,8 +664,8 @@ export default function SettingsScreen() {
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                               <Text style={[
                                 themedStyles.text,
-                                { 
-                                  fontWeight: isActive ? '700' : '600', 
+                                {
+                                  fontWeight: isActive ? '700' : '600',
                                   flex: 1,
                                   fontSize: 18,
                                   color: isActive ? currentColors.success : currentColors.text
@@ -678,7 +697,7 @@ export default function SettingsScreen() {
                                 </View>
                               )}
                             </View>
-                            
+
                             <View style={{ flexDirection: 'column', gap: 4 }}>
                               <View style={{ flexDirection: 'row', gap: 20 }}>
                                 <Text style={[themedStyles.textSecondary, { fontSize: 14 }]}>
@@ -700,15 +719,15 @@ export default function SettingsScreen() {
                           </TouchableOpacity>
                         )}
                       </View>
-                      
+
                       {!isEditing && (
                         <TouchableOpacity
                           ref={(ref) => {
                             buttonRefs.current[budget.id] = ref;
                           }}
                           onPress={() => handleDropdownPress(budget.id)}
-                          style={{ 
-                            padding: 8, 
+                          style={{
+                            padding: 8,
                             marginLeft: 12,
                             borderRadius: 8,
                             backgroundColor: currentColors.background + '80'
@@ -716,17 +735,17 @@ export default function SettingsScreen() {
                           activeOpacity={0.7}
                           disabled={operationInProgress}
                         >
-                          <Icon name="ellipsis-vertical" size={20} color={currentColors.text} />
+                          <Icon name="ellipsis-vertical" size={20} style={{ color: currentColors.text }} />
                         </TouchableOpacity>
                       )}
                     </View>
-                    
+
                     <DropdownMenu budget={budget} />
                   </View>
                 );
               }) : (
                 <View style={[themedStyles.card, themedStyles.centerContent, { paddingVertical: 60 }]}>
-                  <Icon name="folder" size={64} color={currentColors.textSecondary} />
+                  <Icon name="folder" size={64} style={{ color: currentColors.textSecondary }} />
                   <Text style={[themedStyles.text, { marginTop: 20, textAlign: 'center', fontSize: 18, fontWeight: '600' }]}>
                     No budgets yet
                   </Text>
@@ -736,6 +755,129 @@ export default function SettingsScreen() {
                 </View>
               )}
             </ScrollView>
+          </View>
+        );
+
+      case 'account':
+        return (
+          <View style={{ flex: 1 }}>
+            <View style={{ marginBottom: 24 }}>
+              <Text style={[themedStyles.title, { textAlign: 'left', marginBottom: 8 }]}>Cloud Sync</Text>
+              <Text style={[themedStyles.textSecondary]}>
+                {user
+                  ? 'Your data is being automatically synced to Supabase.'
+                  : 'Create an account to backup your data and access it from any device.'}
+              </Text>
+            </View>
+
+            {user ? (
+              <View style={[themedStyles.card, { padding: 24 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+                  <View style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 30,
+                    backgroundColor: currentColors.primary + '20',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 16
+                  }}>
+                    <Icon name="person" size={30} style={{ color: currentColors.primary }} />
+                  </View>
+                  <View>
+                    <Text style={[themedStyles.text, { fontWeight: '700', fontSize: 18 }]}>{user.email}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                      <View style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: currentColors.success,
+                        marginRight: 8
+                      }} />
+                      <Text style={[themedStyles.textSecondary, { fontSize: 14 }]}>
+                        {isSyncing ? 'Syncing...' : 'Connected & Synced'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <Button
+                  text="Sign Out"
+                  variant="outline"
+                  onPress={async () => {
+                    await supabase.auth.signOut();
+                    showToast('Signed out successfully', 'success');
+                  }}
+                  style={{ borderColor: currentColors.error }}
+                  // @ts-ignore
+                  textStyle={{ color: currentColors.error }}
+                />
+              </View>
+            ) : (
+              <View style={[themedStyles.card, { padding: 24 }]}>
+                <Text style={[themedStyles.subtitle, { marginBottom: 20 }]}>
+                  {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+                </Text>
+
+                <TextInput
+                  style={[themedStyles.input, { marginBottom: 12 }]}
+                  placeholder="Email"
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                />
+
+                <TextInput
+                  style={[themedStyles.input, { marginBottom: 20 }]}
+                  placeholder="Password"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry
+                />
+
+                <Button
+                  text={authLoading ? 'Please wait...' : (authMode === 'login' ? 'Sign In' : 'Sign Up')}
+                  onPress={async () => {
+                    setAuthLoading(true);
+                    try {
+                      const { error } = authMode === 'login'
+                        ? await supabase.auth.signInWithPassword({ email, password })
+                        : await supabase.auth.signUp({ email, password });
+
+                      if (error) throw error;
+                      showToast(authMode === 'login' ? 'Signed in!' : 'Registered! Please check your email.', 'success');
+                    } catch (err: any) {
+                      showToast(err.message, 'error');
+                    } finally {
+                      setAuthLoading(false);
+                    }
+                  }}
+                  disabled={authLoading || !email || !password}
+                />
+
+                <TouchableOpacity
+                  onPress={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+                  style={{ marginTop: 16, alignItems: 'center' }}
+                >
+                  <Text style={[themedStyles.textSecondary, { color: currentColors.primary, fontWeight: '600' }]}>
+                    {authMode === 'login' ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={[themedStyles.card, { marginTop: 24, backgroundColor: currentColors.info + '10', borderColor: currentColors.info + '30' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <Icon name="cloud-done-outline" size={24} style={{ color: currentColors.info, marginRight: 12, marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[themedStyles.text, { fontWeight: '700', marginBottom: 4, color: currentColors.info }]}>Offline-First Cloud Sync</Text>
+                  <Text style={[themedStyles.textSecondary, { fontSize: 13, lineHeight: 18 }]}>
+                    All your budget data is stored locally first, so it works even without internet. When you're online, it automatically syncs to your private cloud storage.
+                  </Text>
+                </View>
+              </View>
+            </View>
           </View>
         );
 
@@ -890,10 +1032,10 @@ export default function SettingsScreen() {
                             accessibilityLabel={`Delete ${c}`}
                             accessibilityRole="button"
                           >
-                            <Icon 
-                              name="trash-outline" 
-                              size={20} 
-                              style={{ color: used ? currentColors.textSecondary : currentColors.error }} 
+                            <Icon
+                              name="trash-outline"
+                              size={20}
+                              style={{ color: used ? currentColors.textSecondary : currentColors.error }}
                             />
                           </TouchableOpacity>
                         </View>
@@ -942,8 +1084,8 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Icon name="globe-outline" size={20} style={{ color: currentColors.primary, marginRight: 8 }} />
                 <Text style={[themedStyles.text, { fontWeight: '600' }]}>
-                  {currencySearchQuery.trim() 
-                    ? `Search Results (${filteredCurrencies.length})` 
+                  {currencySearchQuery.trim()
+                    ? `Search Results (${filteredCurrencies.length})`
                     : `All Currencies (${CURRENCIES.length})`
                   }
                 </Text>
@@ -951,14 +1093,14 @@ export default function SettingsScreen() {
             </View>
 
             <View style={[
-              themedStyles.card, 
-              { 
-                flex: 1, 
-                padding: 0, 
+              themedStyles.card,
+              {
+                flex: 1,
+                padding: 0,
                 overflow: 'hidden'
               }
             ]}>
-              <ScrollView 
+              <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={{ padding: 16 }}
                 showsVerticalScrollIndicator={true}
@@ -1106,8 +1248,8 @@ export default function SettingsScreen() {
               Irreversible actions that will permanently delete your data.
             </Text>
             <View style={[
-              themedStyles.card, 
-              { 
+              themedStyles.card,
+              {
                 borderColor: currentColors.error + '40',
                 borderWidth: 2,
                 backgroundColor: currentColors.error + '08',
@@ -1119,11 +1261,11 @@ export default function SettingsScreen() {
                   Clear All Data
                 </Text>
               </View>
-              
+
               <Text style={[themedStyles.text, { marginBottom: 24, lineHeight: 24 }]}>
                 This action will permanently delete all your budgets, people, expenses, and settings. This cannot be undone.
               </Text>
-              
+
               <TouchableOpacity
                 style={{
                   flexDirection: 'row',
@@ -1156,8 +1298,8 @@ export default function SettingsScreen() {
   if (isPad) {
     return (
       <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        <StandardHeader 
-          title="Settings" 
+        <StandardHeader
+          title="Settings"
           showLeftIcon={false}
           showRightIcon={false}
           backgroundColor={currentColors.backgroundAlt}
@@ -1187,18 +1329,18 @@ export default function SettingsScreen() {
                   }}
                   onPress={() => setSelectedSection(item.id)}
                 >
-                  <Icon 
-                    name={item.icon} 
-                    size={24} 
-                    style={{ 
+                  <Icon
+                    name={item.icon as any}
+                    size={24}
+                    style={{
                       color: selectedSection === item.id ? currentColors.primary : currentColors.text,
-                      marginRight: 16 
-                    }} 
+                      marginRight: 16
+                    }}
                   />
                   <View style={{ flex: 1 }}>
                     <Text style={[
-                      themedStyles.text, 
-                      { 
+                      themedStyles.text,
+                      {
                         fontWeight: selectedSection === item.id ? '700' : '600',
                         marginBottom: 4,
                         color: selectedSection === item.id ? currentColors.primary : currentColors.text
@@ -1207,8 +1349,8 @@ export default function SettingsScreen() {
                       {item.label}
                     </Text>
                     <Text style={[
-                      themedStyles.textSecondary, 
-                      { 
+                      themedStyles.textSecondary,
+                      {
                         fontSize: 13,
                         color: selectedSection === item.id ? currentColors.primary + 'CC' : currentColors.textSecondary
                       }
@@ -1250,8 +1392,8 @@ export default function SettingsScreen() {
           animationType="fade"
           onRequestClose={handleRenameCancel}
         >
-          <KeyboardAvoidingView 
-            style={{ flex: 1 }} 
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <View style={{
@@ -1272,9 +1414,9 @@ export default function SettingsScreen() {
                 }
               ]}>
                 <Text style={[
-                  themedStyles.title, 
-                  { 
-                    marginBottom: 8, 
+                  themedStyles.title,
+                  {
+                    marginBottom: 8,
                     textAlign: 'center',
                     color: currentColors.text,
                     fontSize: 20,
@@ -1284,9 +1426,9 @@ export default function SettingsScreen() {
                   Rename Category
                 </Text>
                 <Text style={[
-                  themedStyles.textSecondary, 
-                  { 
-                    marginBottom: 20, 
+                  themedStyles.textSecondary,
+                  {
+                    marginBottom: 20,
                     textAlign: 'center',
                     color: currentColors.textSecondary,
                     fontSize: 14
@@ -1297,8 +1439,8 @@ export default function SettingsScreen() {
 
                 <View style={{ marginBottom: 24 }}>
                   <Text style={[
-                    themedStyles.text, 
-                    { 
+                    themedStyles.text,
+                    {
                       marginBottom: 8,
                       color: currentColors.text,
                       fontSize: 16,
@@ -1357,8 +1499,8 @@ export default function SettingsScreen() {
           animationType="fade"
           onRequestClose={handleCreateCancel}
         >
-          <KeyboardAvoidingView 
-            style={{ flex: 1 }} 
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
             <View style={{
@@ -1379,9 +1521,9 @@ export default function SettingsScreen() {
                 }
               ]}>
                 <Text style={[
-                  themedStyles.title, 
-                  { 
-                    marginBottom: 8, 
+                  themedStyles.title,
+                  {
+                    marginBottom: 8,
                     textAlign: 'center',
                     color: currentColors.text,
                     fontSize: 20,
@@ -1391,9 +1533,9 @@ export default function SettingsScreen() {
                   Create New Category
                 </Text>
                 <Text style={[
-                  themedStyles.textSecondary, 
-                  { 
-                    marginBottom: 20, 
+                  themedStyles.textSecondary,
+                  {
+                    marginBottom: 20,
                     textAlign: 'center',
                     color: currentColors.textSecondary,
                     fontSize: 14
@@ -1404,8 +1546,8 @@ export default function SettingsScreen() {
 
                 <View style={{ marginBottom: 24 }}>
                   <Text style={[
-                    themedStyles.text, 
-                    { 
+                    themedStyles.text,
+                    {
                       marginBottom: 8,
                       color: currentColors.text,
                       fontSize: 16,
@@ -1488,14 +1630,14 @@ export default function SettingsScreen() {
                   setShowCreateBudgetModal(false);
                   setNewBudgetName('');
                 }}>
-                  <Icon name="close" size={24} color={currentColors.text} />
+                  <Icon name="close" size={24} style={{ color: currentColors.text }} />
                 </TouchableOpacity>
               </View>
 
               <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600' }]}>
                 Budget Name:
               </Text>
-              
+
               <TextInput
                 style={themedStyles.input}
                 placeholder="Enter budget name"
@@ -1505,7 +1647,7 @@ export default function SettingsScreen() {
                 editable={!isCreating}
                 autoFocus
               />
-              
+
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
                 <View style={{ flex: 1 }}>
                   <Button
@@ -1537,8 +1679,8 @@ export default function SettingsScreen() {
   // iPhone layout (original single-column layout) - keeping all existing modals
   return (
     <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-      <StandardHeader 
-        title="Settings" 
+      <StandardHeader
+        title="Settings"
         showLeftIcon={false}
         showRightIcon={false}
         backgroundColor={currentColors.backgroundAlt}
@@ -1631,7 +1773,7 @@ export default function SettingsScreen() {
                         'Search Currency',
                         'Enter currency name or code',
                         (text) => {
-                          const found = CURRENCIES.find(c => 
+                          const found = CURRENCIES.find(c =>
                             c.code.toLowerCase() === text.toLowerCase() ||
                             c.name.toLowerCase().includes(text.toLowerCase())
                           );
@@ -1715,8 +1857,8 @@ export default function SettingsScreen() {
 
         {/* Danger Zone */}
         <View style={[
-          themedStyles.card, 
-          { 
+          themedStyles.card,
+          {
             marginBottom: 24,
             borderColor: currentColors.error + '40',
             borderWidth: 2,
@@ -1729,11 +1871,11 @@ export default function SettingsScreen() {
               Danger Zone
             </Text>
           </View>
-          
+
           <Text style={[themedStyles.textSecondary, { marginBottom: 16, lineHeight: 20 }]}>
             This action will permanently delete all your data. This cannot be undone.
           </Text>
-          
+
           <TouchableOpacity
             style={{
               flexDirection: 'row',
