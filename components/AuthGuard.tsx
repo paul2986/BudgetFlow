@@ -10,7 +10,9 @@ import {
     ScrollView,
     ActivityIndicator,
     useWindowDimensions,
+    StyleSheet,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -109,8 +111,18 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
         );
     }
 
+    const insets = useSafeAreaInsets();
+
     if (user) {
-        return <>{children}</>;
+        return (
+            <View style={{
+                flex: 1,
+                paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
+                paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0
+            }}>
+                {children}
+            </View>
+        );
     }
 
     const handleAuth = async () => {
@@ -140,9 +152,9 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     };
 
     return (
-        <View style={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
+        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
             {/* Animated Background Layers */}
-            <View style={{ position: 'absolute', width: '100%', height: '100%' }}>
+            <View style={{ ...StyleSheet.absoluteFillObject }}>
                 <AnimatedCircle size={400} color={currentColors.primary} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
                 <AnimatedCircle size={300} color={currentColors.secondary} delay={1000} duration={12000} initialX="70%" initialY="60%" />
                 <AnimatedCircle size={250} color={currentColors.accent} delay={2000} duration={8000} initialX="10%" initialY="70%" />
