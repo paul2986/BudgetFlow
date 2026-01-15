@@ -156,8 +156,8 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
             {/* Animated Background Layers */}
             <View style={{
                 ...StyleSheet.absoluteFillObject,
-                // @ts-ignore - web only fix for address bar bleed
-                ...(Platform.OS === 'web' ? { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 } : {})
+                // @ts-ignore - web only fix for address bar bleed. Overscan by 100px to ensure coverage.
+                ...(Platform.OS === 'web' ? { position: 'fixed', top: -100, left: -100, right: -100, bottom: -100, zIndex: 0 } : {})
             } as any}>
                 <AnimatedCircle size={400} color={currentColors.primary} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
                 <AnimatedCircle size={300} color={currentColors.secondary} delay={1000} duration={12000} initialX="70%" initialY="60%" />

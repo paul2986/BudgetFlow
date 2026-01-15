@@ -484,7 +484,7 @@ export const useBudgetData = () => {
   const addBudget = useCallback(
     async (name: string) => queueSave(async () => {
       console.log('useBudgetData: addBudget called');
-      const res = await safeAsyncResult(() => storageAddBudget(name), 'storageAddBudget');
+      const res = await storageAddBudget(name);
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
@@ -496,7 +496,7 @@ export const useBudgetData = () => {
 
   const renameBudget = useCallback(
     async (budgetId: string, newName: string) => queueSave(async () => {
-      const res = await safeAsyncResult(() => storageRenameBudget(budgetId, newName), 'storageRenameBudget');
+      const res = await storageRenameBudget(budgetId, newName);
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
@@ -508,10 +508,13 @@ export const useBudgetData = () => {
 
   const deleteBudget = useCallback(
     async (budgetId: string) => queueSave(async () => {
-      const res = await safeAsyncResult(() => storageDeleteBudget(budgetId), 'storageDeleteBudget');
+      console.log('useBudgetData: deleteBudget called for', budgetId);
+      const res = await storageDeleteBudget(budgetId);
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
+      } else {
+        console.error('useBudgetData: deleteBudget failed', res.error);
       }
       return res;
     }),
@@ -520,7 +523,7 @@ export const useBudgetData = () => {
 
   const duplicateBudget = useCallback(
     async (budgetId: string, customName?: string) => queueSave(async () => {
-      const res = await safeAsyncResult(() => storageDuplicateBudget(budgetId, customName), 'storageDuplicateBudget');
+      const res = await storageDuplicateBudget(budgetId, customName);
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
@@ -532,7 +535,7 @@ export const useBudgetData = () => {
 
   const setActiveBudget = useCallback(
     async (budgetId: string) => queueSave(async () => {
-      const res = await safeAsyncResult(() => storageSetActiveBudget(budgetId), 'storageSetActiveBudget');
+      const res = await storageSetActiveBudget(budgetId);
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
@@ -786,15 +789,6 @@ export const useBudgetData = () => {
           peopleCount: newData.people.length,
           remainingExpenseIds: newData.expenses.map((e) => e.id),
         });
-
-        // Verify that exactly one expense was removed
-        if (originalCount - newCount !== 1) {
-          console.error('useBudgetData: Unexpected number of expenses removed:', {
-            expected: 1,
-            actual: originalCount - newCount,
-          });
-          throw new Error('Unexpected number of expenses removed');
-        }
 
         return await saveData(newData);
       });
