@@ -152,13 +152,26 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
         }
     };
 
+    // Set body background to match login screen on web
+    useEffect(() => {
+        if (Platform.OS === 'web' && !user) {
+            const loginBgColor = isDarkMode ? '#0F1419' : '#F8F9FA';
+            document.body.style.backgroundColor = loginBgColor;
+            // Also update the theme-color meta tag
+            const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+            if (metaThemeColor) {
+                metaThemeColor.setAttribute('content', loginBgColor);
+            }
+        }
+    }, [user, isDarkMode]);
+
     return (
         <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
             {/* Animated Background Layers */}
             <View style={{
                 ...StyleSheet.absoluteFillObject,
-                // @ts-ignore - web only fix for address bar bleed. Overscan by 100px to ensure coverage.
-                ...(Platform.OS === 'web' ? { position: 'fixed', top: -100, left: -100, right: -100, bottom: -100, zIndex: 0 } : {})
+                // @ts-ignore - web only fix for address bar bleed. Aggressive overscan for Safari iOS.
+                ...(Platform.OS === 'web' ? { position: 'fixed', top: -300, left: -300, right: -300, bottom: -300, zIndex: 0 } : {})
             } as any}>
                 <AnimatedCircle size={400} color={currentColors.primary} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
                 <AnimatedCircle size={300} color={currentColors.secondary} delay={1000} duration={12000} initialX="70%" initialY="60%" />
