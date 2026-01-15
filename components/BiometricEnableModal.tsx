@@ -1,0 +1,7 @@
+
+import React from 'react';
+
+// This component is deprecated but kept for compatibility
+export default function BiometricEnableModal() {
+  return null;
+}

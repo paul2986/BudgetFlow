@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "BudgetFlow",
+    "slug": "BudgetFlow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/natively-dark.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/natively-dark.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.Natively",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "This app uses Face ID to securely unlock your budget data and protect your financial information.",
+        "NSCameraUsageDescription": "This app uses Face ID to securely unlock your budget data and protect your financial information."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/natively-dark.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.anonymous.Natively",
+      "permissions": [
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/images/final_quest_240x240.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "This app uses Face ID to securely unlock your budget data and protect your financial information."
+        }
+      ]
+    ],
+    "scheme": "budgetflow",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "shareApiUrl": "https://xstkicbptwjnkyyyhaci.supabase.co/functions/v1",
+      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzdGtpY2JwdHdqbmt5eXloYWNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwNzQ0MTksImV4cCI6MjA3MDY1MDQxOX0.FlSIPI2eUAIBVIRwP2pCB2StTaYKqONr5RNZ7Ku5dBA",
+      "shareTtlSec": 86400,
+      "authRedirect": "budgetflow://auth/callback"
+    }
+  },
+  "scheme": "BudgetFlow"
+}
