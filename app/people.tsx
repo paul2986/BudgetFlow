@@ -1,5 +1,6 @@
 
-import { Text, View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, Platform } from 'react-native';
+import { Alert } from '../utils/alert';
 import { router, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useThemedStyles } from '../hooks/useThemedStyles';

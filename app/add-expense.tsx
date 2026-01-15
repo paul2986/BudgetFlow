@@ -2,7 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { Text, View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal, Platform } from 'react-native';
+import { Alert } from '../utils/alert';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useCurrency } from '../hooks/useCurrency';

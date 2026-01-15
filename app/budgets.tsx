@@ -1,6 +1,7 @@
 
 import { useToast } from '../hooks/useToast';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal } from 'react-native';
+import { Alert } from '../utils/alert';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router, useFocusEffect } from 'expo-router';
 import { useBudgetLock } from '../hooks/useBudgetLock';
@@ -26,7 +27,7 @@ export default function BudgetsScreen() {
   const { themedStyles } = useThemedStyles();
   const { showToast } = useToast();
   const { isLocked } = useBudgetLock();
-  
+
   const [newBudgetName, setNewBudgetName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
@@ -35,7 +36,7 @@ export default function BudgetsScreen() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
   const [operationInProgress, setOperationInProgress] = useState(false);
-  const buttonRefs = useRef<{ [key: string]: TouchableOpacity | null }>({});
+  const buttonRefs = useRef<{ [key: string]: React.ElementRef<typeof TouchableOpacity> | null }>({});
 
   // Refresh data when screen comes into focus
   useFocusEffect(
@@ -174,7 +175,7 @@ export default function BudgetsScreen() {
   const handleDropdownPress = useCallback((budgetId: string) => {
     const buttonRef = buttonRefs.current[budgetId];
     if (buttonRef) {
-      buttonRef.measure((x, y, width, height, pageX, pageY) => {
+      buttonRef.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
         console.log('Button position:', { x, y, width, height, pageX, pageY });
         // Position dropdown to the left of the button and slightly below it
         setDropdownPosition({
@@ -192,7 +193,7 @@ export default function BudgetsScreen() {
 
   const DropdownMenu = ({ budget }: { budget: Budget }) => {
     const isActive = activeBudget?.id === budget.id;
-    
+
     return (
       <Modal
         visible={dropdownBudgetId === budget.id}
@@ -248,7 +249,7 @@ export default function BudgetsScreen() {
                 <Text style={[themedStyles.text, { marginLeft: 12, fontSize: 15 }]}>Set as Active</Text>
               </TouchableOpacity>
             )}
-            
+
             <TouchableOpacity
               style={{
                 flexDirection: 'row',
@@ -267,7 +268,7 @@ export default function BudgetsScreen() {
               <Icon name="create" size={18} color={currentColors.text} />
               <Text style={[themedStyles.text, { marginLeft: 12, fontSize: 15 }]}>Rename</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={{
                 flexDirection: 'row',
@@ -284,7 +285,7 @@ export default function BudgetsScreen() {
               <Icon name="copy" size={18} color={currentColors.text} />
               <Text style={[themedStyles.text, { marginLeft: 12, fontSize: 15 }]}>Duplicate</Text>
             </TouchableOpacity>
-            
+
             {budgets.length > 1 && (
               <TouchableOpacity
                 style={{
@@ -304,10 +305,10 @@ export default function BudgetsScreen() {
                 activeOpacity={0.7}
               >
                 <Icon name="trash" size={18} color={isActive ? currentColors.textSecondary : currentColors.error} />
-                <Text style={[themedStyles.text, { 
-                  marginLeft: 12, 
-                  fontSize: 15, 
-                  color: isActive ? currentColors.textSecondary : currentColors.error 
+                <Text style={[themedStyles.text, {
+                  marginLeft: 12,
+                  fontSize: 15,
+                  color: isActive ? currentColors.textSecondary : currentColors.error
                 }]}>
                   {isActive ? 'Cannot Delete Active' : 'Delete'}
                 </Text>
@@ -321,9 +322,9 @@ export default function BudgetsScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader 
-        title="Budgets" 
-        showLeftIcon={false} 
+      <StandardHeader
+        title="Budgets"
+        showLeftIcon={false}
         showRightIcon={true}
         rightIcon="add"
         onRightPress={() => setShowCreateModal(true)}
@@ -361,13 +362,13 @@ export default function BudgetsScreen() {
         {budgets.length > 0 && budgets.map((budget) => {
           const isActive = activeBudget?.id === budget.id;
           const isEditing = editingBudgetId === budget.id;
-          
+
           return (
-            <View 
-              key={budget.id} 
+            <View
+              key={budget.id}
               style={[
-                themedStyles.card, 
-                { 
+                themedStyles.card,
+                {
                   position: 'relative',
                   borderWidth: isActive ? 2 : 1,
                   borderColor: isActive ? currentColors.success : currentColors.border,
@@ -416,8 +417,8 @@ export default function BudgetsScreen() {
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
                         <Text style={[
                           themedStyles.text,
-                          { 
-                            fontWeight: isActive ? '700' : '600', 
+                          {
+                            fontWeight: isActive ? '700' : '600',
                             flex: 1,
                             fontSize: 18,
                             color: isActive ? currentColors.success : currentColors.text
@@ -449,7 +450,7 @@ export default function BudgetsScreen() {
                           </View>
                         )}
                       </View>
-                      
+
                       <View style={{ flexDirection: 'column', gap: 4 }}>
                         <View style={{ flexDirection: 'row', gap: 20 }}>
                           <Text style={[themedStyles.textSecondary, { fontSize: 14 }]}>
@@ -471,15 +472,15 @@ export default function BudgetsScreen() {
                     </TouchableOpacity>
                   )}
                 </View>
-                
+
                 {!isEditing && (
                   <TouchableOpacity
                     ref={(ref) => {
                       buttonRefs.current[budget.id] = ref;
                     }}
                     onPress={() => handleDropdownPress(budget.id)}
-                    style={{ 
-                      padding: 8, 
+                    style={{
+                      padding: 8,
                       marginLeft: 12,
                       borderRadius: 8,
                       backgroundColor: currentColors.background + '80'
@@ -491,7 +492,7 @@ export default function BudgetsScreen() {
                   </TouchableOpacity>
                 )}
               </View>
-              
+
               <DropdownMenu budget={budget} />
             </View>
           );
@@ -550,7 +551,7 @@ export default function BudgetsScreen() {
               <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600' }]}>
                 Budget Name:
               </Text>
-              
+
               <TextInput
                 style={themedStyles.input}
                 placeholder="Enter budget name"
@@ -560,7 +561,7 @@ export default function BudgetsScreen() {
                 editable={!isCreating}
                 autoFocus
               />
-              
+
               <View style={{ flexDirection: 'row', gap: 12, marginTop: 20 }}>
                 <View style={{ flex: 1 }}>
                   <Button

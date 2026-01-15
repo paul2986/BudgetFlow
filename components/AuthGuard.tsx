@@ -102,6 +102,9 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     const [authLoading, setAuthLoading] = useState(false);
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
 
+    // IMPORTANT: All hooks must be called before any conditional returns
+    const insets = useSafeAreaInsets();
+
     if (loading) {
         return (
             <View style={[themedStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -110,8 +113,6 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
             </View>
         );
     }
-
-    const insets = useSafeAreaInsets();
 
     if (user) {
         return (

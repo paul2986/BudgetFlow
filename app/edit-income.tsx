@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Text, View, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { Alert } from '../utils/alert';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useBudgetData } from '../hooks/useBudgetData';
