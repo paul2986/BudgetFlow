@@ -65,7 +65,9 @@ function CustomTabBar() {
           ? (isDarkMode ? 'rgba(26, 35, 50, 0.75)' : 'rgba(255, 255, 255, 0.85)')
           : currentColors.backgroundAlt,
         borderColor: currentColors.border,
-        paddingBottom: Math.max(insets.bottom, 12),
+        paddingBottom: Platform.OS === 'web'
+          ? 'max(env(safe-area-inset-bottom), 16px)' as any
+          : Math.max(insets.bottom, 12),
       }
     ]}>
       {tabs.map((tab) => {
@@ -109,7 +111,7 @@ function CustomTabBar() {
         <BlurView
           intensity={Platform.OS === 'web' ? 0 : 80}
           tint={isDarkMode ? 'dark' : 'light'}
-          style={Platform.OS === 'web' ? { backdropFilter: 'blur(20px)' } as any : {}}
+          style={Platform.OS === 'web' ? { backdropFilter: 'blur(20px)', width: '100%' } as any : { width: '100%' }}
         >
           {renderTabContent()}
         </BlurView>
