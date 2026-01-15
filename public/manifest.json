@@ -1,6 +1,6 @@
 {
-  "name": "Natively",
-  "short_name": "Natively",
+  "name": "Budget Flow",
+  "short_name": "Budget Flow",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +20,6 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#d6d6d6",
-  "background_color": "#242424"
+  "theme_color": "#2E7D32",
+  "background_color": "#F8F9FA"
 }

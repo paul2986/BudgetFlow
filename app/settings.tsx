@@ -1224,12 +1224,12 @@ export default function SettingsScreen() {
               </View>
               <View style={{ paddingTop: 20, borderTopWidth: 1, borderTopColor: currentColors.border }}>
                 <Text style={[themedStyles.text, { marginBottom: 12, lineHeight: 24 }]}>
-                  Offline-first budget tracking app
+                  Cloud-native budget tracking app
                 </Text>
                 <Text style={[themedStyles.textSecondary, { lineHeight: 22 }]}>
-                  • No accounts required{'\n'}
-                  • All data stored locally{'\n'}
-                  • Complete privacy{'\n'}
+                  • Secure cloud sync{'\n'}
+                  • Access on all your devices{'\n'}
+                  • Complete privacy & encryption{'\n'}
                   • Track household and personal expenses{'\n'}
                   • Manage multiple budgets
                 </Text>
@@ -1372,7 +1372,7 @@ export default function SettingsScreen() {
             }}>
               <Text style={[themedStyles.textSecondary, { fontSize: 12, textAlign: 'center', lineHeight: 18 }]}>
                 Budget Flow v1.0.0{'\n'}
-                Offline-first budget tracking
+                Secure Cloud Sync
               </Text>
             </View>
           </View>
@@ -1692,7 +1692,7 @@ export default function SettingsScreen() {
             <Text style={[themedStyles.subtitle, { flex: 1 }]}>Budget Flow</Text>
           </View>
           <Text style={themedStyles.textSecondary}>
-            Offline-first budget tracking app
+            Secure cloud-native budget tracking
           </Text>
         </View>
 
@@ -1899,8 +1899,7 @@ export default function SettingsScreen() {
         <View style={[themedStyles.card, { backgroundColor: currentColors.backgroundAlt }]}>
           <Text style={[themedStyles.textSecondary, { fontSize: 12, textAlign: 'center', lineHeight: 18 }]}>
             Budget Flow v1.0.0{'\n'}
-            Offline-first budget tracking{'\n'}
-            No accounts required
+            Secure Cloud Sync
           </Text>
         </View>
       </ScrollView>

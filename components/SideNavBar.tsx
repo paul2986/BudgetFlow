@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from './Icon';
 import { useMemo, useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
 
 // Helper Components
 const NavItem = ({
@@ -117,6 +118,7 @@ export default function SideNavBar() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [userHovered, setUserHovered] = useState(false);
+  const { signOut, user } = useAuth();
 
   const tabs = useMemo(() => [
     { route: '/', label: 'Overview', icon: 'home-outline', activeIcon: 'home' },
@@ -230,27 +232,28 @@ export default function SideNavBar() {
             transform: (Platform.OS === 'web' && userHovered) ? [{ translateX: 2 }] : [],
             transitionDuration: '0.2s',
           }}
-          onPress={() => router.push('/settings')}
+          onPress={async () => {
+            await signOut();
+            router.replace('/');
+          }}
         >
           <View style={{
             width: 40,
             height: 40,
             borderRadius: 20,
-            backgroundColor: currentColors.primary + '20',
+            backgroundColor: currentColors.error + '15',
             alignItems: 'center',
             justifyContent: 'center',
             marginRight: 12
           }}>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: currentColors.primary }}>
-              {activeBudget?.name?.substring(0, 1) || 'U'}
-            </Text>
+            <Icon name="log-out-outline" size={20} style={{ color: currentColors.error }} />
           </View>
           <View>
             <Text style={{ fontSize: 14, fontWeight: '700', color: currentColors.text }}>
-              Account Settings
+              Log Out
             </Text>
-            <Text style={{ fontSize: 12, color: currentColors.textSecondary }}>
-              Manage app preferences
+            <Text style={{ fontSize: 12, color: currentColors.textSecondary }} numberOfLines={1}>
+              {user?.email || 'Sign out of account'}
             </Text>
           </View>
         </Pressable>

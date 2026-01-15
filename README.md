@@ -1,5 +1,3 @@
-# BudgetFlow
+# Budget Flow
 
-This app was built using [Natively.dev](https://natively.dev) - a platform for creating mobile apps.
-
-Made with 💙 for creativity.
+A powerful, cloud-native personal finance and household budget tracking application. Securely manage your expenses, incomes, and budgets with real-time sync across all your devices.
