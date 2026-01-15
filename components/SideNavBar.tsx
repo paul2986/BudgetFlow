@@ -237,7 +237,7 @@ export default function SideNavBar() {
               const confirmed = (window as any).confirm('Are you sure you want to sign out?');
               if (confirmed) {
                 await signOut();
-                window.location.reload();
+                router.replace('/');
               }
             } else {
               // This component is mostly used on desktop web, but just in case
