@@ -62,7 +62,7 @@ function CustomTabBar() {
       isIOS ? themedStyles.iosTabBar : themedStyles.androidTabBar,
       {
         backgroundColor: isIOS
-          ? (isDarkMode ? 'rgba(26, 35, 50, 0.75)' : 'rgba(255, 255, 255, 0.85)')
+          ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
           : currentColors.backgroundAlt,
         borderColor: currentColors.border,
         paddingBottom: Platform.OS === 'web'
@@ -189,7 +189,7 @@ function RootLayoutContent() {
           height: 100%;
           width: 100%;
           overflow: hidden; 
-          background-color: ${currentColors.background};
+          background-color: ${safeZoneBackgroundColor};
         }
         #root {
           height: 100%;
@@ -230,7 +230,7 @@ function RootLayoutContent() {
       <Head>
         <title>Budget Flow</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-        <meta name="theme-color" content={currentColors.background} />
+        <meta name="theme-color" content={safeZoneBackgroundColor} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </Head>
@@ -248,7 +248,9 @@ function RootLayoutContent() {
         backgroundColor: currentColors.background,
         // Restore padding for PWA/Mobile Web safe areas
         paddingTop: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-top)' as any) : 0,
-        paddingBottom: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-bottom)' as any) : 0,
+        // Remove paddingBottom here as it pushes the absolute nav bar up. 
+        // Content padding is handled by ScrollView/ThemedStyles.
+        paddingBottom: 0,
       }}>
         <AuthGuard user={user} loading={authLoading}>
           <Tabs
