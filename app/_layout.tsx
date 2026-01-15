@@ -189,7 +189,7 @@ function RootLayoutContent() {
           height: 100%;
           width: 100%;
           overflow: hidden; 
-          background-color: ${currentColors.background};
+          background-color: transparent;
         }
         #root {
           height: 100%;
@@ -230,7 +230,7 @@ function RootLayoutContent() {
       <Head>
         <title>Budget Flow</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-        <meta name="theme-color" content={currentColors.background} />
+        <meta name="theme-color" content={isDarkMode ? '#0F1419' : '#F8F9FA'} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </Head>
