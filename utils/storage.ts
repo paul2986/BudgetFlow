@@ -58,8 +58,6 @@ const getDefaultLockSettings = (): BudgetLockSettings => ({
 });
 
 // v2 app data saving protection and in-memory cache
-let appSaveInProgress = false;
-const appSaveQueue: AppDataV2[] = [];
 let appDataCache: AppDataV2 | null = null;
 let appDataLoadingPromise: Promise<AppDataV2> | null = null;
 
@@ -447,22 +445,8 @@ export const loadAppData = async (): Promise<AppDataV2> => {
   return appDataLoadingPromise;
 };
 
-// Save AppDataV2 with queue
-const processAppSaveQueue = async (): Promise<void> => {
-  if (appSaveInProgress || appSaveQueue.length === 0) return;
-  appSaveInProgress = true;
-  try {
-    const latest = appSaveQueue[appSaveQueue.length - 1];
-    appSaveQueue.length = 0;
-    await performAppSave(latest);
-  } catch (e) {
-    console.error('storage: Error processing app save queue', e);
-    throw e;
-  } finally {
-    appSaveInProgress = false;
-    if (appSaveQueue.length > 0) setTimeout(() => processAppSaveQueue(), 0);
-  }
-};
+// Queue to prevent concurrent writes to AsyncStorage
+let savePromise: Promise<void> = Promise.resolve();
 
 const performAppSave = async (data: AppDataV2): Promise<void> => {
   const validated = validateAppData(data);
@@ -482,16 +466,25 @@ const performAppSave = async (data: AppDataV2): Promise<void> => {
 
 export const saveAppData = async (data: AppDataV2): Promise<{ success: boolean; error?: Error }> => {
   try {
-    // 1. Update in-memory cache IMMEDIATELY so subsequent loadAppData calls get the latest data
+    // 1. Update in-memory cache IMMEDIATELY
     appDataCache = JSON.parse(JSON.stringify(data));
     console.log('storage: AppDataV2 cache updated in-memory');
 
-    // 2. Queue the disk write
-    appSaveQueue.push(data);
+    // 2. Chain the save operation to ensure sequential writes
+    const currentSave = savePromise.then(async () => {
+      try {
+        await performAppSave(data);
+      } catch (e) {
+        console.error('storage: Background save error', e);
+        throw e;
+      }
+    });
 
-    // We don't await the disk write here to keep the UI snappy, 
-    // but the cache ensures consistency.
-    processAppSaveQueue().catch(e => console.error('storage: Background save error', e));
+    // Update the queue tail
+    savePromise = currentSave.catch(() => { });
+
+    // Await the save to ensure data is persisted before returning success
+    await currentSave;
 
     return { success: true };
   } catch (error) {

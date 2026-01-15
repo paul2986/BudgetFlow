@@ -1864,17 +1864,25 @@ export default function SettingsScreen() {
                 minHeight: 44,
               }}
               onPress={async () => {
-                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  {
-                    text: 'Sign Out',
-                    style: 'destructive',
-                    onPress: async () => {
-                      await supabase.auth.signOut();
-                      showToast('Signed out successfully', 'success');
+                if (Platform.OS === 'web') {
+                  const confirmed = (window as any).confirm('Are you sure you want to sign out?');
+                  if (confirmed) {
+                    await supabase.auth.signOut();
+                    showToast('Signed out successfully', 'success');
+                  }
+                } else {
+                  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Sign Out',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await supabase.auth.signOut();
+                        showToast('Signed out successfully', 'success');
+                      },
                     },
-                  },
-                ]);
+                  ]);
+                }
               }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
