@@ -6,7 +6,7 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { StatusBar } from 'expo-status-bar';
 import { Tabs, router, usePathname } from 'expo-router';
 import { setupErrorLogging } from '../utils/errorLogger';
-import { View, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+import { View, TouchableOpacity, useWindowDimensions, Platform, Text } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from '../components/Icon';
@@ -15,82 +15,107 @@ import SideNavBar from '../components/SideNavBar';
 import * as Linking from 'expo-linking';
 import { useAuth } from '../hooks/useAuth';
 import AuthGuard from '../components/AuthGuard';
+import { BlurView } from 'expo-blur';
+
+import Head from 'expo-router/head';
 
 function CustomTabBar() {
-  const { currentColors } = useTheme();
+  const { currentColors, isDarkMode } = useTheme();
   const { themedStyles } = useThemedStyles();
   const { appData, activeBudget } = useBudgetData();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
 
   const navigateToTab = useCallback((route: string) => {
     router.replace(route as any);
   }, []);
 
   const tabs = useMemo(() => [
-    { route: '/', icon: 'home-outline', activeIcon: 'home' },
-    { route: '/people', icon: 'people-outline', activeIcon: 'people' },
-    { route: '/expenses', icon: 'receipt-outline', activeIcon: 'receipt' },
-    { route: '/tools', icon: 'calculator-outline', activeIcon: 'calculator' },
-    { route: '/settings', icon: 'settings-outline', activeIcon: 'settings' },
+    { route: '/', icon: 'home-outline', activeIcon: 'home', label: 'Home' },
+    { route: '/people', icon: 'people-outline', activeIcon: 'people', label: 'People' },
+    { route: '/expenses', icon: 'receipt-outline', activeIcon: 'receipt', label: 'Expenses' },
+    { route: '/tools', icon: 'calculator-outline', activeIcon: 'calculator', label: 'Tools' },
+    { route: '/settings', icon: 'settings-outline', activeIcon: 'settings', label: 'Settings' },
   ], []);
 
-  const shouldHideTabBar = useMemo(() => {
-    // Always show tab bar on these paths, regardless of budget state
-    const alwaysShowPaths = ['/expenses', '/people', '/add-expense', '/settings', '/tools', '/budgets'];
-    if (alwaysShowPaths.includes(pathname)) {
-      return false;
+  const isIOS = useMemo(() => {
+    if (Platform.OS === 'ios') return true;
+    if (Platform.OS === 'web') {
+      return /iPhone|iPad|iPod/.test(navigator.userAgent);
     }
+    return false;
+  }, []);
 
-    const hasNoBudgets = !appData?.budgets?.length;
-    const hasNoActiveBudget = !activeBudget;
-
-    return hasNoBudgets || hasNoActiveBudget;
+  const shouldHideTabBar = useMemo(() => {
+    const alwaysShowPaths = ['/expenses', '/people', '/settings', '/tools', '/budgets'];
+    if (alwaysShowPaths.includes(pathname)) return false;
+    if (pathname === '/') {
+      return !appData?.budgets?.length || !activeBudget;
+    }
+    return true; // Hide on subpages like add-expense
   }, [appData, activeBudget, pathname]);
 
-  if (shouldHideTabBar) {
-    return null;
-  }
+  if (shouldHideTabBar) return null;
+
+  const renderTabContent = () => (
+    <View style={[
+      isIOS ? themedStyles.iosTabBar : themedStyles.androidTabBar,
+      {
+        backgroundColor: isIOS
+          ? (isDarkMode ? 'rgba(26, 35, 50, 0.75)' : 'rgba(255, 255, 255, 0.85)')
+          : currentColors.backgroundAlt,
+        borderColor: currentColors.border,
+        paddingBottom: Math.max(insets.bottom, 12),
+      }
+    ]}>
+      {tabs.map((tab) => {
+        const isActive = pathname === tab.route;
+        const iconColor = isActive ? currentColors.primary : currentColors.textSecondary;
+
+        return (
+          <TouchableOpacity
+            key={tab.route}
+            style={[
+              themedStyles.nativeTabItem,
+              isActive && !isIOS && { backgroundColor: `${currentColors.primary}10` },
+            ]}
+            onPress={() => navigateToTab(tab.route)}
+            activeOpacity={0.7}
+          >
+            <Icon
+              name={isActive ? (tab.activeIcon as any) : (tab.icon as any)}
+              size={isIOS ? 26 : 24}
+              style={{ color: iconColor }}
+            />
+            {!isIOS && (
+              <Text style={{
+                fontSize: 11,
+                marginTop: 4,
+                color: iconColor,
+                fontWeight: isActive ? '700' : '500'
+              }}>
+                {tab.label}
+              </Text>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
 
   return (
-    <View
-      style={[
-        themedStyles.floatingTabContainer,
-        { paddingBottom: Platform.OS === 'web' ? 20 : 0 }, // Web handles its own spacing, native uses insets
-      ]}
-    >
-      <View
-        style={[
-          themedStyles.floatingTabBar,
-          {
-            backgroundColor: currentColors.backgroundAlt,
-            borderColor: currentColors.border,
-            shadowColor: '#000',
-          },
-        ]}
-      >
-        {tabs.map((tab) => {
-          const isActive = pathname === tab.route;
-          const iconColor = isActive ? currentColors.primary : currentColors.text;
-
-          return (
-            <TouchableOpacity
-              key={tab.route}
-              style={[
-                themedStyles.floatingTabItem,
-                isActive && { backgroundColor: `${currentColors.primary}15` },
-              ]}
-              onPress={() => navigateToTab(tab.route)}
-              activeOpacity={0.7}
-            >
-              <Icon
-                name={isActive ? (tab.activeIcon as any) : (tab.icon as any)}
-                size={26}
-                style={{ color: iconColor }}
-              />
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+    <View style={themedStyles.nativeTabContainer}>
+      {isIOS ? (
+        <BlurView
+          intensity={Platform.OS === 'web' ? 0 : 80}
+          tint={isDarkMode ? 'dark' : 'light'}
+          style={Platform.OS === 'web' ? { backdropFilter: 'blur(20px)' } as any : {}}
+        >
+          {renderTabContent()}
+        </BlurView>
+      ) : (
+        renderTabContent()
+      )}
     </View>
   );
 }
@@ -137,9 +162,6 @@ function RootLayoutContent() {
     return 'normal';
   }, [isInitialLoad, loading, pathname, appData, activeBudget, data]);
 
-  // Manual deep link handling removed to prevent conflicts with Expo Router
-  // Expo Router handles deep links automatically based on file structure
-
   const safeZoneBackgroundColor = useMemo(() => {
     switch (pageState) {
       case 'loading':
@@ -153,17 +175,64 @@ function RootLayoutContent() {
     }
   }, [pageState, currentColors]);
 
+  // Inject global styles to fix Safari scroll and background issues
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const style = document.createElement('style');
+      style.id = 'safari-fix-styles';
+      style.textContent = `
+        html, body { 
+          background-color: ${safeZoneBackgroundColor} !important;
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          width: 100%;
+          overflow: hidden; /* Prevent double scrollbars, let root View handle it if needed, or set to auto if using natural scroll */
+        }
+        #root {
+          height: 100%;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          background-color: ${currentColors.background};
+        }
+        /* Mobile Safari specific overrides */
+        @supports (-webkit-touch-callout: none) {
+          html, body {
+            height: -webkit-fill-available;
+          }
+          #root {
+            height: -webkit-fill-available;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+      return () => {
+        const existing = document.getElementById('safari-fix-styles');
+        if (existing) existing.remove();
+      };
+    }
+  }, [safeZoneBackgroundColor, currentColors.background]);
+
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
 
   return (
     <View style={{
       flex: 1,
-      backgroundColor: currentColors.background, // Use main background as base
+      backgroundColor: safeZoneBackgroundColor, // Use header color for root background to blend with status bar
       flexDirection: isDesktop ? 'row' : 'column',
-      paddingTop: !isDesktop ? insets.top : 0, // Handle status bar safe area
-      paddingBottom: !isDesktop ? insets.bottom : 0, // Handle home indicator safe area
+      paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
+      paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
     }}>
+      <Head>
+        <title>Budget Flow</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+        <meta name="theme-color" content={safeZoneBackgroundColor} />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </Head>
+
       <StatusBar
         style={isDarkMode ? 'light' : 'dark'}
         backgroundColor="transparent"
@@ -172,7 +241,12 @@ function RootLayoutContent() {
 
       {isDesktop && user && <SideNavBar />}
 
-      <View style={{ flex: 1, backgroundColor: currentColors.background }}>
+      <View style={{
+        flex: 1,
+        backgroundColor: currentColors.background,
+        paddingTop: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-top)' as any) : 0,
+        paddingBottom: 0, // Content will fall behind the address bar/tab bar
+      }}>
         <AuthGuard user={user} loading={authLoading}>
           <Tabs
             screenOptions={{

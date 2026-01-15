@@ -74,14 +74,17 @@ export const useBudgetData = () => {
   // Stable refresh function that doesn't depend on other state
   // Stable refresh function that avoids overwriting local state if Supabase has less data
   const refreshFromStorage = useCallback(async () => {
+    // DO NOT refresh if we are currently saving or if the queue is running
+    // This prevents overwriting the user's just-saved data with stale data from Supabase/Disk
+    if (saving || isQueueRunning.current) {
+      console.log('useBudgetData: Save in progress, skipping refresh');
+      return;
+    }
+
     console.log('useBudgetData: refreshFromStorage called');
     try {
       // 1. Load local data first to have a baseline
-      const localApp = await safeAsync(
-        () => loadAppData(),
-        { version: 2, budgets: [], activeBudgetId: '' },
-        'loadAppData'
-      );
+      const localApp = await loadAppData();
 
       // 2. If logged in, fetch from Supabase
       if (user) {
@@ -94,15 +97,16 @@ export const useBudgetData = () => {
 
         if (!error && supabaseData?.app_data) {
           const remoteData = supabaseData.app_data as AppDataV2;
-
-          // Simple conflict resolution: use remote if it has more budgets or is newer
-          // In a real app we'd use timestamps, but here we prioritize the cloud
           console.log('useBudgetData: Cloud data found, adopting it');
 
           setAppData(remoteData);
           const active = getActiveBudget(remoteData);
           if (active) {
-            setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
+            setData({
+              people: active.people || [],
+              expenses: active.expenses || [],
+              householdSettings: active.householdSettings || { distributionMethod: 'even' }
+            });
           }
           await saveAppData(remoteData);
           return;
@@ -112,7 +116,8 @@ export const useBudgetData = () => {
             console.log('useBudgetData: No cloud data, pushing local state to cloud');
             await supabase.from('user_data').upsert({
               user_id: user.id,
-              app_data: localApp
+              app_data: localApp,
+              updated_at: new Date().toISOString()
             });
           }
         }
@@ -122,14 +127,18 @@ export const useBudgetData = () => {
       setAppData(localApp);
       const active = getActiveBudget(localApp);
       if (active) {
-        setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
+        setData({
+          people: active.people || [],
+          expenses: active.expenses || [],
+          householdSettings: active.householdSettings || { distributionMethod: 'even' }
+        });
       } else {
         setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
       }
     } catch (error) {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
     }
-  }, [user]);
+  }, [user, saving]);
 
   // Function to get the most current data - ALWAYS load from AsyncStorage for operations
   const getCurrentData = useCallback(async (): Promise<BudgetSlice> => {
@@ -371,23 +380,26 @@ export const useBudgetData = () => {
     [user, refreshFromStorage]
   );
 
-  // Helper to sync any AppData mutation to Supabase
   const syncFullAppData = useCallback(async (updatedAppData: AppDataV2) => {
-    // 1. Save locally
+    // 1. Immediately update React state for UI responsiveness
+    setAppData(updatedAppData);
+    const active = getActiveBudget(updatedAppData);
+    if (active) {
+      setData({
+        people: active.people || [],
+        expenses: active.expenses || [],
+        householdSettings: active.householdSettings || { distributionMethod: 'even' }
+      });
+    }
+
+    // 2. Persist to storage
     const localRes = await saveAppData(updatedAppData);
     if (!localRes.success) {
       console.error('useBudgetData: Local save failed during sync');
       return localRes;
     }
 
-    // 2. Update memory state
-    setAppData(updatedAppData);
-    const active = getActiveBudget(updatedAppData);
-    if (active) {
-      setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
-    }
-
-    // 3. Sync to Supabase
+    // 3. Sync to Supabase if logged in
     if (user) {
       setIsSyncing(true);
       try {
@@ -411,67 +423,65 @@ export const useBudgetData = () => {
     return { success: true };
   }, [user]);
 
-  // Budget management APIs with Supabase sync
   const addBudget = useCallback(
-    async (name: string) => {
+    async (name: string) => queueSave(async () => {
       console.log('useBudgetData: addBudget called');
       const res = await safeAsyncResult(() => storageAddBudget(name), 'storageAddBudget');
       if (res.success) {
-        // After storage update, we must get the new state and sync it
         const updated = await loadAppData();
         await syncFullAppData(updated);
       }
       return res;
-    },
-    [syncFullAppData]
+    }),
+    [queueSave, syncFullAppData]
   );
 
   const renameBudget = useCallback(
-    async (budgetId: string, newName: string) => {
+    async (budgetId: string, newName: string) => queueSave(async () => {
       const res = await safeAsyncResult(() => storageRenameBudget(budgetId, newName), 'storageRenameBudget');
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
       }
       return res;
-    },
-    [syncFullAppData]
+    }),
+    [queueSave, syncFullAppData]
   );
 
   const deleteBudget = useCallback(
-    async (budgetId: string) => {
+    async (budgetId: string) => queueSave(async () => {
       const res = await safeAsyncResult(() => storageDeleteBudget(budgetId), 'storageDeleteBudget');
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
       }
       return res;
-    },
-    [syncFullAppData]
+    }),
+    [queueSave, syncFullAppData]
   );
 
   const duplicateBudget = useCallback(
-    async (budgetId: string, customName?: string) => {
+    async (budgetId: string, customName?: string) => queueSave(async () => {
       const res = await safeAsyncResult(() => storageDuplicateBudget(budgetId, customName), 'storageDuplicateBudget');
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
       }
       return res;
-    },
-    [syncFullAppData]
+    }),
+    [queueSave, syncFullAppData]
   );
 
   const setActiveBudget = useCallback(
-    async (budgetId: string) => {
+    async (budgetId: string) => queueSave(async () => {
       const res = await safeAsyncResult(() => storageSetActiveBudget(budgetId), 'storageSetActiveBudget');
       if (res.success) {
         const updated = await loadAppData();
         await syncFullAppData(updated);
       }
       return res;
-    },
-    [syncFullAppData]
+    }),
+    [queueSave, syncFullAppData]
   );
 
   const addPerson = useCallback(

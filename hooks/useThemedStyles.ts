@@ -168,7 +168,43 @@ export const useThemedStyles = () => {
       marginTop: 16,
       lineHeight: 24,
     },
-    // iOS 26 Style Floating Tab Bar
+    // Native Style Tab Bars
+    nativeTabContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      zIndex: 1000,
+      backgroundColor: 'transparent',
+    },
+    iosTabBar: {
+      flexDirection: 'row',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingTop: 8,
+      paddingHorizontal: 12,
+      minHeight: 60,
+    },
+    androidTabBar: {
+      flexDirection: 'row',
+      borderTopWidth: 1,
+      elevation: 12,
+      paddingTop: 6,
+      paddingHorizontal: 8,
+      minHeight: 68,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+    },
+    nativeTabItem: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 16,
+      marginHorizontal: 4,
+    },
+    // iOS 26 Style Floating Tab Bar (kept as fallback or for specific views)
     floatingTabContainer: {
       position: 'absolute',
       bottom: 0,
@@ -204,33 +240,6 @@ export const useThemedStyles = () => {
       borderRadius: 20,
       marginHorizontal: 2,
       minHeight: 48,
-    },
-    // Legacy tab bar styles (kept for compatibility)
-    tabBar: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      paddingHorizontal: 16,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      elevation: 8,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    tabItem: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 8,
-    },
-    tabLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      textAlign: 'center',
     },
   }), [currentColors, isPad]);
 
