@@ -764,9 +764,7 @@ export default function SettingsScreen() {
             <View style={{ marginBottom: 24 }}>
               <Text style={[themedStyles.title, { textAlign: 'left', marginBottom: 8 }]}>Cloud Sync</Text>
               <Text style={[themedStyles.textSecondary]}>
-                {user
-                  ? 'Your data is being automatically synced to Supabase.'
-                  : 'Create an account to backup your data and access it from any device.'}
+                Your data is automatically synced to the cloud for access on all your devices.
               </Text>
             </View>
 
@@ -871,9 +869,9 @@ export default function SettingsScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                 <Icon name="cloud-done-outline" size={24} style={{ color: currentColors.info, marginRight: 12, marginTop: 2 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[themedStyles.text, { fontWeight: '700', marginBottom: 4, color: currentColors.info }]}>Offline-First Cloud Sync</Text>
+                  <Text style={[themedStyles.text, { fontWeight: '700', marginBottom: 4, color: currentColors.info }]}>Cloud-Native Budgeting</Text>
                   <Text style={[themedStyles.textSecondary, { fontSize: 13, lineHeight: 18 }]}>
-                    All your budget data is stored locally first, so it works even without internet. When you're online, it automatically syncs to your private cloud storage.
+                    All your budget data is securely stored in your private cloud account. Changes sync instantly across all your devices when you're online.
                   </Text>
                 </View>
               </View>

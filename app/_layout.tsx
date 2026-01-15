@@ -13,6 +13,8 @@ import Icon from '../components/Icon';
 import ToastContainer from '../components/ToastContainer';
 import SideNavBar from '../components/SideNavBar';
 import * as Linking from 'expo-linking';
+import { useAuth } from '../hooks/useAuth';
+import AuthGuard from '../components/AuthGuard';
 
 function CustomTabBar() {
   const { currentColors } = useTheme();
@@ -97,8 +99,11 @@ function RootLayoutContent() {
   const { currentColors, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const { toasts, hideToast } = useToast();
-  const { appData, activeBudget, data, loading } = useBudgetData();
+  const { user, loading: authLoading } = useAuth();
+  const { appData, activeBudget, data, loading: budgetLoading } = useBudgetData();
   const pathname = usePathname();
+
+  const loading = authLoading || (user && budgetLoading);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -164,33 +169,35 @@ function RootLayoutContent() {
       {isDesktop && <SideNavBar />}
 
       <View style={{ flex: 1, backgroundColor: currentColors.background }}>
-        <Tabs
-          screenOptions={{
-            headerShown: false,
-            tabBarStyle: { display: 'none' },
-          }}
-          tabBar={() => isDesktop ? null : <CustomTabBar />}
-        >
-          <Tabs.Screen name="index" />
-          <Tabs.Screen name="people" />
-          <Tabs.Screen name="expenses" />
-          <Tabs.Screen name="settings" />
-          <Tabs.Screen name="add-expense" options={{ href: null }} />
-          <Tabs.Screen name="edit-person" options={{ href: null }} />
-          <Tabs.Screen name="edit-income" options={{ href: null }} />
-          <Tabs.Screen name="budgets" options={{ href: null }} />
-          <Tabs.Screen name="tools" />
-          <Tabs.Screen name="import-link" options={{ href: null }} />
-          <Tabs.Screen name="import-budget" options={{ href: null }} />
-          <Tabs.Screen name="budget-lock" options={{ href: null }} />
-          <Tabs.Screen name="manage-categories" options={{ href: null }} />
-          <Tabs.Screen name="auth/index" options={{ href: null }} />
-          <Tabs.Screen name="auth/callback" options={{ href: null }} />
-          <Tabs.Screen name="auth/debug" options={{ href: null }} />
-          <Tabs.Screen name="auth/email" options={{ href: null }} />
-          <Tabs.Screen name="auth/lock" options={{ href: null }} />
-          <Tabs.Screen name="auth/verify" options={{ href: null }} />
-        </Tabs>
+        <AuthGuard user={user} loading={authLoading}>
+          <Tabs
+            screenOptions={{
+              headerShown: false,
+              tabBarStyle: { display: 'none' },
+            }}
+            tabBar={() => isDesktop ? null : <CustomTabBar />}
+          >
+            <Tabs.Screen name="index" />
+            <Tabs.Screen name="people" />
+            <Tabs.Screen name="expenses" />
+            <Tabs.Screen name="settings" />
+            <Tabs.Screen name="add-expense" options={{ href: null }} />
+            <Tabs.Screen name="edit-person" options={{ href: null }} />
+            <Tabs.Screen name="edit-income" options={{ href: null }} />
+            <Tabs.Screen name="budgets" options={{ href: null }} />
+            <Tabs.Screen name="tools" />
+            <Tabs.Screen name="import-link" options={{ href: null }} />
+            <Tabs.Screen name="import-budget" options={{ href: null }} />
+            <Tabs.Screen name="budget-lock" options={{ href: null }} />
+            <Tabs.Screen name="manage-categories" options={{ href: null }} />
+            <Tabs.Screen name="auth/index" options={{ href: null }} />
+            <Tabs.Screen name="auth/callback" options={{ href: null }} />
+            <Tabs.Screen name="auth/debug" options={{ href: null }} />
+            <Tabs.Screen name="auth/email" options={{ href: null }} />
+            <Tabs.Screen name="auth/lock" options={{ href: null }} />
+            <Tabs.Screen name="auth/verify" options={{ href: null }} />
+          </Tabs>
+        </AuthGuard>
 
         <ToastContainer toasts={toasts} onHideToast={hideToast} />
       </View>

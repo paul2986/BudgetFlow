@@ -75,30 +75,44 @@ export const useBudgetData = () => {
   const refreshFromStorage = useCallback(async () => {
     console.log('useBudgetData: refreshFromStorage called');
     try {
+      // 1. Try to load from Supabase first if user exists
+      if (user) {
+        console.log('useBudgetData: User present, fetching from Supabase...');
+        const { data: supabaseData, error } = await supabase
+          .from('user_data')
+          .select('app_data')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!error && supabaseData?.app_data) {
+          const remoteData = supabaseData.app_data as AppDataV2;
+          console.log('useBudgetData: Data found on Supabase');
+
+          setAppData(remoteData);
+          const active = getActiveBudget(remoteData);
+          if (active) {
+            setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
+          }
+          // Also persist to local storage for quick access next time
+          await saveAppData(remoteData);
+          return;
+        } else if (error && error.code !== 'PGRST116') {
+          console.error('useBudgetData: Supabase fetch error:', error);
+        }
+      }
+
+      // 2. Fallback to local storage (or if no user)
       const loadedApp = await safeAsync(
         () => loadAppData(),
         { version: 2, budgets: [], activeBudgetId: '' },
         'loadAppData'
       );
 
-      console.log('useBudgetData: loaded app data:', {
-        budgetsCount: loadedApp.budgets?.length || 0,
-        activeBudgetId: loadedApp.activeBudgetId,
-        budgetNames: loadedApp.budgets?.map(b => b.name) || []
-      });
-
       setAppData(loadedApp);
       const active = getActiveBudget(loadedApp);
       if (active) {
-        console.log('useBudgetData: active budget:', {
-          id: active.id,
-          name: active.name,
-          peopleCount: active.people?.length || 0,
-          expensesCount: active.expenses?.length || 0
-        });
         setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
       } else {
-        console.log('useBudgetData: no active budget found - first-time user state');
         setData({
           people: [],
           expenses: [],
@@ -107,7 +121,6 @@ export const useBudgetData = () => {
       }
     } catch (error) {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
-      // Set safe fallback state
       setAppData({ version: 2, budgets: [], activeBudgetId: '' });
       setData({
         people: [],
@@ -115,7 +128,7 @@ export const useBudgetData = () => {
         householdSettings: { distributionMethod: 'even' },
       });
     }
-  }, []);
+  }, [user]);
 
   // Function to get the most current data - ALWAYS load from AsyncStorage for operations
   const getCurrentData = useCallback(async (): Promise<BudgetSlice> => {
@@ -206,53 +219,11 @@ export const useBudgetData = () => {
     }
   }, [refreshFromStorage]);
 
-  // Supabase sync effect
+  // Supabase sync effect - simplified to just trigger on user change
   useEffect(() => {
-    const syncWithSupabase = async () => {
-      if (!user) return;
-
-      console.log('useBudgetData: Syncing with Supabase for user:', user.id);
-      setIsSyncing(true);
-
-      try {
-        const { data: supabaseData, error } = await supabase
-          .from('user_data')
-          .select('app_data')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error && error.code !== 'PGRST116') {
-          console.error('useBudgetData: Supabase fetch error:', error);
-          return;
-        }
-
-        if (supabaseData?.app_data) {
-          console.log('useBudgetData: Data found on Supabase, comparing with local...');
-          const remoteData = supabaseData.app_data as AppDataV2;
-
-          // Simple conflict resolution: Remote wins for now if it exists
-          // In a more complex app, we'd check timestamps
-          await saveAppData(remoteData);
-          await refreshFromStorage();
-          setRefreshTrigger(prev => prev + 1);
-        } else {
-          console.log('useBudgetData: No data on Supabase, pushing local data...');
-          const currentLocal = await loadAppData();
-          if (currentLocal.budgets.length > 0) {
-            await supabase.from('user_data').upsert({
-              user_id: user.id,
-              app_data: currentLocal
-            });
-          }
-        }
-      } catch (err) {
-        console.error('useBudgetData: Sync failed:', err);
-      } finally {
-        setIsSyncing(false);
-      }
-    };
-
-    syncWithSupabase();
+    if (user) {
+      refreshFromStorage();
+    }
   }, [user, refreshFromStorage]);
 
   // Load data only once on mount
@@ -379,13 +350,20 @@ export const useBudgetData = () => {
           // Push to Supabase if user is logged in
           if (user) {
             console.log('useBudgetData: Pushing update to Supabase...');
-            supabase.from('user_data').upsert({
-              user_id: user.id,
-              app_data: fullAppData
-            }).then(({ error }) => {
-              if (error) console.error('useBudgetData: Supabase push error:', error);
-              else console.log('useBudgetData: Supabase sync successful');
-            });
+            setIsSyncing(true);
+            try {
+              const { error } = await supabase.from('user_data').upsert({
+                user_id: user.id,
+                app_data: fullAppData
+              });
+              if (error) throw error;
+              console.log('useBudgetData: Supabase sync successful');
+            } catch (error) {
+              console.error('useBudgetData: Supabase push error:', error);
+              // In purely online mode, we might want to alert the user or retry
+            } finally {
+              setIsSyncing(false);
+            }
           }
 
           return { success: true };
