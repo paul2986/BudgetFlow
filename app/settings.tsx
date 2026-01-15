@@ -807,7 +807,6 @@ export default function SettingsScreen() {
                       const confirmed = (window as any).confirm('Are you sure you want to sign out?');
                       if (confirmed) {
                         await supabase.auth.signOut();
-                        router.replace('/');
                       }
                     } else {
                       Alert.alert('Sign Out', 'Are you sure you want to sign out?', [

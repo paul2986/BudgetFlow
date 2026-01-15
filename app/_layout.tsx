@@ -107,11 +107,11 @@ function CustomTabBar() {
 
   return (
     <View style={themedStyles.nativeTabContainer}>
-      {isIOS ? (
+      {(isIOS && Platform.OS !== 'web') ? (
         <BlurView
-          intensity={Platform.OS === 'web' ? 0 : 80}
+          intensity={80}
           tint={isDarkMode ? 'dark' : 'light'}
-          style={Platform.OS === 'web' ? { backdropFilter: 'blur(20px)', width: '100%' } as any : { width: '100%' }}
+          style={{ width: '100%' }}
         >
           {renderTabContent()}
         </BlurView>
@@ -184,19 +184,18 @@ function RootLayoutContent() {
       style.id = 'safari-fix-styles';
       style.textContent = `
         html, body { 
-          background-color: ${safeZoneBackgroundColor} !important;
           margin: 0;
           padding: 0;
           height: 100%;
           width: 100%;
-          overflow: hidden; /* Prevent double scrollbars, let root View handle it if needed, or set to auto if using natural scroll */
+          overflow: hidden; 
+          background-color: ${currentColors.background};
         }
         #root {
           height: 100%;
           width: 100%;
           display: flex;
           flex-direction: column;
-          background-color: ${currentColors.background};
         }
         /* Mobile Safari specific overrides */
         @supports (-webkit-touch-callout: none) {
@@ -214,7 +213,7 @@ function RootLayoutContent() {
         if (existing) existing.remove();
       };
     }
-  }, [safeZoneBackgroundColor, currentColors.background]);
+  }, [currentColors.background]);
 
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -222,7 +221,8 @@ function RootLayoutContent() {
   return (
     <View style={{
       flex: 1,
-      backgroundColor: safeZoneBackgroundColor, // Use header color for root background to blend with status bar
+      height: '100%',
+      backgroundColor: currentColors.background,
       flexDirection: isDesktop ? 'row' : 'column',
       paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
@@ -230,7 +230,7 @@ function RootLayoutContent() {
       <Head>
         <title>Budget Flow</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-        <meta name="theme-color" content={safeZoneBackgroundColor} />
+        <meta name="theme-color" content={currentColors.background} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </Head>
@@ -246,8 +246,9 @@ function RootLayoutContent() {
       <View style={{
         flex: 1,
         backgroundColor: currentColors.background,
-        paddingTop: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-top)' as any) : 0,
-        paddingBottom: 0, // Content will fall behind the address bar/tab bar
+        // Remove padding top for web to fix double spacing/color mismatch
+        paddingTop: 0,
+        paddingBottom: 0,
       }}>
         <AuthGuard user={user} loading={authLoading}>
           <Tabs

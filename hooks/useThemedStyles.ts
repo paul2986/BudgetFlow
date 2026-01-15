@@ -183,6 +183,8 @@ export const useThemedStyles = () => {
       paddingTop: 8,
       paddingHorizontal: 12,
       minHeight: 60,
+      // @ts-ignore
+      backdropFilter: Platform.OS === 'web' ? 'blur(20px)' : undefined,
     },
     androidTabBar: {
       flexDirection: 'row',

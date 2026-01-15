@@ -140,7 +140,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
+        <View style={{ height: '100%', width: '100%', backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
             {/* Animated Background Layers */}
             <View style={{ position: 'absolute', width: '100%', height: '100%' }}>
                 <AnimatedCircle size={400} color={currentColors.primary} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
