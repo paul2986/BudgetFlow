@@ -807,7 +807,8 @@ export default function SettingsScreen() {
                       const confirmed = (window as any).confirm('Are you sure you want to sign out?');
                       if (confirmed) {
                         await supabase.auth.signOut();
-                        showToast('Signed out successfully', 'success');
+                        // Force reload to clear state and ensure UI updates
+                        window.location.reload();
                       }
                     } else {
                       Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
