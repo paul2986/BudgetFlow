@@ -189,7 +189,7 @@ function RootLayoutContent() {
           height: 100%;
           width: 100%;
           overflow: hidden; 
-          background-color: transparent;
+          background-color: ${currentColors.background};
         }
         #root {
           height: 100%;
@@ -230,7 +230,7 @@ function RootLayoutContent() {
       <Head>
         <title>Budget Flow</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-        <meta name="theme-color" content={isDarkMode ? '#0F1419' : '#F8F9FA'} />
+        <meta name="theme-color" content={currentColors.background} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </Head>
@@ -246,9 +246,9 @@ function RootLayoutContent() {
       <View style={{
         flex: 1,
         backgroundColor: currentColors.background,
-        // Remove padding top for web to fix double spacing/color mismatch
-        paddingTop: 0,
-        paddingBottom: 0,
+        // Restore padding for PWA/Mobile Web safe areas
+        paddingTop: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-top)' as any) : 0,
+        paddingBottom: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-bottom)' as any) : 0,
       }}>
         <AuthGuard user={user} loading={authLoading}>
           <Tabs
