@@ -233,8 +233,15 @@ export default function SideNavBar() {
             transitionDuration: '0.2s',
           }}
           onPress={async () => {
-            await signOut();
-            router.replace('/');
+            if (Platform.OS === 'web') {
+              const confirmed = (window as any).confirm('Are you sure you want to sign out?');
+              if (confirmed) {
+                await signOut();
+              }
+            } else {
+              // This component is mostly used on desktop web, but just in case
+              await signOut();
+            }
           }}
         >
           <View style={{

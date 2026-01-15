@@ -135,11 +135,14 @@ export const useBudgetData = () => {
           } else {
             console.log('useBudgetData: Local data is newer, pushing to cloud...');
             // We can push asynchronously to not block UI
-            const { error: pushError } = await supabase.from('user_data').upsert({
-              user_id: user.id,
-              app_data: localApp,
-              updated_at: new Date().toISOString()
-            });
+            const { error: pushError } = await supabase.from('user_data').upsert(
+              {
+                user_id: user.id,
+                app_data: localApp,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id' }
+            );
             if (pushError) console.error('useBudgetData: Failed to push newer local state to cloud:', pushError);
             else console.log('useBudgetData: Successfully pushed newer local state to cloud');
 
@@ -159,11 +162,14 @@ export const useBudgetData = () => {
           // No cloud data yet, push local if it exists and has real data
           if (localApp.budgets.length > 0) {
             console.log('useBudgetData: No cloud data, pushing local state to cloud');
-            await supabase.from('user_data').upsert({
-              user_id: user.id,
-              app_data: localApp,
-              updated_at: new Date().toISOString()
-            });
+            await supabase.from('user_data').upsert(
+              {
+                user_id: user.id,
+                app_data: localApp,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id' }
+            );
           }
         }
       }
@@ -397,11 +403,14 @@ export const useBudgetData = () => {
             console.log('useBudgetData: Syncing mutation to Supabase...');
             setIsSyncing(true);
             try {
-              const { error } = await supabase.from('user_data').upsert({
-                user_id: user.id,
-                app_data: updatedAppData,
-                updated_at: new Date().toISOString()
-              });
+              const { error } = await supabase.from('user_data').upsert(
+                {
+                  user_id: user.id,
+                  app_data: updatedAppData,
+                  updated_at: new Date().toISOString()
+                },
+                { onConflict: 'user_id' }
+              );
               if (error) throw error;
               console.log('useBudgetData: Supabase mutation sync successful');
             } catch (error) {
@@ -450,11 +459,14 @@ export const useBudgetData = () => {
       setIsSyncing(true);
       try {
         console.log('useBudgetData: Pushing full app data update to Supabase...');
-        const { error } = await supabase.from('user_data').upsert({
-          user_id: user.id,
-          app_data: updatedAppData,
-          updated_at: new Date().toISOString()
-        });
+        const { error } = await supabase.from('user_data').upsert(
+          {
+            user_id: user.id,
+            app_data: updatedAppData,
+            updated_at: new Date().toISOString()
+          },
+          { onConflict: 'user_id' }
+        );
         if (error) throw error;
         console.log('useBudgetData: Full app data Supabase sync successful');
       } catch (error) {
