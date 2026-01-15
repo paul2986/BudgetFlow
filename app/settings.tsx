@@ -6,13 +6,13 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  Alert,
   TextInput,
   Modal,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator
 } from 'react-native';
+import { Alert } from '../utils/alert';
 import { router } from 'expo-router';
 import Icon from '../components/Icon';
 import { useCurrency, CURRENCIES, Currency } from '../hooks/useCurrency';
@@ -104,12 +104,21 @@ export default function SettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await clearAllData();
-              showToast('All data cleared successfully', 'success');
-              setTimeout(() => {
-                console.log('Settings: Navigating to home after clearing data');
-                router.replace('/');
-              }, 200);
+              const result = await clearAllData();
+              if (result.success) {
+                showToast('All data cleared successfully', 'success');
+                // Reload the page to ensure all caches are cleared
+                setTimeout(() => {
+                  console.log('Settings: Reloading page after clearing data');
+                  if (Platform.OS === 'web') {
+                    window.location.href = '/';
+                  } else {
+                    router.replace('/');
+                  }
+                }, 500);
+              } else {
+                showToast('Failed to clear data', 'error');
+              }
             } catch (error) {
               console.error('Settings: Clear data error:', error);
               showToast('Failed to clear data', 'error');
@@ -1782,11 +1791,10 @@ export default function SettingsScreen() {
                   {
                     text: 'View All Currencies',
                     onPress: () => {
-                      // Show a simple text input alert for search
-                      Alert.prompt(
-                        'Search Currency',
-                        'Enter currency name or code',
-                        (text) => {
+                      // Use native prompt on web, show message on native
+                      if (Platform.OS === 'web') {
+                        const text = window.prompt('Search Currency\n\nEnter currency name or code:');
+                        if (text) {
                           const found = CURRENCIES.find(c =>
                             c.code.toLowerCase() === text.toLowerCase() ||
                             c.name.toLowerCase().includes(text.toLowerCase())
@@ -1797,7 +1805,9 @@ export default function SettingsScreen() {
                             Alert.alert('Not Found', 'Currency not found. Please try again.');
                           }
                         }
-                      );
+                      } else {
+                        Alert.alert('Currency Search', 'Please use the currency selector to browse all available currencies.');
+                      }
                     }
                   }
                 ]

@@ -70,6 +70,7 @@ export const useBudgetData = () => {
   const isQueueRunning = useRef(false);
   const isLoadingRef = useRef(false);
   const lastRefreshTimeRef = useRef<number>(0);
+  const justClearedData = useRef(false); // Flag to prevent immediate Supabase sync after clear
 
   // Stable refresh function that avoids overwriting local state if Supabase has less data
   const refreshFromStorage = useCallback(async () => {
@@ -85,8 +86,8 @@ export const useBudgetData = () => {
       // 1. Load local data first to have a baseline
       const localApp = await loadAppData();
 
-      // 2. If logged in, fetch from Supabase
-      if (user) {
+      // 2. If logged in, fetch from Supabase (unless we just cleared data)
+      if (user && !justClearedData.current) {
         console.log('useBudgetData: User present, syncing from Supabase...');
         const { data: supabaseData, error } = await supabase
           .from('user_data')
@@ -159,8 +160,8 @@ export const useBudgetData = () => {
           }
           return;
         } else if (error && error.code === 'PGRST116') {
-          // No cloud data yet, push local if it exists and has real data
-          if (localApp.budgets.length > 0) {
+          // No cloud data yet, push local if it exists and has real data (unless we just cleared)
+          if (localApp.budgets.length > 0 && !justClearedData.current) {
             console.log('useBudgetData: No cloud data, pushing local state to cloud');
             await supabase.from('user_data').upsert(
               {
@@ -170,6 +171,8 @@ export const useBudgetData = () => {
               },
               { onConflict: 'user_id' }
             );
+          } else if (justClearedData.current) {
+            console.log('useBudgetData: Skipping cloud push - data was just cleared');
           }
         }
       }
@@ -943,39 +946,71 @@ export const useBudgetData = () => {
 
   // Clear ALL app data - delete all budgets, people, and expenses everywhere
   const clearAllData = useCallback(async (): Promise<{ success: boolean; error?: Error }> => {
-    console.log('useBudgetData: Clearing ALL data everywhere...');
+    console.log('useBudgetData: ===== CLEARING ALL DATA =====');
     try {
-      // 1. Clear Supabase if logged in
-      if (user) {
-        setIsSyncing(true);
-        console.log('useBudgetData: Deleting cloud data...');
-        const { error } = await supabase
-          .from('user_data')
-          .delete()
-          .eq('user_id', user.id);
+      // Set flag to prevent immediate Supabase sync
+      justClearedData.current = true;
 
-        if (error) console.error('useBudgetData: Could not clear Supabase data:', error);
-      }
+      // 1. Clear local state FIRST (optimistic)
+      const emptyApp = { version: 2 as const, budgets: [], activeBudgetId: '' };
+      setAppData(emptyApp);
+      setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
+      console.log('useBudgetData: Local state cleared');
 
       // 2. Clear local storage
-      const result = await safeAsyncResult(
-        () => storageClearAllAppData(),
-        'storageClearAllAppData'
-      );
+      console.log('useBudgetData: Clearing AsyncStorage...');
+      const result = await storageClearAllAppData();
+      console.log('useBudgetData: AsyncStorage clear result:', result);
 
-      if (result.success) {
-        // 3. Reset local state
-        const emptyApp = { version: 2 as const, budgets: [], activeBudgetId: '' };
-        setAppData(emptyApp);
-        setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
-        setRefreshTrigger(prev => prev + 1);
+      if (!result.success) {
+        console.error('useBudgetData: Failed to clear local storage:', result.error);
+        justClearedData.current = false;
+        return result;
       }
 
-      setIsSyncing(false);
-      return result;
+      // 3. Clear Supabase if logged in - UPDATE with empty data instead of DELETE
+      if (user) {
+        setIsSyncing(true);
+        console.log('useBudgetData: Clearing cloud data for user:', user.id);
+        try {
+          const emptyCloudData = { version: 2 as const, budgets: [], activeBudgetId: '' };
+          const { error } = await supabase
+            .from('user_data')
+            .upsert(
+              {
+                user_id: user.id,
+                app_data: emptyCloudData,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id' }
+            );
+
+          if (error) {
+            console.error('useBudgetData: Supabase clear error:', error);
+          } else {
+            console.log('useBudgetData: Cloud data cleared successfully (set to empty)');
+          }
+        } catch (error) {
+          console.error('useBudgetData: Error clearing Supabase data:', error);
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+
+      setRefreshTrigger(prev => prev + 1);
+
+      // Reset the flag after 2 seconds to allow normal syncing to resume
+      setTimeout(() => {
+        justClearedData.current = false;
+        console.log('useBudgetData: justClearedData flag reset, normal sync can resume');
+      }, 2000);
+
+      console.log('useBudgetData: ===== ALL DATA CLEARED SUCCESSFULLY =====');
+      return { success: true };
     } catch (error) {
-      console.error('useBudgetData: Error clearing all app data:', error);
+      console.error('useBudgetData: Error in clearAllData:', error);
       setIsSyncing(false);
+      justClearedData.current = false;
       return { success: false, error: error as Error };
     }
   }, [user]);
