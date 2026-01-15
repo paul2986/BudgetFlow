@@ -50,14 +50,16 @@ export const useThemedStyles = () => {
       textAlign: 'center',
       color: currentColors.text,
       marginBottom: isPad ? 28 : 20,
-      letterSpacing: -0.5,
+      letterSpacing: -1,
+      fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-bold', web: 'Inter, system-ui, -apple-system, sans-serif' }),
     },
     subtitle: {
       fontSize: isPad ? 24 : 20,
-      fontWeight: '700',
+      fontWeight: '600',
       color: currentColors.text,
       marginBottom: isPad ? 20 : 16,
       letterSpacing: -0.3,
+      fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-medium', web: 'Inter, system-ui, -apple-system, sans-serif' }),
     },
     text: {
       fontSize: isPad ? 18 : 16,

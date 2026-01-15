@@ -1853,6 +1853,44 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Logout (Mobile Only) */}
+        {!isPad && (
+          <View style={[themedStyles.card, { marginBottom: 16 }]}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                minHeight: 44,
+              }}
+              onPress={async () => {
+                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await supabase.auth.signOut();
+                      showToast('Signed out successfully', 'success');
+                    },
+                  },
+                ]);
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <Icon name="log-out-outline" size={20} style={{ color: currentColors.error, marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[themedStyles.text, { fontWeight: '600', color: currentColors.error }]}>Log Out</Text>
+                  <Text style={themedStyles.textSecondary}>
+                    {user?.email}
+                  </Text>
+                </View>
+              </View>
+              <Icon name="chevron-forward" size={20} style={{ color: currentColors.textSecondary }} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Danger Zone */}
         <View style={[
           themedStyles.card,

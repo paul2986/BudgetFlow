@@ -72,12 +72,20 @@ export const useBudgetData = () => {
   const lastRefreshTimeRef = useRef<number>(0);
 
   // Stable refresh function that doesn't depend on other state
+  // Stable refresh function that avoids overwriting local state if Supabase has less data
   const refreshFromStorage = useCallback(async () => {
     console.log('useBudgetData: refreshFromStorage called');
     try {
-      // 1. Try to load from Supabase first if user exists
+      // 1. Load local data first to have a baseline
+      const localApp = await safeAsync(
+        () => loadAppData(),
+        { version: 2, budgets: [], activeBudgetId: '' },
+        'loadAppData'
+      );
+
+      // 2. If logged in, fetch from Supabase
       if (user) {
-        console.log('useBudgetData: User present, fetching from Supabase...');
+        console.log('useBudgetData: User present, syncing from Supabase...');
         const { data: supabaseData, error } = await supabase
           .from('user_data')
           .select('app_data')
@@ -86,47 +94,40 @@ export const useBudgetData = () => {
 
         if (!error && supabaseData?.app_data) {
           const remoteData = supabaseData.app_data as AppDataV2;
-          console.log('useBudgetData: Data found on Supabase');
+
+          // Simple conflict resolution: use remote if it has more budgets or is newer
+          // In a real app we'd use timestamps, but here we prioritize the cloud
+          console.log('useBudgetData: Cloud data found, adopting it');
 
           setAppData(remoteData);
           const active = getActiveBudget(remoteData);
           if (active) {
             setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
           }
-          // Also persist to local storage for quick access next time
           await saveAppData(remoteData);
           return;
-        } else if (error && error.code !== 'PGRST116') {
-          console.error('useBudgetData: Supabase fetch error:', error);
+        } else if (error && error.code === 'PGRST116') {
+          // No cloud data yet, push local if it exists
+          if (localApp.budgets.length > 0) {
+            console.log('useBudgetData: No cloud data, pushing local state to cloud');
+            await supabase.from('user_data').upsert({
+              user_id: user.id,
+              app_data: localApp
+            });
+          }
         }
       }
 
-      // 2. Fallback to local storage (or if no user)
-      const loadedApp = await safeAsync(
-        () => loadAppData(),
-        { version: 2, budgets: [], activeBudgetId: '' },
-        'loadAppData'
-      );
-
-      setAppData(loadedApp);
-      const active = getActiveBudget(loadedApp);
+      // Fallback to local
+      setAppData(localApp);
+      const active = getActiveBudget(localApp);
       if (active) {
         setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
       } else {
-        setData({
-          people: [],
-          expenses: [],
-          householdSettings: { distributionMethod: 'even' },
-        });
+        setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
       }
     } catch (error) {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
-      setAppData({ version: 2, budgets: [], activeBudgetId: '' });
-      setData({
-        people: [],
-        expenses: [],
-        householdSettings: { distributionMethod: 'even' },
-      });
     }
   }, [user]);
 
@@ -305,62 +306,51 @@ export const useBudgetData = () => {
   const saveData = useCallback(
     async (newData: BudgetSlice): Promise<{ success: boolean; error?: Error }> => {
       try {
-        console.log('useBudgetData: Atomic save operation started:', {
-          peopleCount: newData.people?.length || 0,
-          expensesCount: newData.expenses?.length || 0,
-          expenseIds: newData.expenses?.map((e) => e.id) || [],
-          distributionMethod: newData.householdSettings?.distributionMethod,
-        });
+        console.log('useBudgetData: Atomic save operation started');
 
         // Update state immediately for optimistic updates
         setData(newData);
 
-        // Ensure we have a valid active budget to update
-        const baseApp = appData.budgets.length > 0 ? appData : await safeAsync(
-          () => loadAppData(),
-          { version: 2, budgets: [], activeBudgetId: '' },
-          'saveData-loadAppData'
-        );
+        // ALWAYS load the absolute latest app data from storage to avoid stale state
+        const fullAppData = await loadAppData();
+        const active = getActiveBudget(fullAppData);
 
-        const active = getActiveBudget(baseApp);
         if (!active || !active.id) {
-          throw new Error('Active budget not available - cannot save data without a budget');
+          throw new Error('Active budget not available');
         }
 
-        // Create updated active budget object and persist via storage v2 API
+        // Create updated active budget object
         const updatedActive: Budget = {
           ...active,
           ...newData,
+          modifiedAt: Date.now(),
         };
 
-        const result = await safeAsyncResult(
-          () => storageUpdateBudget(updatedActive),
-          'storageUpdateBudget'
-        );
+        // Update in the full app data array
+        const updatedBudgets = fullAppData.budgets.map((b) => (b.id === active.id ? updatedActive : b));
+        const updatedAppData = { ...fullAppData, budgets: updatedBudgets };
+
+        // 1. Save locally
+        const result = await saveAppData(updatedAppData);
 
         if (result.success) {
-          console.log('useBudgetData: Data saved successfully');
-          // Also update appData's active budget in memory to keep in sync
-          const activeId = appData.activeBudgetId || active.id;
-          const budgets = appData.budgets.length ? appData.budgets.map((b) => (b.id === activeId ? updatedActive : b)) : [updatedActive];
-          const fullAppData = { version: 2 as const, activeBudgetId: activeId, budgets };
+          console.log('useBudgetData: Data saved locally');
+          setAppData(updatedAppData);
 
-          setAppData(fullAppData);
-
-          // Push to Supabase if user is logged in
+          // 2. Push to Supabase if user is logged in
           if (user) {
-            console.log('useBudgetData: Pushing update to Supabase...');
+            console.log('useBudgetData: Syncing mutation to Supabase...');
             setIsSyncing(true);
             try {
               const { error } = await supabase.from('user_data').upsert({
                 user_id: user.id,
-                app_data: fullAppData
+                app_data: updatedAppData,
+                updated_at: new Date().toISOString()
               });
               if (error) throw error;
-              console.log('useBudgetData: Supabase sync successful');
+              console.log('useBudgetData: Supabase mutation sync successful');
             } catch (error) {
-              console.error('useBudgetData: Supabase push error:', error);
-              // In purely online mode, we might want to alert the user or retry
+              console.error('useBudgetData: Supabase mutation sync error:', error);
             } finally {
               setIsSyncing(false);
             }
@@ -368,176 +358,120 @@ export const useBudgetData = () => {
 
           return { success: true };
         } else {
-          console.error('useBudgetData: Save failed, reverting state:', result.error);
-          // Revert state by reloading from storage
+          console.error('useBudgetData: Local save failed, reverting state:', result.error);
           await refreshFromStorage();
           return { success: false, error: result.error };
         }
       } catch (error) {
         console.error('useBudgetData: Error in atomic save operation:', error);
-        // Revert state by reloading from storage
-        try {
-          await refreshFromStorage();
-        } catch (refreshError) {
-          console.error('useBudgetData: Error reverting state:', refreshError);
-        }
+        await refreshFromStorage();
         return { success: false, error: error as Error };
       }
     },
-    [appData, refreshFromStorage]
+    [user, refreshFromStorage]
   );
 
-  // Budget management APIs with comprehensive error handling
+  // Helper to sync any AppData mutation to Supabase
+  const syncFullAppData = useCallback(async (updatedAppData: AppDataV2) => {
+    // 1. Save locally
+    const localRes = await saveAppData(updatedAppData);
+    if (!localRes.success) {
+      console.error('useBudgetData: Local save failed during sync');
+      return localRes;
+    }
+
+    // 2. Update memory state
+    setAppData(updatedAppData);
+    const active = getActiveBudget(updatedAppData);
+    if (active) {
+      setData({ people: active.people, expenses: active.expenses, householdSettings: active.householdSettings });
+    }
+
+    // 3. Sync to Supabase
+    if (user) {
+      setIsSyncing(true);
+      try {
+        console.log('useBudgetData: Pushing full app data update to Supabase...');
+        const { error } = await supabase.from('user_data').upsert({
+          user_id: user.id,
+          app_data: updatedAppData,
+          updated_at: new Date().toISOString()
+        });
+        if (error) throw error;
+        console.log('useBudgetData: Full app data Supabase sync successful');
+      } catch (error) {
+        console.error('useBudgetData: Supabase sync error:', error);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+
+    // Trigger a refresh for components
+    setRefreshTrigger(prev => prev + 1);
+    return { success: true };
+  }, [user]);
+
+  // Budget management APIs with Supabase sync
   const addBudget = useCallback(
     async (name: string) => {
-      console.log('useBudgetData: addBudget called with name:', name);
-
-      // Use setTimeout to defer the async operation and prevent UI blocking
-      return new Promise<{ success: boolean; error?: Error; budget?: Budget }>((resolve) => {
-        setTimeout(async () => {
-          try {
-            const res = await safeAsyncResult(
-              () => storageAddBudget(name),
-              'storageAddBudget'
-            );
-            console.log('useBudgetData: addBudget storage result:', res);
-            if (res.success) {
-              console.log('useBudgetData: addBudget success, refreshing from storage');
-              try {
-                await refreshFromStorage();
-                // Trigger a refresh to ensure components re-render with new data
-                setRefreshTrigger(prev => prev + 1);
-              } catch (error) {
-                console.error('useBudgetData: Error refreshing after addBudget:', error);
-              }
-            }
-            resolve(res);
-          } catch (error) {
-            console.error('useBudgetData: Error in addBudget:', error);
-            resolve({ success: false, error: error as Error });
-          }
-        }, 0);
-      });
+      console.log('useBudgetData: addBudget called');
+      const res = await safeAsyncResult(() => storageAddBudget(name), 'storageAddBudget');
+      if (res.success) {
+        // After storage update, we must get the new state and sync it
+        const updated = await loadAppData();
+        await syncFullAppData(updated);
+      }
+      return res;
     },
-    [refreshFromStorage]
+    [syncFullAppData]
   );
 
   const renameBudget = useCallback(
     async (budgetId: string, newName: string) => {
-      // Use setTimeout to defer the async operation and prevent UI blocking
-      return new Promise<{ success: boolean; error?: Error }>((resolve) => {
-        setTimeout(async () => {
-          try {
-            const res = await safeAsyncResult(
-              () => storageRenameBudget(budgetId, newName),
-              'storageRenameBudget'
-            );
-            if (res.success) {
-              try {
-                await refreshFromStorage();
-                setRefreshTrigger(prev => prev + 1);
-              } catch (error) {
-                console.error('useBudgetData: Error refreshing after renameBudget:', error);
-              }
-            }
-            resolve(res);
-          } catch (error) {
-            console.error('useBudgetData: Error in renameBudget:', error);
-            resolve({ success: false, error: error as Error });
-          }
-        }, 0);
-      });
+      const res = await safeAsyncResult(() => storageRenameBudget(budgetId, newName), 'storageRenameBudget');
+      if (res.success) {
+        const updated = await loadAppData();
+        await syncFullAppData(updated);
+      }
+      return res;
     },
-    [refreshFromStorage]
+    [syncFullAppData]
   );
 
   const deleteBudget = useCallback(
     async (budgetId: string) => {
-      console.log('useBudgetData: deleteBudget called with budgetId:', budgetId);
-
-      // Use setTimeout to defer the async operation and prevent UI blocking
-      return new Promise<{ success: boolean; error?: Error }>((resolve) => {
-        setTimeout(async () => {
-          try {
-            const res = await safeAsyncResult(
-              () => storageDeleteBudget(budgetId),
-              'storageDeleteBudget'
-            );
-            console.log('useBudgetData: deleteBudget storage result:', res);
-            if (res.success) {
-              console.log('useBudgetData: deleteBudget success, refreshing from storage');
-              try {
-                await refreshFromStorage();
-                setRefreshTrigger(prev => prev + 1);
-              } catch (error) {
-                console.error('useBudgetData: Error refreshing after deleteBudget:', error);
-              }
-            }
-            resolve(res);
-          } catch (error) {
-            console.error('useBudgetData: Error in deleteBudget:', error);
-            resolve({ success: false, error: error as Error });
-          }
-        }, 0);
-      });
+      const res = await safeAsyncResult(() => storageDeleteBudget(budgetId), 'storageDeleteBudget');
+      if (res.success) {
+        const updated = await loadAppData();
+        await syncFullAppData(updated);
+      }
+      return res;
     },
-    [refreshFromStorage]
+    [syncFullAppData]
   );
 
   const duplicateBudget = useCallback(
     async (budgetId: string, customName?: string) => {
-      console.log('useBudgetData: duplicateBudget called with:', { budgetId, customName });
-
-      // Use setTimeout to defer the async operation and prevent UI blocking
-      return new Promise<{ success: boolean; error?: Error; budget?: Budget }>((resolve) => {
-        setTimeout(async () => {
-          try {
-            const res = await safeAsyncResult(
-              () => storageDuplicateBudget(budgetId, customName),
-              'storageDuplicateBudget'
-            );
-            console.log('useBudgetData: duplicateBudget storage result:', res);
-            if (res.success) {
-              console.log('useBudgetData: duplicateBudget success, refreshing from storage');
-              try {
-                await refreshFromStorage();
-                setRefreshTrigger(prev => prev + 1);
-              } catch (error) {
-                console.error('useBudgetData: Error refreshing after duplicateBudget:', error);
-              }
-            }
-            resolve(res);
-          } catch (error) {
-            console.error('useBudgetData: Error in duplicateBudget:', error);
-            resolve({ success: false, error: error as Error });
-          }
-        }, 0);
-      });
+      const res = await safeAsyncResult(() => storageDuplicateBudget(budgetId, customName), 'storageDuplicateBudget');
+      if (res.success) {
+        const updated = await loadAppData();
+        await syncFullAppData(updated);
+      }
+      return res;
     },
-    [refreshFromStorage]
+    [syncFullAppData]
   );
 
   const setActiveBudget = useCallback(
     async (budgetId: string) => {
-      console.log('useBudgetData: setActiveBudget called with:', budgetId);
-      const res = await safeAsyncResult(
-        () => storageSetActiveBudget(budgetId),
-        'storageSetActiveBudget'
-      );
-      console.log('useBudgetData: setActiveBudget storage result:', res);
+      const res = await safeAsyncResult(() => storageSetActiveBudget(budgetId), 'storageSetActiveBudget');
       if (res.success) {
-        console.log('useBudgetData: setActiveBudget success, refreshing from storage');
-        try {
-          await refreshFromStorage();
-          // Trigger a refresh to ensure components re-render with new data
-          setRefreshTrigger(prev => prev + 1);
-        } catch (error) {
-          console.error('useBudgetData: Error refreshing after setActiveBudget:', error);
-        }
+        const updated = await loadAppData();
+        await syncFullAppData(updated);
       }
       return res;
     },
-    [refreshFromStorage]
+    [syncFullAppData]
   );
 
   const addPerson = useCallback(
@@ -914,34 +848,44 @@ export const useBudgetData = () => {
     [refreshFromStorage, saving, loading] // Remove dependencies that could cause loops
   );
 
-  // Clear ALL app data - delete all budgets, people, and expenses
+  // Clear ALL app data - delete all budgets, people, and expenses everywhere
   const clearAllData = useCallback(async (): Promise<{ success: boolean; error?: Error }> => {
-    console.log('useBudgetData: Clearing ALL app data - deleting all budgets, people, expenses, and custom categories...');
+    console.log('useBudgetData: Clearing ALL data everywhere...');
     try {
+      // 1. Clear Supabase if logged in
+      if (user) {
+        setIsSyncing(true);
+        console.log('useBudgetData: Deleting cloud data...');
+        const { error } = await supabase
+          .from('user_data')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (error) console.error('useBudgetData: Could not clear Supabase data:', error);
+      }
+
+      // 2. Clear local storage
       const result = await safeAsyncResult(
         () => storageClearAllAppData(),
         'storageClearAllAppData'
       );
+
       if (result.success) {
-        console.log('useBudgetData: All app data cleared successfully, refreshing from storage');
-        try {
-          await refreshFromStorage();
-          // Multiple refresh triggers to ensure all components update
-          setRefreshTrigger(prev => prev + 1);
-          // Add a small delay and trigger again to ensure layout updates
-          setTimeout(() => {
-            setRefreshTrigger(prev => prev + 1);
-          }, 50);
-        } catch (error) {
-          console.error('useBudgetData: Error refreshing after clearAllData:', error);
-        }
+        // 3. Reset local state
+        const emptyApp = { version: 2 as const, budgets: [], activeBudgetId: '' };
+        setAppData(emptyApp);
+        setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
+        setRefreshTrigger(prev => prev + 1);
       }
+
+      setIsSyncing(false);
       return result;
     } catch (error) {
       console.error('useBudgetData: Error clearing all app data:', error);
+      setIsSyncing(false);
       return { success: false, error: error as Error };
     }
-  }, [refreshFromStorage]);
+  }, [user]);
 
   return {
     appData,

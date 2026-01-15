@@ -6,7 +6,7 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { StatusBar } from 'expo-status-bar';
 import { Tabs, router, usePathname } from 'expo-router';
 import { setupErrorLogging } from '../utils/errorLogger';
-import { View, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from '../components/Icon';
@@ -55,7 +55,7 @@ function CustomTabBar() {
     <View
       style={[
         themedStyles.floatingTabContainer,
-        { paddingBottom: 20 },
+        { paddingBottom: Platform.OS === 'web' ? 20 : 0 }, // Web handles its own spacing, native uses insets
       ]}
     >
       <View
@@ -157,16 +157,20 @@ function RootLayoutContent() {
   const isDesktop = width >= 768;
 
   return (
-    <View style={{ flex: 1, backgroundColor: safeZoneBackgroundColor, flexDirection: isDesktop ? 'row' : 'column' }}>
+    <View style={{
+      flex: 1,
+      backgroundColor: currentColors.background, // Use main background as base
+      flexDirection: isDesktop ? 'row' : 'column',
+      paddingTop: !isDesktop ? insets.top : 0, // Handle status bar safe area
+      paddingBottom: !isDesktop ? insets.bottom : 0, // Handle home indicator safe area
+    }}>
       <StatusBar
         style={isDarkMode ? 'light' : 'dark'}
-        backgroundColor={safeZoneBackgroundColor}
+        backgroundColor="transparent"
+        translucent
       />
 
-      {/* For mobile, we push content down by status bar height. For desktop, this is usually 0 or handled by window frame */}
-      {!isDesktop && <View style={{ height: insets.top, backgroundColor: safeZoneBackgroundColor }} />}
-
-      {isDesktop && <SideNavBar />}
+      {isDesktop && user && <SideNavBar />}
 
       <View style={{ flex: 1, backgroundColor: currentColors.background }}>
         <AuthGuard user={user} loading={authLoading}>

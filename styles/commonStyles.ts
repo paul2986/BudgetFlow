@@ -1,5 +1,5 @@
 
-import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 
 export const colors = {
   primary: '#2E7D32',      // Green for primary actions
@@ -94,26 +94,30 @@ export const commonStyles = StyleSheet.create({
     textAlign: 'center',
     color: colors.text,
     marginBottom: 20,
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-black', web: 'Inter, system-ui, -apple-system, sans-serif' }),
   },
   subtitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 16,
     letterSpacing: -0.3,
+    fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-medium', web: 'Inter, system-ui, -apple-system, sans-serif' }),
   },
   text: {
     fontSize: 16,
     fontWeight: '400',
     color: colors.text,
     lineHeight: 24,
+    fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-medium', web: 'Inter, system-ui, -apple-system, sans-serif' }),
   },
   textSecondary: {
     fontSize: 14,
     fontWeight: '400',
     color: colors.textSecondary,
     lineHeight: 20,
+    fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif', web: 'Inter, system-ui, -apple-system, sans-serif' }),
   },
   section: {
     marginBottom: 24,

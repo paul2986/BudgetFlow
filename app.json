@@ -52,8 +52,8 @@
     },
     "extra": {
       "router": {},
-      "shareApiUrl": "https://xstkicbptwjnkyyyhaci.supabase.co/functions/v1",
-      "supabaseAnonKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhzdGtpY2JwdHdqbmt5eXloYWNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwNzQ0MTksImV4cCI6MjA3MDY1MDQxOX0.FlSIPI2eUAIBVIRwP2pCB2StTaYKqONr5RNZ7Ku5dBA",
+      "shareApiUrl": "https://mjcdgsfgmafzplaqsmxe.supabase.co/functions/v1",
+      "supabaseAnonKey": "sb_publishable_W3CorTAoeq6Dckyfb9AjVA_CKkIn4eb",
       "shareTtlSec": 86400,
       "authRedirect": "budgetflow://auth/callback"
     }
