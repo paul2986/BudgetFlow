@@ -367,18 +367,28 @@ export const useBudgetData = () => {
   const saveData = useCallback(
     async (newData: BudgetSlice): Promise<{ success: boolean; error?: Error }> => {
       try {
+        console.log('useBudgetData: ===== SAVE DATA CALLED =====');
         console.log('useBudgetData: Atomic save operation started');
+        console.log('useBudgetData: New data to save:', {
+          peopleCount: newData.people.length,
+          expensesCount: newData.expenses.length,
+        });
 
         // Update state immediately for optimistic updates
+        console.log('useBudgetData: Setting optimistic state...');
         setData(newData);
 
         // ALWAYS load the absolute latest app data from storage to avoid stale state
+        console.log('useBudgetData: Loading app data from storage...');
         const fullAppData = await loadAppData();
         const active = getActiveBudget(fullAppData);
 
         if (!active || !active.id) {
+          console.error('useBudgetData: No active budget found!');
           throw new Error('Active budget not available');
         }
+
+        console.log('useBudgetData: Active budget found:', active.id, active.name);
 
         // Create updated active budget object
         const updatedActive: Budget = {
@@ -387,20 +397,26 @@ export const useBudgetData = () => {
           modifiedAt: Date.now(),
         };
 
+        console.log('useBudgetData: Updated active budget created');
+
         // Update in the full app data array
         const updatedBudgets = fullAppData.budgets.map((b) => (b.id === active.id ? updatedActive : b));
         const updatedAppData = { ...fullAppData, budgets: updatedBudgets };
 
+        console.log('useBudgetData: Updated app data created, saving locally...');
+
         // 1. Save locally
         const result = await saveAppData(updatedAppData);
 
+        console.log('useBudgetData: saveAppData result:', result);
+
         if (result.success) {
-          console.log('useBudgetData: Data saved locally');
+          console.log('useBudgetData: Data saved locally successfully');
           setAppData(updatedAppData);
 
           // 2. Push to Supabase if user is logged in
           if (user) {
-            console.log('useBudgetData: Syncing mutation to Supabase...');
+            console.log('useBudgetData: User logged in, syncing mutation to Supabase...');
             setIsSyncing(true);
             try {
               const { error } = await supabase.from('user_data').upsert(
@@ -418,21 +434,26 @@ export const useBudgetData = () => {
             } finally {
               setIsSyncing(false);
             }
+          } else {
+            console.log('useBudgetData: No user logged in, skipping Supabase sync');
           }
 
+          console.log('useBudgetData: ===== SAVE DATA SUCCESS =====');
           return { success: true };
         } else {
-          console.error('useBudgetData: Local save failed, reverting state:', result.error);
-          await refreshFromStorage();
+          console.error('useBudgetData: Local save failed:', result.error);
+          // Don't refresh from storage here - it would overwrite our changes
+          console.log('useBudgetData: ===== SAVE DATA FAILED =====');
           return { success: false, error: result.error };
         }
       } catch (error) {
         console.error('useBudgetData: Error in atomic save operation:', error);
-        await refreshFromStorage();
+        // Don't refresh from storage here - it would overwrite our changes
+        console.log('useBudgetData: ===== SAVE DATA ERROR =====');
         return { success: false, error: error as Error };
       }
     },
-    [user, refreshFromStorage]
+    [user]
   );
 
   const syncFullAppData = useCallback(async (updatedAppData: AppDataV2) => {
@@ -740,6 +761,7 @@ export const useBudgetData = () => {
 
   const removeExpense = useCallback(
     async (expenseId: string): Promise<{ success: boolean; error?: Error }> => {
+      console.log('useBudgetData: ===== REMOVE EXPENSE CALLED =====');
       console.log('useBudgetData: Removing expense:', expenseId);
 
       // First, let's get the current data to verify the expense exists
@@ -758,8 +780,10 @@ export const useBudgetData = () => {
       }
 
       console.log('useBudgetData: Expense found, proceeding with removal:', expenseExists);
+      console.log('useBudgetData: About to call queueSave...');
 
-      return queueSave(async () => {
+      const result = await queueSave(async () => {
+        console.log('useBudgetData: Inside queueSave callback');
         // Get fresh data again for the actual removal operation
         const newData = await createDataCopy();
 
@@ -790,8 +814,15 @@ export const useBudgetData = () => {
           remainingExpenseIds: newData.expenses.map((e) => e.id),
         });
 
-        return await saveData(newData);
+        console.log('useBudgetData: About to call saveData...');
+        const saveResult = await saveData(newData);
+        console.log('useBudgetData: saveData result:', saveResult);
+        return saveResult;
       });
+
+      console.log('useBudgetData: queueSave completed with result:', result);
+      console.log('useBudgetData: ===== REMOVE EXPENSE FINISHED =====');
+      return result;
     },
     [queueSave, createDataCopy, saveData, getCurrentData]
   );
