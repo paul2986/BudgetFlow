@@ -74,7 +74,7 @@ export const useThemedStyles = () => {
       lineHeight: isPad ? 24 : 20,
     },
     section: {
-      marginBottom: 24,
+      marginBottom: 16,
     },
     card: {
       backgroundColor: currentColors.backgroundAlt,
@@ -114,7 +114,7 @@ export const useThemedStyles = () => {
       fontSize: 16,
       backgroundColor: currentColors.backgroundAlt,
       color: currentColors.text,
-      marginBottom: 16,
+      marginBottom: 8,
       fontWeight: '500',
     },
     picker: {

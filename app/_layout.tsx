@@ -204,6 +204,29 @@ function RootLayoutContent() {
           flex-direction: column;
           background-color: transparent !important;
         }
+        /* Fancy Scrollbar */
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+          background: ${currentColors.primary}60;
+          border-radius: 10px;
+          border: 2px solid transparent;
+          background-clip: content-box;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: ${currentColors.primary};
+          background-clip: content-box;
+        }
+        /* Global Date Picker Icon Fix */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          filter: ${isDarkMode ? 'invert(1) brightness(2)' : 'none'} !important;
+          cursor: pointer;
+        }
         /* Mobile Safari specific overrides */
         @supports (-webkit-touch-callout: none) {
           html, body {
@@ -303,11 +326,19 @@ function RootLayoutContent() {
   );
 }
 
+
+import { DesktopModalsProvider } from '../hooks/useDesktopModals';
+import { BudgetDataProvider } from '../hooks/useBudgetData';
+
 function AppContent() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <RootLayoutContent />
+        <BudgetDataProvider>
+          <DesktopModalsProvider>
+            <RootLayoutContent />
+          </DesktopModalsProvider>
+        </BudgetDataProvider>
       </ToastProvider>
     </ThemeProvider>
   );

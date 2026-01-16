@@ -19,9 +19,11 @@ import Button from '../components/Button';
 import Icon from '../components/Icon';
 import StandardHeader from '../components/StandardHeader';
 import IncomeModal from '../components/IncomeModal';
+import { useDesktopModals } from '../hooks/useDesktopModals';
 
 export default function PeopleScreen() {
   const { data, addPerson, removePerson, addIncome, removeIncome, saving, refreshData, loading } = useBudgetData();
+  const { openModal } = useDesktopModals();
   const { currentColors } = useTheme();
   const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
   const { formatCurrency } = useCurrency();
@@ -132,22 +134,15 @@ export default function PeopleScreen() {
   }, [deletingPersonId, saving, removePerson]);
 
   const handleEditPerson = useCallback((person: Person) => {
-    console.log('PeopleScreen: Navigating to edit person:', person);
-
-    // Verify the person exists in current data before navigating
-    const personExists = data.people.find(p => p.id === person.id);
-    if (!personExists) {
-      console.error('PeopleScreen: Person not found in current data, refreshing...');
-      Alert.alert('Error', 'Person not found. Please try again.');
-      refreshData(true);
-      return;
+    if (Platform.OS === 'web') {
+      openModal('edit-person', person.id);
+    } else {
+      router.push({
+        pathname: '/edit-person',
+        params: { personId: person.id, origin: 'people' }
+      });
     }
-
-    router.push({
-      pathname: '/edit-person',
-      params: { personId: person.id, origin: 'people' }
-    });
-  }, [data.people, refreshData]);
+  }, [openModal]);
 
   const handleAddIncomeFromModal = useCallback(async (personId: string, incomeData: Omit<Income, 'id' | 'personId'>) => {
     console.log('PeopleScreen: Add income from modal');

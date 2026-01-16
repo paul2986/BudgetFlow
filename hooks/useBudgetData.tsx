@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
 import {
   loadAppData,
   getActiveBudget,
@@ -24,7 +23,7 @@ type BudgetSlice = {
 };
 
 // Helper function to safely handle async operations
-const safeAsync = async <T>(
+const safeAsync = async <T extends unknown>(
   operation: () => Promise<T>,
   fallback: T,
   operationName: string
@@ -39,7 +38,7 @@ const safeAsync = async <T>(
 };
 
 // Helper function to safely handle async operations that return result objects
-const safeAsyncResult = async <T>(
+const safeAsyncResult = async <T extends unknown>(
   operation: () => Promise<{ success: boolean; error?: Error } & T>,
   operationName: string
 ): Promise<{ success: boolean; error?: Error } & T> => {
@@ -52,7 +51,30 @@ const safeAsyncResult = async <T>(
   }
 };
 
+// Context Type definition
+type BudgetDataContextType = ReturnType<typeof useBudgetDataInternal>;
+
+const BudgetDataContext = createContext<BudgetDataContextType | null>(null);
+
+export const BudgetDataProvider = ({ children }: { children: ReactNode }) => {
+  const value = useBudgetDataInternal();
+  return (
+    <BudgetDataContext.Provider value={value}>
+      {children}
+    </BudgetDataContext.Provider>
+  );
+};
+
 export const useBudgetData = () => {
+  const context = useContext(BudgetDataContext);
+  if (!context) {
+    // Fallback to local state if used outside of provider (for safety/backward compatibility)
+    return useBudgetDataInternal();
+  }
+  return context;
+};
+
+const useBudgetDataInternal = () => {
   const { user } = useAuth();
   const [appData, setAppData] = useState<AppDataV2>({ version: 2, budgets: [], activeBudgetId: '' });
   const [data, setData] = useState<BudgetSlice>({

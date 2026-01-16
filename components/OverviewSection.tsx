@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, TouchableOpacity, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, useWindowDimensions, Platform, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -30,7 +31,7 @@ export default function OverviewSection({
   householdSettings,
   onViewModeChange
 }: OverviewSectionProps) {
-  const { currentColors } = useTheme();
+  const { currentColors, isDarkMode } = useTheme();
   const { formatCurrency } = useCurrency();
   const { themedStyles } = useThemedStyles();
   const { width } = useWindowDimensions();
@@ -133,107 +134,164 @@ export default function OverviewSection({
         <View style={[
           themedStyles.card,
           {
-            backgroundColor: currentColors.success + '10',
-            borderColor: currentColors.success + '30',
-            borderWidth: 1,
+            backgroundColor: isDarkMode ? currentColors.backgroundAlt : currentColors.success + '08',
+            borderColor: isDarkMode ? currentColors.success + '40' : currentColors.success + '20',
+            borderWidth: 1.5,
             marginBottom: isDesktop ? 0 : 12,
             flex: isDesktop ? 1 : undefined,
+            overflow: 'hidden',
           }
         ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Icon name="trending-up" size={16} style={{ color: currentColors.success, marginRight: 6 }} />
-            <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '600' }]}>
-              INCOME
+          <LinearGradient
+            colors={isDarkMode ? [currentColors.success + '15', 'transparent'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={{ position: 'relative', zIndex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <View style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                backgroundColor: currentColors.success + '20',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 8
+              }}>
+                <Icon name="trending-up" size={14} style={{ color: currentColors.success }} />
+              </View>
+              <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }]}>
+                INCOME
+              </Text>
+            </View>
+            <Text style={[
+              themedStyles.text,
+              {
+                fontSize: 28,
+                fontWeight: '800',
+                color: currentColors.success,
+                letterSpacing: -0.5
+              }
+            ]}>
+              {formatCurrency(displayValues.totalIncome)}
             </Text>
           </View>
-          <Text style={[
-            themedStyles.text,
-            {
-              fontSize: 24,
-              fontWeight: '700',
-              color: currentColors.success
-            }
-          ]}>
-            {formatCurrency(displayValues.totalIncome)}
-          </Text>
         </View>
 
         {/* Expenses Card */}
         <View style={[
           themedStyles.card,
           {
-            backgroundColor: currentColors.error + '10',
-            borderColor: currentColors.error + '30',
-            borderWidth: 1,
+            backgroundColor: isDarkMode ? currentColors.backgroundAlt : currentColors.error + '08',
+            borderColor: isDarkMode ? currentColors.error + '40' : currentColors.error + '20',
+            borderWidth: 1.5,
             marginBottom: isDesktop ? 0 : 16,
             flex: isDesktop ? 1 : undefined,
+            overflow: 'hidden',
           }
         ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Icon name="trending-down" size={16} style={{ color: currentColors.error, marginRight: 6 }} />
-            <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '600' }]}>
-              EXPENSES
+          <LinearGradient
+            colors={isDarkMode ? [currentColors.error + '15', 'transparent'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={{ position: 'relative', zIndex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <View style={{
+                width: 24,
+                height: 24,
+                borderRadius: 6,
+                backgroundColor: currentColors.error + '20',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 8
+              }}>
+                <Icon name="trending-down" size={14} style={{ color: currentColors.error }} />
+              </View>
+              <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }]}>
+                EXPENSES
+              </Text>
+            </View>
+            <Text style={[
+              themedStyles.text,
+              {
+                fontSize: 28,
+                fontWeight: '800',
+                color: currentColors.error,
+                letterSpacing: -0.5
+              }
+            ]}>
+              {formatCurrency(displayValues.totalExpenses)}
             </Text>
           </View>
-          <Text style={[
-            themedStyles.text,
-            {
-              fontSize: 24,
-              fontWeight: '700',
-              color: currentColors.error
-            }
-          ]}>
-            {formatCurrency(displayValues.totalExpenses)}
-          </Text>
         </View>
 
         {/* Remaining Card - Make it distinct */}
         <View style={[
           themedStyles.card,
           {
-            backgroundColor: displayValues.remaining >= 0
-              ? currentColors.success + '15'
-              : currentColors.error + '15',
+            backgroundColor: isDarkMode ? currentColors.backgroundAlt : (displayValues.remaining >= 0 ? currentColors.success + '10' : currentColors.error + '10'),
             borderColor: displayValues.remaining >= 0
-              ? currentColors.success + '40'
-              : currentColors.error + '40',
+              ? (isDarkMode ? currentColors.success + '60' : currentColors.success + '40')
+              : (isDarkMode ? currentColors.error + '60' : currentColors.error + '40'),
             borderWidth: 2,
             marginBottom: isDesktop ? 0 : 15,
             paddingBottom: isDesktop ? 20 : 12,
-            flex: isDesktop ? 1.2 : undefined, // Slightly larger on desktop
-            justifyContent: 'center'
+            flex: isDesktop ? 1.2 : undefined,
+            justifyContent: 'center',
+            overflow: 'hidden',
           }
         ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Icon
-              name={displayValues.remaining >= 0 ? "checkmark-circle" : "alert-circle"}
-              size={20}
-              style={{
+          <LinearGradient
+            colors={displayValues.remaining >= 0
+              ? [currentColors.success + '20', 'transparent']
+              : [currentColors.error + '20', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={{ position: 'relative', zIndex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <View style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                backgroundColor: displayValues.remaining >= 0 ? currentColors.success + '20' : currentColors.error + '20',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 10
+              }}>
+                <Icon
+                  name={displayValues.remaining >= 0 ? "checkmark-circle" : "alert-circle"}
+                  size={18}
+                  style={{ color: displayValues.remaining >= 0 ? currentColors.success : currentColors.error }}
+                />
+              </View>
+              <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }]}>
+                REMAINING
+              </Text>
+            </View>
+            <Text style={[
+              themedStyles.text,
+              {
+                fontSize: 34,
+                fontWeight: '900',
                 color: displayValues.remaining >= 0 ? currentColors.success : currentColors.error,
-                marginRight: 8
-              }}
-            />
-            <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '600' }]}>
-              REMAINING
+                lineHeight: 40,
+                letterSpacing: -1,
+                marginBottom: displayValues.remaining < 0 ? 4 : 0,
+              }
+            ]}>
+              {formatCurrency(displayValues.remaining)}
             </Text>
+            {displayValues.remaining < 0 && (
+              <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '600', opacity: 0.9 }]}>
+                Over budget by {formatCurrency(Math.abs(displayValues.remaining))}
+              </Text>
+            )}
           </View>
-          <Text style={[
-            themedStyles.text,
-            {
-              fontSize: 32,
-              fontWeight: '800',
-              color: displayValues.remaining >= 0 ? currentColors.success : currentColors.error,
-              lineHeight: 36,
-              marginBottom: displayValues.remaining < 0 ? 4 : 0,
-            }
-          ]}>
-            {formatCurrency(displayValues.remaining)}
-          </Text>
-          {displayValues.remaining < 0 && (
-            <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
-              Over budget by {formatCurrency(Math.abs(displayValues.remaining))}
-            </Text>
-          )}
         </View>
       </View>
 
@@ -246,56 +304,74 @@ export default function OverviewSection({
           themedStyles.card,
           {
             flex: 1,
-            backgroundColor: currentColors.household + '10',
-            borderColor: currentColors.household + '30',
+            backgroundColor: isDarkMode ? currentColors.backgroundAlt : currentColors.household + '05',
+            borderColor: isDarkMode ? currentColors.household + '30' : currentColors.household + '15',
             borderWidth: 1,
             marginBottom: 0,
+            overflow: 'hidden',
           }
         ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Icon name="home" size={14} style={{ color: currentColors.household, marginRight: 6 }} />
-            <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '600' }]}>
-              HOUSEHOLD
+          <LinearGradient
+            colors={isDarkMode ? [currentColors.household + '10', 'transparent'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={{ position: 'relative', zIndex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <Icon name="home" size={14} style={{ color: currentColors.household, marginRight: 6, opacity: 0.8 }} />
+              <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '700', letterSpacing: 1 }]}>
+                HOUSEHOLD
+              </Text>
+            </View>
+            <Text style={[
+              themedStyles.text,
+              {
+                fontSize: 18,
+                fontWeight: '800',
+                color: currentColors.household
+              }
+            ]}>
+              {formatCurrency(displayValues.householdExpenses)}
             </Text>
           </View>
-          <Text style={[
-            themedStyles.text,
-            {
-              fontSize: 16,
-              fontWeight: '700',
-              color: currentColors.household
-            }
-          ]}>
-            {formatCurrency(displayValues.householdExpenses)}
-          </Text>
         </View>
 
         <View style={[
           themedStyles.card,
           {
             flex: 1,
-            backgroundColor: currentColors.personal + '10',
-            borderColor: currentColors.personal + '30',
+            backgroundColor: isDarkMode ? currentColors.backgroundAlt : currentColors.personal + '05',
+            borderColor: isDarkMode ? currentColors.personal + '30' : currentColors.personal + '15',
             borderWidth: 1,
             marginBottom: 0,
+            overflow: 'hidden',
           }
         ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-            <Icon name="person" size={14} style={{ color: currentColors.personal, marginRight: 6 }} />
-            <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '600' }]}>
-              PERSONAL
+          <LinearGradient
+            colors={isDarkMode ? [currentColors.personal + '10', 'transparent'] : ['transparent', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={{ position: 'relative', zIndex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+              <Icon name="person" size={14} style={{ color: currentColors.personal, marginRight: 6, opacity: 0.8 }} />
+              <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '700', letterSpacing: 1 }]}>
+                PERSONAL
+              </Text>
+            </View>
+            <Text style={[
+              themedStyles.text,
+              {
+                fontSize: 18,
+                fontWeight: '800',
+                color: currentColors.personal
+              }
+            ]}>
+              {formatCurrency(displayValues.personalExpenses)}
             </Text>
           </View>
-          <Text style={[
-            themedStyles.text,
-            {
-              fontSize: 16,
-              fontWeight: '700',
-              color: currentColors.personal
-            }
-          ]}>
-            {formatCurrency(displayValues.personalExpenses)}
-          </Text>
         </View>
       </View>
     </View>

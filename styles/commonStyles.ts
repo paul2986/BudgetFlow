@@ -2,41 +2,45 @@
 import { StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 
 export const colors = {
-  primary: '#2E7D32',      // Green for primary actions
-  secondary: '#1976D2',    // Blue for secondary actions
-  accent: '#FF5722',       // Orange/Red for expenses
-  income: '#4CAF50',       // Green for income
-  expense: '#F44336',      // Red for expenses
-  household: '#9C27B0',    // Purple for household
-  personal: '#FF9800',     // Orange for personal
-  background: '#F8F9FA',   // Slightly warmer light grey background
-  backgroundAlt: '#FFFFFF', // White for cards
-  text: '#212121',         // Dark grey text
-  textSecondary: '#757575', // Medium grey text
-  border: '#E0E0E0',       // Light border
-  success: '#4CAF50',      // Success green
-  warning: '#FF9800',      // Warning orange
-  error: '#F44336',        // Error red
-  info: '#2196F3',         // Info blue
+  primary: '#7C3AED',      // Vibrant Purple
+  secondary: '#2563EB',    // Cyber Blue
+  accent: '#0891B2',       // Vibrant Cyan/Teal
+  income: '#10B981',       // Success Green
+  expense: '#EF4444',      // Error Red
+  text: '#1F2937',         // Dark Gray Text
+  textSecondary: '#6B7280', // Medium Gray Text
+  border: '#E5E7EB',       // Light Gray Border
+  background: '#F9FAFB',   // Very Light Gray BG
+  backgroundAlt: '#FFFFFF', // White BG
+  info: '#3B82F6',         // Info Blue
+  warning: '#F59E0B',      // Warning Amber
+  error: '#EF4444',        // Error Red
+  success: '#10B981',      // Success Green
+  household: '#7C3AED',    // Mapped to Primary Purple
+  personal: '#2563EB',     // Mapped to Secondary Blue
+  cardShadow: 'rgba(0, 0, 0, 0.05)',
+  brandGradient: ['#7C3AED', '#2563EB', '#0891B2'], // Vibrant Purple -> Blue -> Cyan
 };
 
 export const darkColors = {
-  primary: '#4CAF50',      // Brighter green for dark mode
-  secondary: '#2196F3',    // Brighter blue for dark mode
-  accent: '#FF7043',       // Softer orange for dark mode
-  income: '#66BB6A',       // Lighter green for income
-  expense: '#EF5350',      // Lighter red for expenses
-  household: '#AB47BC',    // Lighter purple for household
-  personal: '#FFA726',     // Lighter orange for personal
-  background: '#0F1419',   // Modern dark blue background
-  backgroundAlt: '#1A2332', // Slightly lighter dark blue for cards
-  text: '#E8F4FD',         // Light blue-tinted white text
-  textSecondary: '#8FA2B7', // Medium blue-grey text
-  border: '#2A3441',       // Dark blue-grey border
-  success: '#66BB6A',      // Success green
-  warning: '#FFA726',      // Warning orange
-  error: '#EF5350',        // Error red
-  info: '#42A5F5',         // Info blue for dark mode
+  primary: '#8B5CF6',      // Saturated Purple
+  secondary: '#3B82F6',    // Saturated Blue
+  accent: '#06B6D4',       // Saturated Cyan
+  income: '#10B981',       // Vibrant Success Green
+  expense: '#F43F5E',      // Vibrant Error Red
+  text: '#F9FAFB',         // Clean White Text
+  textSecondary: '#94A3B8', // Slate-600 secondary text
+  border: '#1E293B',       // Slate border
+  background: '#020617',   // Deeper Black/Navy (Slate-950)
+  backgroundAlt: '#0F172A', // Slate-900 BG
+  info: '#3B82F6',         // Info Blue
+  warning: '#F59E0B',      // Warning Amber
+  error: '#F43F5E',        // Error Red
+  success: '#10B981',      // Success Green
+  household: '#8B5CF6',    // Mapped to Primary Purple
+  personal: '#3B82F6',     // Mapped to Secondary Blue
+  cardShadow: 'rgba(0, 0, 0, 0.5)',
+  brandGradient: ['#7C3AED', '#2563EB', '#0891B2'], // Maintain consistent premium gradient
 };
 
 export const buttonStyles = StyleSheet.create({

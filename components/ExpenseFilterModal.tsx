@@ -4,6 +4,8 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal } from 'reac
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from './Icon';
+import Button from './Button';
+import StandardHeader from './StandardHeader';
 import { DEFAULT_CATEGORIES } from '../types/budget';
 import { normalizeCategoryName } from '../utils/storage';
 
@@ -97,7 +99,7 @@ export default function ExpenseFilterModal({
   // NEW: Calculate expense counts for each filter option dynamically
   const expenseCounts = useMemo(() => {
     console.log('ExpenseFilterModal: Calculating expense counts...');
-    
+
     // Helper function to apply filters and count results
     const countExpensesWithFilters = (testFilters: {
       filter?: 'all' | 'household' | 'personal';
@@ -108,14 +110,14 @@ export default function ExpenseFilterModal({
       hasEndDateFilter?: boolean;
     }) => {
       let filtered = [...expenses];
-      
+
       // Apply expense type filter
       if (testFilters.filter === 'household') {
         filtered = filtered.filter((e) => e.category === 'household');
       } else if (testFilters.filter === 'personal') {
         filtered = filtered.filter((e) => e.category === 'personal');
       }
-      
+
       // Apply person filter
       if (testFilters.personFilter) {
         filtered = filtered.filter((e) => {
@@ -125,10 +127,10 @@ export default function ExpenseFilterModal({
           return e.personId === testFilters.personFilter;
         });
       }
-      
+
       // Apply category filter (support both single and multiple)
-      const activeCategories = testFilters.categoryFilters && testFilters.categoryFilters.length > 0 
-        ? testFilters.categoryFilters 
+      const activeCategories = testFilters.categoryFilters && testFilters.categoryFilters.length > 0
+        ? testFilters.categoryFilters
         : (testFilters.categoryFilter ? [testFilters.categoryFilter] : []);
       if (activeCategories.length > 0) {
         const selectedCategories = activeCategories.map(cat => normalizeCategoryName(cat));
@@ -137,13 +139,13 @@ export default function ExpenseFilterModal({
           return selectedCategories.includes(expenseCategory);
         });
       }
-      
+
       // Apply search filter
       if (testFilters.searchQuery && testFilters.searchQuery.trim()) {
         const q = testFilters.searchQuery.toLowerCase();
         filtered = filtered.filter((e) => e.description.toLowerCase().includes(q));
       }
-      
+
       // Apply end date filter
       if (testFilters.hasEndDateFilter) {
         filtered = filtered.filter((e) => {
@@ -151,7 +153,7 @@ export default function ExpenseFilterModal({
           return hasEndDate;
         });
       }
-      
+
       return filtered.length;
     };
 
@@ -163,7 +165,7 @@ export default function ExpenseFilterModal({
       searchQuery: tempSearchQuery,
       hasEndDateFilter: tempHasEndDateFilter
     });
-    
+
     const householdCount = countExpensesWithFilters({
       filter: 'household',
       personFilter: tempPersonFilter,
@@ -171,7 +173,7 @@ export default function ExpenseFilterModal({
       searchQuery: tempSearchQuery,
       hasEndDateFilter: tempHasEndDateFilter
     });
-    
+
     const personalCount = countExpensesWithFilters({
       filter: 'personal',
       personFilter: tempPersonFilter,
@@ -191,7 +193,7 @@ export default function ExpenseFilterModal({
         hasEndDateFilter: tempHasEndDateFilter
       });
     });
-    
+
     // Count for "All People"
     const allPeopleCount = countExpensesWithFilters({
       filter: tempFilter,
@@ -212,7 +214,7 @@ export default function ExpenseFilterModal({
         hasEndDateFilter: tempHasEndDateFilter
       });
     });
-    
+
     // Count for "All Categories"
     const allCategoriesCount = countExpensesWithFilters({
       filter: tempFilter,
@@ -230,7 +232,7 @@ export default function ExpenseFilterModal({
       searchQuery: tempSearchQuery,
       hasEndDateFilter: true
     });
-    
+
     const withoutEndDateCount = countExpensesWithFilters({
       filter: tempFilter,
       personFilter: tempPersonFilter,
@@ -281,16 +283,15 @@ export default function ExpenseFilterModal({
       tempSearchQuery,
       tempHasEndDateFilter
     });
-    
+
     // FIXED: Apply the temporary filter values to the actual state
     setFilter(tempFilter);
     setPersonFilter(tempPersonFilter);
-    
+
     // Apply multiple categories
     setCategoryFilters(tempCategoryFilters);
     // For storage compatibility, also set single category filter to first selected
-    const newCategoryFilter = tempCategoryFilters;
-    setCategoryFilter(newCategoryFilter);
+    setCategoryFilter(tempCategoryFilters.length > 0 ? tempCategoryFilters[0] : null);
     setSearchQuery(tempSearchQuery);
     setHasEndDateFilter(tempHasEndDateFilter);
 
@@ -394,7 +395,7 @@ export default function ExpenseFilterModal({
   const FilterButton = ({ filterType, label }: { filterType: 'all' | 'household' | 'personal'; label: string }) => {
     const isSelected = tempFilter === filterType;
     const count = expenseCounts.expenseTypes[filterType];
-    
+
     return (
       <TouchableOpacity
         style={getFilterButtonStyle(isSelected)}
@@ -419,7 +420,7 @@ export default function ExpenseFilterModal({
   // FIXED: PersonButton component with content-based width
   const PersonButton = ({ personId, label, count }: { personId: string | null; label: string; count: number }) => {
     const isSelected = tempPersonFilter === personId;
-    
+
     return (
       <TouchableOpacity
         style={getFilterButtonStyle(isSelected)}
@@ -439,7 +440,7 @@ export default function ExpenseFilterModal({
   // FIXED: CategoryButton component with content-based width
   const CategoryButton = ({ category, count }: { category: string; count: number }) => {
     const isSelected = tempCategoryFilters.includes(category);
-    
+
     return (
       <TouchableOpacity
         style={getFilterButtonStyle(isSelected)}
@@ -469,33 +470,14 @@ export default function ExpenseFilterModal({
     >
       <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
         {/* Header */}
-        <View style={[themedStyles.header, { height: 64, boxShadow: '0px 1px 2px rgba(0,0,0,0.10)' }]}>
-          <View style={{ width: 44, height: 44, justifyContent: 'center', alignItems: 'flex-start' }}>
-            <TouchableOpacity
-              onPress={handleCancel}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: currentColors.border + '40',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <Icon name="close" size={24} style={{ color: currentColors.text }} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={[themedStyles.headerTitle, { textAlign: 'center', lineHeight: 22 }]}>
-              Filter & Search
-            </Text>
-          </View>
-
-          <View style={{ width: 44, height: 44 }}>
-            {/* Empty space for symmetry */}
-          </View>
-        </View>
+        <StandardHeader
+          title="Filter & Search"
+          showLeftIcon={true}
+          leftIcon="close"
+          onLeftPress={handleCancel}
+          backgroundColor={currentColors.background}
+          showRightIcon={false}
+        />
 
         <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 16 }]}>
           {/* Search input */}
@@ -532,13 +514,13 @@ export default function ExpenseFilterModal({
                   setTempHasEndDateFilter(!tempHasEndDateFilter);
                 }}
               >
-                <Icon 
+                <Icon
                   name="timer-outline"
-                  size={14} 
-                  style={{ 
+                  size={14}
+                  style={{
                     color: tempHasEndDateFilter ? '#FFFFFF' : currentColors.text,
-                    marginRight: 6 
-                  }} 
+                    marginRight: 6
+                  }}
                 />
                 <Text style={getFilterTextStyle(tempHasEndDateFilter)}>
                   Only expenses with end dates
@@ -554,18 +536,18 @@ export default function ExpenseFilterModal({
               <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Person</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View style={{ paddingHorizontal: 4, flexDirection: 'row' }}>
-                  <PersonButton 
-                    personId={null} 
-                    label="All People" 
-                    count={expenseCounts.allPeople} 
+                  <PersonButton
+                    personId={null}
+                    label="All People"
+                    count={expenseCounts.allPeople}
                   />
 
                   {people.map((person) => (
-                    <PersonButton 
+                    <PersonButton
                       key={person.id}
-                      personId={person.id} 
-                      label={person.name} 
-                      count={expenseCounts.people[person.id] || 0} 
+                      personId={person.id}
+                      label={person.name}
+                      count={expenseCounts.people[person.id] || 0}
                     />
                   ))}
                 </View>
@@ -578,7 +560,7 @@ export default function ExpenseFilterModal({
             <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>
               Categories {tempCategoryFilters.length > 0 && `(${tempCategoryFilters.length} selected)`}
             </Text>
-            
+
             {/* FIXED: All Categories button with content-based width */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 12 }}>
               <TouchableOpacity
@@ -599,9 +581,9 @@ export default function ExpenseFilterModal({
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
               {availableCategories.map((cat) => (
                 <View key={cat} style={{ margin: 4 }}>
-                  <CategoryButton 
-                    category={cat} 
-                    count={expenseCounts.categories[cat] || 0} 
+                  <CategoryButton
+                    category={cat}
+                    count={expenseCounts.categories[cat] || 0}
                   />
                 </View>
               ))}
@@ -734,52 +716,24 @@ export default function ExpenseFilterModal({
         </ScrollView>
 
         {/* Bottom action buttons */}
-        <View style={[themedStyles.section, { paddingTop: 16, paddingBottom: 32, paddingHorizontal: 16 }]}>
-          {/* Clear Filters button - only show when filters are active and position above Apply button */}
+        <View style={[themedStyles.section, { paddingTop: 16, paddingBottom: 32, paddingHorizontal: 16, gap: 12 }]}>
           {hasActiveFilters && (
-            <TouchableOpacity
+            <Button
+              text="Clear Filters"
               onPress={handleClearFilters}
-              style={{
-                backgroundColor: currentColors.error + '15',
-                borderWidth: 1,
-                borderColor: currentColors.error,
-                paddingVertical: 14,
-                paddingHorizontal: 24,
-                borderRadius: 24,
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row',
-                marginBottom: 12,
-                minHeight: 48,
-              }}
-            >
-              <Icon name="refresh-outline" size={20} style={{ color: currentColors.error, marginRight: 8 }} />
-              <Text style={[themedStyles.text, { color: currentColors.error, fontWeight: '700', fontSize: 16 }]}>
-                Clear Filters
-              </Text>
-            </TouchableOpacity>
+              variant="outline"
+              icon={<Icon name="refresh-outline" size={20} color={currentColors.error} />}
+              style={{ borderColor: currentColors.error }}
+              textStyle={{ color: currentColors.error }}
+            />
           )}
 
-          {/* Apply Filters button */}
-          <TouchableOpacity
+          <Button
+            text={hasActiveFilters ? 'Apply Filters' : 'Show All Expenses'}
             onPress={handleApplyFilters}
-            style={{
-              backgroundColor: currentColors.primary,
-              paddingVertical: 16,
-              paddingHorizontal: 24,
-              borderRadius: 24,
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'row',
-              boxShadow: '0px 4px 8px rgba(0,0,0,0.15)',
-              minHeight: 48,
-            }}
-          >
-            <Icon name="search-outline" size={20} style={{ color: '#FFFFFF', marginRight: 8 }} />
-            <Text style={[themedStyles.text, { color: '#FFFFFF', fontWeight: '700', fontSize: 16 }]}>
-              {hasActiveFilters ? 'Apply Filters' : 'Show All Expenses'}
-            </Text>
-          </TouchableOpacity>
+            variant="primary"
+            icon={<Icon name="search-outline" size={20} color="#FFFFFF" />}
+          />
         </View>
       </View>
     </Modal>

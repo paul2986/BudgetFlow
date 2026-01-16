@@ -1,8 +1,9 @@
-import { View, Text, TouchableOpacity, ScrollView, Platform, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Platform, Pressable, Image } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import Icon from './Icon';
 import { useMemo, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
@@ -111,9 +112,12 @@ const QuickActionButton = ({
 };
 
 
+import { useDesktopModals } from '../hooks/useDesktopModals';
+
 export default function SideNavBar() {
   const { currentColors, isDarkMode } = useTheme();
   const { appData, activeBudget } = useBudgetData();
+  const { openModal } = useDesktopModals();
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -160,15 +164,46 @@ export default function SideNavBar() {
       }}
     >
       <View style={{ padding: 24, paddingBottom: 12 }}>
-        <Text style={{
-          fontSize: 24,
-          fontWeight: '800',
-          color: currentColors.primary,
-          marginBottom: 4,
-          letterSpacing: -0.5
-        }}>
-          Budget Flow
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            overflow: 'visible',
+            marginRight: 12,
+            shadowColor: (currentColors as any).brandGradient?.[0] || currentColors.primary,
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.4,
+            shadowRadius: 10,
+            // Multi-layer drop shadow for gradient glow effect
+            // @ts-ignore
+            ...(Platform.OS === 'web' ? {
+              filter: `drop-shadow(0 2px 4px ${(currentColors as any).brandGradient?.[0]}60) drop-shadow(0 4px 8px ${(currentColors as any).brandGradient?.[1]}40) drop-shadow(0 4px 10px ${(currentColors as any).brandGradient?.[2]}20)`
+            } : {}),
+          }}>
+            <View style={{
+              width: '100%',
+              height: '100%',
+              borderRadius: 12,
+              overflow: 'hidden',
+              backgroundColor: 'rgba(0,0,0,0.05)',
+            }}>
+              <Image
+                source={require('../assets/images/icon.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
+            </View>
+          </View>
+          <Text style={{
+            fontSize: 22,
+            fontWeight: '800',
+            color: currentColors.text,
+            letterSpacing: -0.5
+          }}>
+            Budget Flow
+          </Text>
+        </View>
         <Text style={{
           fontSize: 14,
           color: currentColors.textSecondary,
@@ -206,7 +241,7 @@ export default function SideNavBar() {
             label="Add Expense"
             icon="add-circle"
             iconColor={currentColors.primary}
-            onPress={() => router.push('/add-expense')}
+            onPress={() => openModal('add-expense')}
             currentColors={currentColors}
           />
 
@@ -214,7 +249,7 @@ export default function SideNavBar() {
             label="Switch Budget"
             icon="wallet-outline"
             iconColor={currentColors.secondary}
-            onPress={() => router.push('/budgets')}
+            onPress={() => openModal('budgets')}
             currentColors={currentColors}
           />
         </View>

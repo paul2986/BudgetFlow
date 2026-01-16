@@ -1,6 +1,6 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -30,18 +30,18 @@ interface TypeBreakdown {
   categories: CategoryBreakdown[];
 }
 
-export default function ExpenseBreakdownSection({ 
-  expenses, 
-  people = [], 
-  viewMode = 'monthly' 
+export default function ExpenseBreakdownSection({
+  expenses,
+  people = [],
+  viewMode = 'monthly'
 }: ExpenseBreakdownSectionProps) {
-  const { currentColors } = useTheme();
+  const { currentColors, isDarkMode } = useTheme();
   const { formatCurrency } = useCurrency();
   const { themedStyles } = useThemedStyles();
-  
+
   // State for personal expenses person filter
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
-  
+
   // State for collapsible sections - default to closed
   const [householdExpanded, setHouseholdExpanded] = useState(false);
   const [personalExpanded, setPersonalExpanded] = useState(false);
@@ -102,17 +102,17 @@ export default function ExpenseBreakdownSection({
 
     const groupByType = (type: 'household' | 'personal'): TypeBreakdown | null => {
       let typeExpenses = activeExpenses.filter(expense => expense && expense.category === type);
-      
-      console.log(`ExpenseBreakdownSection: ${type} expenses before person filter:`, {
+
+      console.log(`ExpenseBreakdownSection: ${type} expenses before person filter: `, {
         count: typeExpenses.length,
         selectedPersonId
       });
-      
+
       // For personal expenses, apply person filter only if a specific person is selected
       if (type === 'personal' && selectedPersonId) {
         const beforeFilterCount = typeExpenses.length;
         typeExpenses = typeExpenses.filter(expense => expense.personId === selectedPersonId);
-        console.log(`ExpenseBreakdownSection: ${type} expenses after person filter:`, {
+        console.log(`ExpenseBreakdownSection: ${type} expenses after person filter: `, {
           beforeFilterCount,
           afterFilterCount: typeExpenses.length,
           selectedPersonId
@@ -130,11 +130,11 @@ export default function ExpenseBreakdownSection({
 
       // Group by category tag
       const categoryMap = new Map<string, { amount: number; count: number }>();
-      
+
       typeExpenses.forEach(expense => {
         const category = expense.categoryTag || 'Misc';
         const convertedAmount = convertAmount(calculateMonthlyAmount(expense.amount, expense.frequency) * 12); // Convert to annual first, then to view mode
-        
+
         if (categoryMap.has(category)) {
           const existing = categoryMap.get(category)!;
           categoryMap.set(category, {
@@ -158,7 +158,7 @@ export default function ExpenseBreakdownSection({
         }))
         .sort((a, b) => b.amount - a.amount);
 
-      console.log(`ExpenseBreakdownSection: ${type} breakdown calculated:`, {
+      console.log(`ExpenseBreakdownSection: ${type} breakdown calculated: `, {
         typeAmount,
         categoriesCount: categories.length
       });
@@ -197,10 +197,10 @@ export default function ExpenseBreakdownSection({
       categoryName,
       selectedPersonId
     });
-    
+
     // FIXED: Create a unique timestamp to ensure fresh navigation each time
     const timestamp = Date.now();
-    
+
     // Navigate to expenses page with pre-applied filters
     const params: Record<string, string> = {
       filter: expenseType,
@@ -208,14 +208,14 @@ export default function ExpenseBreakdownSection({
       fromDashboard: 'true',
       _t: timestamp.toString() // Add timestamp to force fresh navigation
     };
-    
+
     // If personal expenses and a specific person is selected, add person filter
     if (expenseType === 'personal' && selectedPersonId) {
       params.personId = selectedPersonId;
     }
-    
+
     console.log('ExpenseBreakdownSection: Navigation params:', params);
-    
+
     // FIXED: Use replace instead of push to avoid navigation stack issues
     router.replace({
       pathname: '/expenses',
@@ -229,18 +229,18 @@ export default function ExpenseBreakdownSection({
       console.log('ExpenseBreakdownSection: No people or expenses for peopleWithPersonalExpenses calculation');
       return [];
     }
-    
+
     const personalExpenses = expenses.filter(e => e && e.category === 'personal' && e.personId);
     const peopleIds = new Set(personalExpenses.map(e => e.personId));
-    
+
     const result = people.filter(person => peopleIds.has(person.id));
-    
+
     console.log('ExpenseBreakdownSection: peopleWithPersonalExpenses calculation:', {
       totalPeople: people.length,
       personalExpenses: personalExpenses.length,
       peopleWithExpensesCount: result.length
     });
-    
+
     return result;
   }, [people, expenses]);
 
@@ -354,8 +354,8 @@ export default function ExpenseBreakdownSection({
     const setExpanded = isHousehold ? setHouseholdExpanded : setPersonalExpanded;
 
     // Get selected person name for personal expenses header
-    const selectedPersonName = selectedPersonId && people 
-      ? people.find(p => p.id === selectedPersonId)?.name 
+    const selectedPersonName = selectedPersonId && people
+      ? people.find(p => p.id === selectedPersonId)?.name
       : null;
 
     return (
@@ -364,129 +364,154 @@ export default function ExpenseBreakdownSection({
         style={[
           themedStyles.card,
           {
-            backgroundColor: typeColor + '10',
-            borderColor: typeColor + '30',
-            borderWidth: 2,
+            backgroundColor: isDarkMode ? currentColors.backgroundAlt : typeColor + '05',
+            borderColor: isDarkMode ? typeColor + '40' : typeColor + '20',
+            borderWidth: 1.5,
             marginBottom: 16,
+            overflow: 'hidden',
+            padding: 20,
           },
         ]}
       >
-        {/* Collapsible Type Header */}
-        <TouchableOpacity
-          onPress={() => setExpanded(!isExpanded)}
-          activeOpacity={0.7}
-          style={{ flexDirection: 'row', alignItems: 'center', marginBottom: isExpanded ? 20 : 0 }}
-        >
-          <View style={{
-            width: 48,
-            height: 48,
-            borderRadius: 24,
-            backgroundColor: typeColor + '20',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginRight: 16,
-          }}>
-            <Icon name={typeIcon} size={24} style={{ color: typeColor }} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[themedStyles.subtitle, { fontSize: 17, fontWeight: '700', marginBottom: 4 }]}>
-              {isHousehold 
-                ? 'Household Expenses' 
-                : selectedPersonName 
-                  ? `${selectedPersonName}'s Personal Expenses`
-                  : 'Personal Expenses'
-              }
-            </Text>
-            <Text style={[themedStyles.textSecondary, { fontSize: 14 }]}>
-              {breakdown.count} {breakdown.count === 1 ? 'expense' : 'expenses'} • {breakdown.percentage.toFixed(1)}% of total
-            </Text>
-          </View>
-          <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
-            <Text style={[
-              themedStyles.text,
-              { fontSize: 18, fontWeight: '700', color: typeColor }
-            ]}>
-              {formatCurrency(breakdown.amount)}
-            </Text>
-            <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
-              per {viewMode === 'yearly' ? 'year' : viewMode === 'daily' ? 'day' : 'month'}
-            </Text>
-          </View>
-          <Icon 
-            name={isExpanded ? "chevron-up" : "chevron-down"} 
-            size={20} 
-            style={{ color: currentColors.textSecondary }} 
+        {isDarkMode && (
+          <LinearGradient
+            colors={[typeColor + '10', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
           />
-        </TouchableOpacity>
+        )}
+        <View style={{ position: 'relative', zIndex: 1 }}>
+          {/* Collapsible Type Header */}
+          <TouchableOpacity
+            onPress={() => setExpanded(!isExpanded)}
+            activeOpacity={0.7}
+            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: isExpanded ? 24 : 0 }}
+          >
+            <View style={{
+              width: 52,
+              height: 52,
+              borderRadius: 14,
+              backgroundColor: isDarkMode ? typeColor + '20' : typeColor + '10',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 16,
+              borderWidth: 1,
+              borderColor: typeColor + '30',
+            }}>
+              <Icon name={typeIcon} size={28} style={{ color: typeColor }} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[themedStyles.subtitle, { fontSize: 18, fontWeight: '800', marginBottom: 4, color: currentColors.text }]}>
+                {isHousehold
+                  ? 'Household Expenses'
+                  : selectedPersonName
+                    ? `${selectedPersonName} 's Personal Expenses`
+                    : 'Personal Expenses'
+                }
+              </Text >
+              <Text style={[themedStyles.textSecondary, { fontSize: 14, fontWeight: '500' }]}>
+                {breakdown.count} {breakdown.count === 1 ? 'expense' : 'expenses'} • {breakdown.percentage.toFixed(1)}% of total
+              </Text>
+            </View >
+            <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
+              <Text style={[
+                themedStyles.text,
+                { fontSize: 20, fontWeight: '800', color: typeColor }
+              ]}>
+                {formatCurrency(breakdown.amount)}
+              </Text>
+              <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }]}>
+                per {viewMode === 'yearly' ? 'year' : viewMode === 'daily' ? 'day' : 'month'}
+              </Text>
+            </View>
+            <View style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: currentColors.border + '50',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Icon
+                name={isExpanded ? "chevron-up" : "chevron-down"}
+                size={18}
+                style={{ color: currentColors.textSecondary }}
+              />
+            </View>
+          </TouchableOpacity >
+        </View >
 
         {/* Expandable Content */}
-        {isExpanded && (
-          <View>
-            {/* Person Switcher for Personal Expenses - Only show if 2+ people with personal expenses */}
-            {!isHousehold && <PersonSwitcher />}
+        {
+          isExpanded && (
+            <View>
+              {/* Person Switcher for Personal Expenses - Only show if 2+ people with personal expenses */}
+              {!isHousehold && <PersonSwitcher />}
 
-            {/* Categories - Interactive */}
-            <View style={{ gap: 12 }}>
-              {breakdown.categories.map((category, categoryIndex) => (
-                <TouchableOpacity
-                  key={`${breakdown.type}-${category.category}-${categoryIndex}`}
-                  onPress={() => handleCategoryPress(breakdown.type, category.category)}
-                  activeOpacity={0.7}
-                  style={{
-                    backgroundColor: currentColors.backgroundAlt,
-                    borderRadius: 12,
-                    padding: 16,
-                    borderWidth: 1,
-                    borderColor: currentColors.border,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      <Text style={[themedStyles.text, { fontSize: 16, fontWeight: '600', flex: 1 }]}>
-                        {category.category}
+              {/* Categories - Interactive */}
+              <View style={{ gap: 12 }}>
+                {breakdown.categories.map((category, categoryIndex) => (
+                  <TouchableOpacity
+                    key={`${breakdown.type}-${category.category}-${categoryIndex}`}
+                    onPress={() => handleCategoryPress(breakdown.type, category.category)}
+                    activeOpacity={0.7}
+                    style={{
+                      backgroundColor: currentColors.backgroundAlt,
+                      borderRadius: 12,
+                      padding: 16,
+                      borderWidth: 1,
+                      borderColor: currentColors.border,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <Text style={[themedStyles.text, { fontSize: 16, fontWeight: '600', flex: 1 }]}>
+                          {category.category}
+                        </Text>
+                        <Icon
+                          name="chevron-forward"
+                          size={16}
+                          style={{ color: currentColors.textSecondary, marginLeft: 8 }}
+                        />
+                      </View>
+                      <Text style={[themedStyles.text, { fontSize: 14, fontWeight: '700', color: typeColor, marginLeft: 12 }]}>
+                        {formatCurrency(category.amount)}
                       </Text>
-                      <Icon 
-                        name="chevron-forward" 
-                        size={16} 
-                        style={{ color: currentColors.textSecondary, marginLeft: 8 }} 
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
+                        {category.count} {category.count === 1 ? 'expense' : 'expenses'}
+                      </Text>
+                      <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
+                        {category.percentage.toFixed(1)}% of {breakdown.type}
+                      </Text>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={{
+                      height: 6,
+                      backgroundColor: currentColors.border,
+                      borderRadius: 3,
+                      overflow: 'hidden',
+                    }}>
+                      <View
+                        style={{
+                          height: '100%',
+                          backgroundColor: typeColor,
+                          borderRadius: 3,
+                          width: `${category.percentage}%`,
+                        }}
                       />
                     </View>
-                    <Text style={[themedStyles.text, { fontSize: 14, fontWeight: '700', color: typeColor, marginLeft: 12 }]}>
-                      {formatCurrency(category.amount)}
-                    </Text>
-                  </View>
-                  
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
-                      {category.count} {category.count === 1 ? 'expense' : 'expenses'}
-                    </Text>
-                    <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
-                      {category.percentage.toFixed(1)}% of {breakdown.type}
-                    </Text>
-                  </View>
-
-                  {/* Progress Bar */}
-                  <View style={{
-                    height: 6,
-                    backgroundColor: currentColors.border,
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                  }}>
-                    <View
-                      style={{
-                        height: '100%',
-                        backgroundColor: typeColor,
-                        borderRadius: 3,
-                        width: `${category.percentage}%`,
-                      }}
-                    />
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
-          </View>
-        )}
-      </View>
+          )
+        }
+      </View >
     );
   };
 

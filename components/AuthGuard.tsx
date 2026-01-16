@@ -11,8 +11,10 @@ import {
     ActivityIndicator,
     useWindowDimensions,
     StyleSheet,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -97,6 +99,8 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     const { width } = useWindowDimensions();
     const isDesktop = width >= 768;
 
+    const brandGradient = (currentColors as any).brandGradient || ['#00C853', '#00BFA5'];
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
@@ -108,7 +112,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     // Set body background to match login screen on web
     useEffect(() => {
         if (Platform.OS === 'web' && !user) {
-            const loginBgColor = isDarkMode ? '#0F1419' : '#F8F9FA';
+            const loginBgColor = currentColors.background;
             document.body.style.backgroundColor = loginBgColor;
             // Also update the theme-color meta tag
             const metaThemeColor = document.querySelector('meta[name="theme-color"]');
@@ -166,16 +170,16 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     };
 
     return (
-        <View style={{ flex: 1, backgroundColor: isDarkMode ? '#0F1419' : '#F8F9FA', overflow: 'hidden' }}>
+        <View style={{ flex: 1, backgroundColor: currentColors.background, overflow: 'hidden' }}>
             {/* Animated Background Layers */}
             <View style={{
                 ...StyleSheet.absoluteFillObject,
                 // @ts-ignore - web only fix for address bar bleed. Aggressive overscan for Safari iOS.
                 ...(Platform.OS === 'web' ? { position: 'fixed', top: -300, left: -300, right: -300, bottom: -300, zIndex: 0 } : {})
             } as any}>
-                <AnimatedCircle size={400} color={currentColors.primary} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
-                <AnimatedCircle size={300} color={currentColors.secondary} delay={1000} duration={12000} initialX="70%" initialY="60%" />
-                <AnimatedCircle size={250} color={currentColors.accent} delay={2000} duration={8000} initialX="10%" initialY="70%" />
+                <AnimatedCircle size={400} color={brandGradient[0] + '20'} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
+                <AnimatedCircle size={300} color={brandGradient[1] + '20'} delay={1000} duration={12000} initialX="70%" initialY="60%" />
+                <AnimatedCircle size={250} color={currentColors.secondary + '20'} delay={2000} duration={8000} initialX="10%" initialY="70%" />
             </View>
 
             <KeyboardAvoidingView
@@ -194,30 +198,45 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                     <View style={{
                         width: '100%',
                         maxWidth: isDesktop ? 450 : '100%',
-                        backgroundColor: isDarkMode ? 'rgba(26, 35, 50, 0.8)' : 'rgba(255, 255, 255, 0.9)',
+                        backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.9)',
                         borderRadius: 24,
                         padding: isDesktop ? 48 : 32,
                         borderWidth: 1,
                         borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
                         boxShadow: '0px 20px 40px rgba(0, 0, 0, 0.1)',
+                        // @ts-ignore
                         backdropFilter: Platform.OS === 'web' ? 'blur(20px)' : 'none',
                     }}>
                         <View style={{ alignItems: 'center', marginBottom: 32 }}>
                             <View style={{
-                                width: 72,
-                                height: 72,
-                                borderRadius: 20,
-                                backgroundColor: currentColors.primary,
-                                alignItems: 'center',
-                                justifyContent: 'center',
+                                width: 80,
+                                height: 80,
+                                borderRadius: 18,
+                                overflow: 'visible',
                                 marginBottom: 20,
-                                transform: [{ rotate: '-10deg' }],
-                                shadowColor: currentColors.primary,
-                                shadowOffset: { width: 0, height: 8 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 12,
+                                shadowColor: brandGradient[0],
+                                shadowOffset: { width: 0, height: 6 },
+                                shadowOpacity: 0.4,
+                                shadowRadius: 15,
+                                // Multi-layer drop shadow for gradient glow effect
+                                // @ts-ignore
+                                ...(Platform.OS === 'web' ? {
+                                    filter: `drop-shadow(0 6px 10px ${brandGradient[0]}60) drop-shadow(0 6px 15px ${brandGradient[1]}40) drop-shadow(0 6px 20px ${brandGradient[2]}20)`
+                                } : {}),
                             }}>
-                                <Icon name="wallet" size={36} style={{ color: '#FFFFFF' }} />
+                                <View style={{
+                                    width: '100%',
+                                    height: '100%',
+                                    borderRadius: 18,
+                                    overflow: 'hidden',
+                                    backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
+                                }}>
+                                    <Image
+                                        source={require('../assets/images/icon.png')}
+                                        style={{ width: '100%', height: '100%' }}
+                                        resizeMode="cover"
+                                    />
+                                </View>
                             </View>
                             <Text style={{
                                 fontSize: 32,
@@ -273,30 +292,12 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                                 />
                             </View>
 
-                            <TouchableOpacity
+                            <Button
+                                text={authMode === 'login' ? 'Sign In' : 'Get Started'}
                                 onPress={handleAuth}
-                                disabled={authLoading}
-                                activeOpacity={0.8}
-                                style={{
-                                    backgroundColor: currentColors.primary,
-                                    height: 54,
-                                    borderRadius: 14,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    shadowColor: currentColors.primary,
-                                    shadowOffset: { width: 0, height: 4 },
-                                    shadowOpacity: 0.3,
-                                    shadowRadius: 8,
-                                }}
-                            >
-                                {authLoading ? (
-                                    <ActivityIndicator color="#FFFFFF" />
-                                ) : (
-                                    <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
-                                        {authMode === 'login' ? 'Sign In' : 'Get Started'}
-                                    </Text>
-                                )}
-                            </TouchableOpacity>
+                                loading={authLoading}
+                                variant="primary"
+                            />
 
                             <TouchableOpacity
                                 onPress={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
@@ -305,7 +306,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                             >
                                 <Text style={{ fontSize: 14, color: currentColors.textSecondary }}>
                                     {authMode === 'login' ? "New here? " : "Already have an account? "}
-                                    <Text style={{ color: currentColors.primary, fontWeight: '700' }}>
+                                    <Text style={{ color: brandGradient[0], fontWeight: '700' }}>
                                         {authMode === 'login' ? "Sign Up" : "Sign In"}
                                     </Text>
                                 </Text>

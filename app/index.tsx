@@ -13,7 +13,8 @@ import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { router, useFocusEffect } from 'expo-router';
 import Icon from '../components/Icon';
-import { Text, View, ScrollView, TouchableOpacity, AppState, TextInput, KeyboardAvoidingView, Platform, AppStateStatus } from 'react-native';
+import { Text, View, ScrollView, TouchableOpacity, AppState, TextInput, KeyboardAvoidingView, Platform, AppStateStatus, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -284,9 +285,9 @@ export default function HomeScreen() {
           contentContainerStyle={[
             themedStyles.scrollContent,
             {
-              paddingHorizontal: 0, // Reduced from 16 to 0
-              paddingTop: showBudgetNaming && appData && appData.budgets && appData.budgets.length > 0 ? 20 : 20, // Reduced top padding for first-time users
-              paddingBottom: 120, // Ensure bottom content is visible above nav bar
+              paddingHorizontal: 0,
+              paddingTop: showBudgetNaming && appData && appData.budgets && appData.budgets.length > 0 ? 20 : 40,
+              paddingBottom: 120,
               justifyContent: 'flex-start',
               flexGrow: 1,
             }
@@ -295,7 +296,36 @@ export default function HomeScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={{ alignItems: 'center', marginBottom: 32, marginTop: 20 }}>
-            <Icon name="wallet-outline" size={80} style={{ color: currentColors.primary, marginBottom: 24 }} />
+            <View style={{
+              width: 100,
+              height: 100,
+              borderRadius: 22,
+              overflow: 'visible',
+              marginBottom: 24,
+              shadowColor: (currentColors as any).brandGradient?.[0] || currentColors.primary,
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.4,
+              shadowRadius: 20,
+              // Multi-layer drop shadow for gradient glow effect
+              // @ts-ignore
+              ...(Platform.OS === 'web' ? {
+                filter: `drop-shadow(0 8px 12px ${(currentColors as any).brandGradient?.[0]}60) drop-shadow(0 8px 20px ${(currentColors as any).brandGradient?.[1]}40) drop-shadow(0 8px 25px ${(currentColors as any).brandGradient?.[2]}20)`
+              } : {}),
+            }}>
+              <View style={{
+                width: '100%',
+                height: '100%',
+                borderRadius: 22,
+                overflow: 'hidden',
+                backgroundColor: 'rgba(0,0,0,0.05)',
+              }}>
+                <Image
+                  source={require('../assets/images/icon.png')}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </View>
+            </View>
             <Text style={[themedStyles.title, { textAlign: 'center', marginBottom: 12 }]}>
               Welcome to Budget Flow!
             </Text>
@@ -385,8 +415,8 @@ export default function HomeScreen() {
               After creating your budget, you'll be guided through adding people and expenses
             </Text>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </ScrollView >
+      </KeyboardAvoidingView >
     );
   }
 
@@ -631,57 +661,20 @@ export default function HomeScreen() {
               </Text>
 
               <View style={{ width: '100%', gap: 12 }}>
-                <TouchableOpacity
-                  style={[
-                    themedStyles.card,
-                    {
-                      backgroundColor: currentColors.primary,
-                      borderColor: currentColors.primary,
-                      borderWidth: 2,
-                      minHeight: 50,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 0,
-                    },
-                  ]}
+                <Button
+                  text={authenticating ? "Authenticating..." : "Unlock to view"}
+                  icon={!authenticating && <Icon name="lock-open" size={20} color="#fff" />}
                   onPress={handleUnlock}
                   disabled={authenticating}
-                >
-                  {authenticating ? (
-                    <Text style={[themedStyles.text, { color: '#fff', fontSize: 16, fontWeight: '600' }]}>
-                      Authenticating...
-                    </Text>
-                  ) : (
-                    <>
-                      <Icon name="lock-open" size={20} style={{ color: '#fff', marginRight: 12 }} />
-                      <Text style={[themedStyles.text, { color: '#fff', fontSize: 16, fontWeight: '600' }]}>
-                        Unlock to view
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                  variant="primary"
+                />
 
-                <TouchableOpacity
-                  style={[
-                    themedStyles.card,
-                    {
-                      backgroundColor: 'transparent',
-                      borderColor: currentColors.border,
-                      borderWidth: 2,
-                      minHeight: 50,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 0,
-                    },
-                  ]}
+                <Button
+                  text="Back to Budgets"
                   onPress={handleBackToBudgets}
                   disabled={authenticating}
-                >
-                  <Text style={[themedStyles.text, { fontSize: 16, fontWeight: '600' }]}>
-                    Back to Budgets
-                  </Text>
-                </TouchableOpacity>
+                  variant="outline"
+                />
               </View>
             </View>
           </BlurView>

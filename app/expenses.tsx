@@ -14,6 +14,7 @@ import ExpenseFilterModal from '../components/ExpenseFilterModal';
 import ExpenseCard from '../components/ExpenseCard';
 import { DEFAULT_CATEGORIES } from '../types/budget';
 import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, normalizeCategoryName } from '../utils/storage';
+import { useDesktopModals } from '../hooks/useDesktopModals';
 
 type SortOption = 'date' | 'alphabetical' | 'cost';
 type SortOrder = 'asc' | 'desc';
@@ -319,16 +320,26 @@ export default function ExpensesScreen() {
     [handleRemoveExpense]
   );
 
+  const { openModal } = useDesktopModals();
+
   const handleEditExpense = useCallback((expense: any) => {
-    router.push({
-      pathname: '/add-expense',
-      params: { id: expense.id, origin: 'expenses' },
-    });
-  }, []);
+    if (Platform.OS === 'web') {
+      openModal('edit-expense', expense.id);
+    } else {
+      router.push({
+        pathname: '/add-expense',
+        params: { id: expense.id, origin: 'expenses' },
+      });
+    }
+  }, [openModal]);
 
   const handleNavigateToAddExpense = useCallback(() => {
-    router.push('/add-expense');
-  }, []);
+    if (Platform.OS === 'web') {
+      openModal('add-expense');
+    } else {
+      router.push('/add-expense');
+    }
+  }, [openModal]);
 
   const handleClearFilters = useCallback(() => {
     console.log('ExpensesScreen: Clearing all filters');
