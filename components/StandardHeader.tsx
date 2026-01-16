@@ -175,15 +175,7 @@ export default function StandardHeader({
       {
         height: subtitle ? (isPad ? 88 : 76) : (isPad ? 72 : 64),
         boxShadow: '0px 1px 2px rgba(0,0,0,0.10)',
-        backgroundColor: backgroundColor || currentColors.backgroundAlt,
-        // @ts-ignore - Web-specific positioning
-        ...(Platform.OS === 'web' ? {
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 100,
-        } : {}),
+        backgroundColor: backgroundColor || currentColors.backgroundAlt
       }
     ]}>
       {/* Left side - supports multiple left buttons */}

@@ -964,7 +964,7 @@ export default function HomeScreen() {
           themedStyles.scrollContent,
           {
             paddingHorizontal: 0,
-            paddingTop: Platform.OS === 'web' ? 80 : 16, // Add space for fixed header on web
+            paddingTop: 16,
             paddingBottom: 120, // Ensure bottom content is visible above nav bar
           }
         ]}

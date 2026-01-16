@@ -198,10 +198,19 @@ function RootLayoutContent() {
       const style = document.createElement('style');
       style.id = 'safari-fix-styles';
       style.textContent = `
-        /* Detect standalone mode (PWA) */
+        /* Detect standalone mode (PWA) - prevent scrolling beyond boundaries */
         @media all and (display-mode: standalone) {
           html, body {
             background-color: ${currentColors.background} !important;
+            height: 100%;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+          }
+          #root {
+            height: 100%;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
           }
         }
         /* Browser mode - color top area to match header */
