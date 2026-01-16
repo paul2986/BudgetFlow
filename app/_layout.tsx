@@ -147,6 +147,7 @@ function RootLayoutContent() {
 
   const pageState = useMemo(() => {
     if (isInitialLoad || loading) return 'loading';
+    if (!user) return 'auth';
     if (pathname !== '/') return 'normal';
 
     const hasNoBudgets = !appData?.budgets?.length;
@@ -171,7 +172,8 @@ function RootLayoutContent() {
       case 'normal':
         return currentColors.backgroundAlt; // Match top bar to header
       case 'welcome':
-        return currentColors.background;
+      case 'auth':
+        return currentColors.background; // Match top bar to background
       default:
         return currentColors.backgroundAlt;
     }
