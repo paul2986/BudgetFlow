@@ -1,10 +1,15 @@
 
+
 import React from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from './Icon';
+
+// Export header height for use in other components
+export const HEADER_HEIGHT = 64;
+export const HEADER_HEIGHT_IPAD = 72;
 
 // Helper function to detect iPad
 const isIPad = () => {
@@ -170,7 +175,15 @@ export default function StandardHeader({
       {
         height: subtitle ? (isPad ? 88 : 76) : (isPad ? 72 : 64),
         boxShadow: '0px 1px 2px rgba(0,0,0,0.10)',
-        backgroundColor: backgroundColor || currentColors.backgroundAlt
+        backgroundColor: backgroundColor || currentColors.backgroundAlt,
+        // @ts-ignore - Web-specific positioning
+        ...(Platform.OS === 'web' ? {
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 100,
+        } : {}),
       }
     ]}>
       {/* Left side - supports multiple left buttons */}
