@@ -198,32 +198,10 @@ function RootLayoutContent() {
       const style = document.createElement('style');
       style.id = 'safari-fix-styles';
       style.textContent = `
-        /* Detect standalone mode (PWA) - prevent scrolling beyond boundaries */
-        @media all and (display-mode: standalone) {
-          html, body {
-            background-color: ${currentColors.background} !important;
-            height: 100%;
-            overflow: hidden;
-            position: fixed;
-            width: 100%;
-          }
-          #root {
-            height: 100%;
-            overflow: auto;
-            -webkit-overflow-scrolling: touch;
-          }
-        }
-        /* Browser mode - color top area to match header */
-        @media all and (display-mode: browser) {
-          html {
-            background-color: ${safeZoneBackgroundColor} !important;
-          }
-          body {
-            background-color: ${safeZoneBackgroundColor} !important;
-          }
-        }
-        /* Fallback for browsers that don't support display-mode */
         html {
+          margin: 0;
+          padding: 0;
+          width: 100%;
           background-color: ${currentColors.background} !important;
         }
         body { 
@@ -239,7 +217,6 @@ function RootLayoutContent() {
           display: flex;
           flex-direction: column;
           background-color: ${currentColors.background} !important;
-          margin-top: 0;
         }
         /* Fancy Scrollbar */
         ::-webkit-scrollbar {
@@ -314,10 +291,6 @@ function RootLayoutContent() {
       <View style={{
         flex: 1,
         backgroundColor: Platform.OS === 'web' ? 'transparent' : currentColors.background,
-        // Restore padding for PWA/Mobile Web safe areas
-        paddingTop: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-top)' as any) : 0,
-        // Remove paddingBottom here as it pushes the absolute nav bar up. 
-        // Content padding is handled by ScrollView/ThemedStyles.
         paddingBottom: 0,
       }}>
         <AuthGuard user={user} loading={authLoading}>
