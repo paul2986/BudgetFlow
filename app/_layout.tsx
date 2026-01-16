@@ -169,13 +169,17 @@ function RootLayoutContent() {
       case 'loading':
       case 'guidance':
       case 'normal':
-        return currentColors.backgroundAlt;
+        return currentColors.background; // Match top bar to main content
       case 'welcome':
         return currentColors.background;
       default:
-        return currentColors.backgroundAlt;
+        return currentColors.background;
     }
   }, [pageState, currentColors]);
+
+  const bottomSafeZoneColor = useMemo(() => {
+    return currentColors.backgroundAlt; // Match bottom bar to nav bar
+  }, [currentColors]);
 
   // Inject global styles to fix Safari scroll and background issues
   useEffect(() => {
@@ -189,13 +193,16 @@ function RootLayoutContent() {
           min-height: 100dvh;
           width: 100%;
           overflow: hidden; 
-          background-color: ${safeZoneBackgroundColor};
+          /* Use a gradient to handle both top and bottom safe areas differently */
+          background: linear-gradient(to bottom, ${safeZoneBackgroundColor} 50%, ${bottomSafeZoneColor} 50%);
+          background-attachment: fixed;
         }
         #root {
           height: 100%;
           width: 100%;
           display: flex;
           flex-direction: column;
+          background-color: transparent !important;
         }
         /* Mobile Safari specific overrides */
         @supports (-webkit-touch-callout: none) {
@@ -208,12 +215,19 @@ function RootLayoutContent() {
         }
       `;
       document.head.appendChild(style);
+
+      // Update theme-color meta tag dynamically
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', safeZoneBackgroundColor);
+      }
+
       return () => {
         const existing = document.getElementById('safari-fix-styles');
         if (existing) existing.remove();
       };
     }
-  }, [currentColors.background]);
+  }, [safeZoneBackgroundColor, bottomSafeZoneColor]);
 
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -222,7 +236,7 @@ function RootLayoutContent() {
     <View style={{
       flex: 1,
       height: '100%',
-      backgroundColor: currentColors.background,
+      backgroundColor: Platform.OS === 'web' ? 'transparent' : currentColors.background,
       flexDirection: isDesktop ? 'row' : 'column',
       paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
@@ -246,7 +260,7 @@ function RootLayoutContent() {
 
       <View style={{
         flex: 1,
-        backgroundColor: currentColors.background,
+        backgroundColor: Platform.OS === 'web' ? 'transparent' : currentColors.background,
         // Restore padding for PWA/Mobile Web safe areas
         paddingTop: (Platform.OS === 'web' && !isDesktop) ? ('env(safe-area-inset-top)' as any) : 0,
         // Remove paddingBottom here as it pushes the absolute nav bar up. 
