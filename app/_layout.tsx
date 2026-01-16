@@ -197,11 +197,34 @@ function RootLayoutContent() {
           height: 100%;
           height: -webkit-fill-available;
           overflow: hidden; 
-          /* Use background to match app exactly */
           background-color: ${currentColors.background} !important;
-          /* Specifically tint the top safe area to match the header without affecting bottom */
-          background-image: linear-gradient(to bottom, ${safeZoneBackgroundColor} 0%, ${safeZoneBackgroundColor} env(safe-area-inset-top), ${currentColors.background} env(safe-area-inset-top)) !important;
-          background-attachment: fixed;
+        }
+        /* Top safe area overlay - covers the status bar area */
+        body::before {
+          content: '';
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: env(safe-area-inset-top, 0px);
+          background-color: ${safeZoneBackgroundColor};
+          z-index: 99999;
+          pointer-events: none;
+        }
+        /* Bottom safe area overlay - covers below the nav bar */
+        body::after {
+          content: '';
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: env(safe-area-inset-bottom, 0px);
+          background-color: ${bottomSafeZoneColor};
+          z-index: 99998;
+          pointer-events: none;
+          /* Apply blur effect to match nav bar */
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
         }
         #root {
           height: 100%;
@@ -238,11 +261,10 @@ function RootLayoutContent() {
         @supports (-webkit-touch-callout: none) {
           html, body {
             height: -webkit-fill-available;
-            position: fixed; /* Prevents unwanted bounce on outer layers */
           }
           #root {
             height: -webkit-fill-available;
-            height: 100svh; /* Use SVH for reliable mobile safari height */
+            min-height: 100svh;
           }
         }
       `;
@@ -259,7 +281,7 @@ function RootLayoutContent() {
         if (existing) existing.remove();
       };
     }
-  }, [safeZoneBackgroundColor, bottomSafeZoneColor]);
+  }, [safeZoneBackgroundColor, bottomSafeZoneColor, currentColors.background, currentColors.primary, isDarkMode]);
 
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -279,7 +301,7 @@ function RootLayoutContent() {
         <meta name="theme-color" content={safeZoneBackgroundColor} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </Head>
 
       <StatusBar
