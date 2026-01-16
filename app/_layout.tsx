@@ -65,9 +65,14 @@ function CustomTabBar() {
           ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
           : currentColors.backgroundAlt,
         borderColor: currentColors.border,
+        // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 'max(env(safe-area-inset-bottom), 16px)' as any
+          ? 'calc(env(safe-area-inset-bottom) + 16px)' as any
           : Math.max(insets.bottom, 12),
+        // On web, ensure we use the full safe area
+        ...(Platform.OS === 'web' ? {
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' as any,
+        } : {}),
       }
     ]}>
       {tabs.map((tab) => {
@@ -106,7 +111,13 @@ function CustomTabBar() {
   );
 
   return (
-    <View style={themedStyles.nativeTabContainer}>
+    <View style={[
+      themedStyles.nativeTabContainer,
+      Platform.OS === 'web' && {
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      } as any
+    ]}>
       {(isIOS && Platform.OS !== 'web') ? (
         <BlurView
           intensity={80}
@@ -196,6 +207,18 @@ function RootLayoutContent() {
           min-height: 100dvh;
           background-color: ${currentColors.background} !important;
         }
+        /* Color the top safe area to match header */
+        html::before {
+          content: '';
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: env(safe-area-inset-top, 0px);
+          background-color: ${safeZoneBackgroundColor};
+          z-index: 9999;
+          pointer-events: none;
+        }
         #root {
           min-height: 100dvh;
           width: 100%;
@@ -258,6 +281,8 @@ function RootLayoutContent() {
         <title>Budget Flow</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
         <meta name="theme-color" content={safeZoneBackgroundColor} />
+        <meta name="theme-color" content={safeZoneBackgroundColor} media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content={safeZoneBackgroundColor} media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
