@@ -171,11 +171,12 @@ export const useThemedStyles = () => {
     // Native Style Tab Bars
     nativeTabContainer: {
       position: 'absolute',
-      bottom: 0,
+      bottom: -100, // Extend below viewport to ensure coverage of Safari address bar
       left: 0,
       right: 0,
       zIndex: 1000,
       backgroundColor: 'transparent',
+      paddingBottom: 100, // Add padding to bring content back up
     },
     iosTabBar: {
       flexDirection: 'row',

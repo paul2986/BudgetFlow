@@ -61,18 +61,16 @@ function CustomTabBar() {
     <View style={[
       isIOS ? themedStyles.iosTabBar : themedStyles.androidTabBar,
       {
-        backgroundColor: isIOS
-          ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
-          : currentColors.backgroundAlt,
+        backgroundColor: Platform.OS === 'web'
+          ? (isDarkMode ? 'rgba(15, 23, 42, 0.8)' : 'rgba(255, 255, 255, 0.8)')
+          : (isIOS
+            ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
+            : currentColors.backgroundAlt),
         borderColor: currentColors.border,
-        // Extend padding to cover the entire bottom safe area
+        // Extend padding to cover the entire bottom safe area  
         paddingBottom: Platform.OS === 'web'
-          ? 'calc(env(safe-area-inset-bottom) + 16px)' as any
+          ? 'calc(env(safe-area-inset-bottom, 0px) + 16px)' as any
           : Math.max(insets.bottom, 12),
-        // On web, ensure we use the full safe area
-        ...(Platform.OS === 'web' ? {
-          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' as any,
-        } : {}),
       }
     ]}>
       {tabs.map((tab) => {
@@ -200,24 +198,15 @@ function RootLayoutContent() {
       const style = document.createElement('style');
       style.id = 'safari-fix-styles';
       style.textContent = `
-        html, body { 
+        html {
+          background-color: ${safeZoneBackgroundColor} !important;
+        }
+        body { 
           margin: 0;
           padding: 0;
           width: 100%;
           min-height: 100dvh;
-          background-color: ${currentColors.background} !important;
-        }
-        /* Color the top safe area to match header */
-        html::before {
-          content: '';
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: env(safe-area-inset-top, 0px);
-          background-color: ${safeZoneBackgroundColor};
-          z-index: 9999;
-          pointer-events: none;
+          background-color: ${safeZoneBackgroundColor} !important;
         }
         #root {
           min-height: 100dvh;
@@ -225,6 +214,7 @@ function RootLayoutContent() {
           display: flex;
           flex-direction: column;
           background-color: ${currentColors.background} !important;
+          margin-top: 0;
         }
         /* Fancy Scrollbar */
         ::-webkit-scrollbar {
