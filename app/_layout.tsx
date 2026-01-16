@@ -66,7 +66,6 @@ function CustomTabBar() {
           : (isIOS
             ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
             : currentColors.backgroundAlt),
-        borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area  
         paddingBottom: Platform.OS === 'web'
           ? 'calc(env(safe-area-inset-bottom, 0px) + 16px)' as any
