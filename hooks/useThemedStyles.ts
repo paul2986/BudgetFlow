@@ -180,7 +180,7 @@ export const useThemedStyles = () => {
     },
     iosTabBar: {
       flexDirection: 'row',
-      borderTopWidth: 0, // Remove border for seamless look
+      borderTopWidth: StyleSheet.hairlineWidth,
       paddingTop: 8,
       paddingHorizontal: 12,
       minHeight: 60,
@@ -189,7 +189,7 @@ export const useThemedStyles = () => {
     },
     androidTabBar: {
       flexDirection: 'row',
-      borderTopWidth: 0, // Remove border for seamless look
+      borderTopWidth: 1,
       elevation: 12,
       paddingTop: 6,
       paddingHorizontal: 8,
