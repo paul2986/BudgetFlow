@@ -198,15 +198,31 @@ function RootLayoutContent() {
       const style = document.createElement('style');
       style.id = 'safari-fix-styles';
       style.textContent = `
+        /* Detect standalone mode (PWA) */
+        @media all and (display-mode: standalone) {
+          html, body {
+            background-color: ${currentColors.background} !important;
+          }
+        }
+        /* Browser mode - color top area to match header */
+        @media all and (display-mode: browser) {
+          html {
+            background-color: ${safeZoneBackgroundColor} !important;
+          }
+          body {
+            background-color: ${safeZoneBackgroundColor} !important;
+          }
+        }
+        /* Fallback for browsers that don't support display-mode */
         html {
-          background-color: ${safeZoneBackgroundColor} !important;
+          background-color: ${currentColors.background} !important;
         }
         body { 
           margin: 0;
           padding: 0;
           width: 100%;
           min-height: 100dvh;
-          background-color: ${safeZoneBackgroundColor} !important;
+          background-color: ${currentColors.background} !important;
         }
         #root {
           min-height: 100dvh;
@@ -275,7 +291,7 @@ function RootLayoutContent() {
         <meta name="theme-color" content={safeZoneBackgroundColor} media="(prefers-color-scheme: dark)" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </Head>
 
       <StatusBar
