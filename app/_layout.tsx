@@ -192,15 +192,20 @@ function RootLayoutContent() {
         html, body { 
           margin: 0;
           padding: 0;
-          min-height: 100dvh;
           width: 100%;
+          min-height: 100%;
+          height: 100%;
+          height: -webkit-fill-available;
           overflow: hidden; 
-          /* Use a gradient to handle both top and bottom safe areas differently */
-          background: linear-gradient(to bottom, ${safeZoneBackgroundColor} 50%, ${bottomSafeZoneColor} 50%);
+          /* Use background to match app exactly */
+          background-color: ${currentColors.background} !important;
+          /* Specifically tint the top safe area to match the header without affecting bottom */
+          background-image: linear-gradient(to bottom, ${safeZoneBackgroundColor} 0%, ${safeZoneBackgroundColor} env(safe-area-inset-top), ${currentColors.background} env(safe-area-inset-top)) !important;
           background-attachment: fixed;
         }
         #root {
           height: 100%;
+          height: -webkit-fill-available;
           width: 100%;
           display: flex;
           flex-direction: column;
@@ -233,9 +238,11 @@ function RootLayoutContent() {
         @supports (-webkit-touch-callout: none) {
           html, body {
             height: -webkit-fill-available;
+            position: fixed; /* Prevents unwanted bounce on outer layers */
           }
           #root {
             height: -webkit-fill-available;
+            height: 100svh; /* Use SVH for reliable mobile safari height */
           }
         }
       `;
