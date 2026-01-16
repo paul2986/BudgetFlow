@@ -169,11 +169,11 @@ function RootLayoutContent() {
       case 'loading':
       case 'guidance':
       case 'normal':
-        return currentColors.background; // Match top bar to main content
+        return currentColors.backgroundAlt; // Match top bar to header
       case 'welcome':
         return currentColors.background;
       default:
-        return currentColors.background;
+        return currentColors.backgroundAlt;
     }
   }, [pageState, currentColors]);
 
@@ -259,7 +259,7 @@ function RootLayoutContent() {
     <View style={{
       flex: 1,
       height: '100%',
-      backgroundColor: Platform.OS === 'web' ? 'transparent' : currentColors.background,
+      backgroundColor: Platform.OS === 'web' ? 'transparent' : safeZoneBackgroundColor,
       flexDirection: isDesktop ? 'row' : 'column',
       paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
