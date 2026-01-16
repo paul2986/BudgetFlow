@@ -193,46 +193,15 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          min-height: 100%;
-          height: 100%;
-          height: -webkit-fill-available;
-          overflow: hidden; 
+          min-height: 100dvh;
           background-color: ${currentColors.background} !important;
         }
-        /* Top safe area overlay - covers the status bar area */
-        body::before {
-          content: '';
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: env(safe-area-inset-top, 0px);
-          background-color: ${safeZoneBackgroundColor};
-          z-index: 99999;
-          pointer-events: none;
-        }
-        /* Bottom safe area overlay - covers below the nav bar */
-        body::after {
-          content: '';
-          position: fixed;
-          bottom: 0;
-          left: 0;
-          right: 0;
-          height: env(safe-area-inset-bottom, 0px);
-          background-color: ${bottomSafeZoneColor};
-          z-index: 99998;
-          pointer-events: none;
-          /* Apply blur effect to match nav bar */
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-        }
         #root {
-          height: 100%;
-          height: -webkit-fill-available;
+          min-height: 100dvh;
           width: 100%;
           display: flex;
           flex-direction: column;
-          background-color: transparent !important;
+          background-color: ${currentColors.background} !important;
         }
         /* Fancy Scrollbar */
         ::-webkit-scrollbar {
@@ -257,16 +226,6 @@ function RootLayoutContent() {
           filter: ${isDarkMode ? 'invert(1) brightness(2)' : 'none'} !important;
           cursor: pointer;
         }
-        /* Mobile Safari specific overrides */
-        @supports (-webkit-touch-callout: none) {
-          html, body {
-            height: -webkit-fill-available;
-          }
-          #root {
-            height: -webkit-fill-available;
-            min-height: 100svh;
-          }
-        }
       `;
       document.head.appendChild(style);
 
@@ -289,8 +248,8 @@ function RootLayoutContent() {
   return (
     <View style={{
       flex: 1,
-      height: '100%',
-      backgroundColor: Platform.OS === 'web' ? 'transparent' : safeZoneBackgroundColor,
+      minHeight: '100%',
+      backgroundColor: Platform.OS === 'web' ? currentColors.background : safeZoneBackgroundColor,
       flexDirection: isDesktop ? 'row' : 'column',
       paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
