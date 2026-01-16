@@ -62,7 +62,7 @@ function CustomTabBar() {
       isIOS ? themedStyles.iosTabBar : themedStyles.androidTabBar,
       {
         backgroundColor: Platform.OS === 'web'
-          ? (isDarkMode ? 'rgba(15, 23, 42, 0.3)' : 'rgba(255, 255, 255, 0.3)')
+          ? (isDarkMode ? 'rgba(15, 23, 42, 0)' : 'rgba(255, 255, 255, 0)')
           : (isIOS
             ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
             : currentColors.backgroundAlt),
