@@ -114,6 +114,9 @@ function CustomTabBar() {
       Platform.OS === 'web' && {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
+        // Use min-height to ensure it extends to bottom
+        minHeight: 'calc(70px + env(safe-area-inset-bottom))',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (
@@ -270,7 +273,9 @@ function RootLayoutContent() {
       minHeight: '100%',
       backgroundColor: safeZoneBackgroundColor, // Always use safe zone color which matches header
       flexDirection: isDesktop ? 'row' : 'column',
-      paddingTop: Platform.OS !== 'web' && !isDesktop ? insets.top : 0,
+      paddingTop: Platform.OS === 'web'
+        ? (isDesktop ? 0 : 'env(safe-area-inset-top)') as any
+        : (!isDesktop ? insets.top : 0),
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
     }}>
       <Head>
