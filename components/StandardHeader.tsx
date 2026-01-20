@@ -174,8 +174,9 @@ export default function StandardHeader({
       themedStyles.header,
       {
         height: subtitle ? (isPad ? 88 : 76) : (isPad ? 72 : 64),
-        boxShadow: '0px 1px 2px rgba(0,0,0,0.10)',
-        backgroundColor: backgroundColor || currentColors.backgroundAlt
+        backgroundColor: backgroundColor || currentColors.backgroundAlt,
+        borderBottomWidth: 1,
+        borderBottomColor: currentColors.border,
       }
     ]}>
       {/* Left side - supports multiple left buttons */}

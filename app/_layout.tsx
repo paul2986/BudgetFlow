@@ -69,8 +69,11 @@ function CustomTabBar() {
         borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 0 // Remove extra padding on web to let content sit lower, closer to home indicator
+          ? 'env(safe-area-inset-bottom)' as any
           : Math.max(insets.bottom, 12),
+        // Ensure proper vertical alignment
+        alignItems: Platform.OS === 'web' ? 'flex-start' : undefined,
+        paddingTop: Platform.OS === 'web' ? 12 : (isIOS ? 8 : 6),
       }
     ]}>
       {tabs.map((tab) => {
