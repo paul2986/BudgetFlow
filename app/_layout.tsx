@@ -205,17 +205,21 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
+          min-height: 100vh;
+          height: 100%;
           background-color: ${safeZoneBackgroundColor} !important;
         }
         body { 
           margin: 0;
           padding: 0;
           width: 100%;
-          min-height: 100dvh;
+          min-height: 100vh;
+          height: 100%;
           background-color: ${safeZoneBackgroundColor} !important;
         }
         #root {
-          min-height: 100dvh;
+          min-height: 100vh;
+          height: 100%;
           width: 100%;
           display: flex;
           flex-direction: column;
