@@ -57,6 +57,5 @@
       "shareTtlSec": 86400,
       "authRedirect": "budgetflow://auth/callback"
     }
-  },
-  "scheme": "BudgetFlow"
+  }
 }

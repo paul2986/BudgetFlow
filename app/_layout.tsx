@@ -115,8 +115,7 @@ function CustomTabBar() {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         // Use min-height to ensure it extends to bottom
-        minHeight: 'calc(60px + env(safe-area-inset-bottom, 20px))',
-        paddingBottom: 'env(safe-area-inset-bottom, 20px)',
+        minHeight: '70px',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (
@@ -214,7 +213,7 @@ function RootLayoutContent() {
           padding: 0;
           width: 100%;
           min-height: 100vh;
-          height: 100%;
+          height: 100vh;
           background-color: ${safeZoneBackgroundColor} !important;
         }
         #root {

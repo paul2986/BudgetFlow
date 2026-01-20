@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "dev": "EXPO_NO_TELEMETRY=1 expo start --tunnel",
-    "android": "EXPO_NO_TELEMETRY=1 expo start --android",
-    "ios": "EXPO_NO_TELEMETRY=1 expo start --ios",
-    "web": "EXPO_NO_TELEMETRY=1 expo start --web",
+    "dev": "expo start --tunnel",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
     "lint": "eslint ."
