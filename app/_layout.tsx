@@ -69,7 +69,7 @@ function CustomTabBar() {
         borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 0
+          ? 'max(env(safe-area-inset-bottom, 20px), 20px)' as any
           : Math.max(insets.bottom, 12),
       }
     ]}>
