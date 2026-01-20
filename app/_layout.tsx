@@ -67,9 +67,9 @@ function CustomTabBar() {
             ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
             : currentColors.backgroundAlt),
         borderColor: currentColors.border,
-        // Extend padding to cover the entire bottom safe area  
+        // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 'calc(env(safe-area-inset-bottom, 20px) + 12px)' as any
+          ? 'env(safe-area-inset-bottom, 20px)' as any
           : Math.max(insets.bottom, 12),
       }
     ]}>
@@ -266,7 +266,9 @@ function RootLayoutContent() {
       minHeight: '100%',
       backgroundColor: Platform.OS === 'web' ? currentColors.background : safeZoneBackgroundColor,
       flexDirection: isDesktop ? 'row' : 'column',
-      paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
+      paddingTop: Platform.OS === 'web'
+        ? (isDesktop ? 0 : 'env(safe-area-inset-top)') as any
+        : (!isDesktop ? insets.top : 0),
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
     }}>
       <Head>
