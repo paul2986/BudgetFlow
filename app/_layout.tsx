@@ -69,7 +69,7 @@ function CustomTabBar() {
         borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 'max(env(safe-area-inset-bottom, 20px), 20px)' as any
+          ? 0
           : Math.max(insets.bottom, 12),
       }
     ]}>
@@ -114,10 +114,9 @@ function CustomTabBar() {
       Platform.OS === 'web' && {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        // Extend to cover safe area at bottom
-        paddingBottom: 'env(safe-area-inset-bottom, 20px)',
-        // Ensure background extends below viewport
+        // Use min-height to ensure it extends to bottom
         minHeight: 'calc(60px + env(safe-area-inset-bottom, 20px))',
+        paddingBottom: 'env(safe-area-inset-bottom, 20px)',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (
@@ -206,7 +205,7 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          min-height: 100dvh;
+          min-height: 100vh;
           height: 100%;
           background-color: ${safeZoneBackgroundColor} !important;
         }
@@ -214,12 +213,12 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          min-height: 100dvh;
+          min-height: 100vh;
           height: 100%;
           background-color: ${safeZoneBackgroundColor} !important;
         }
         #root {
-          min-height: 100dvh;
+          min-height: 100vh;
           height: 100%;
           width: 100%;
           display: flex;
