@@ -114,9 +114,6 @@ function CustomTabBar() {
       Platform.OS === 'web' && {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        // Use min-height to ensure it extends to bottom
-        minHeight: 'calc(70px + env(safe-area-inset-bottom))',
-        paddingBottom: 'env(safe-area-inset-bottom)',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (
@@ -273,17 +270,26 @@ function RootLayoutContent() {
       minHeight: '100%',
       backgroundColor: safeZoneBackgroundColor, // Always use safe zone color which matches header
       flexDirection: isDesktop ? 'row' : 'column',
-      paddingTop: Platform.OS === 'web'
-        ? (isDesktop ? 0 : 'env(safe-area-inset-top)') as any
-        : (!isDesktop ? insets.top : 0),
+      paddingTop: Platform.OS !== 'web' && !isDesktop ? insets.top : 0,
       paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
     }}>
       <Head>
         <title>Budget Flow</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
         <meta name="theme-color" content={safeZoneBackgroundColor} />
-        <meta name="theme-color" content={safeZoneBackgroundColor} media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content={safeZoneBackgroundColor} media="(prefers-color-scheme: dark)" />
+        <meta
+          name="theme-color"
+          content={safeZoneBackgroundColor}
+          media="(prefers-color-scheme: light)"
+        />
+        <meta
+          name="theme-color"
+          content={safeZoneBackgroundColor}
+          media="(prefers-color-scheme: dark)"
+        />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
