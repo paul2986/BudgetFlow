@@ -114,7 +114,9 @@ function CustomTabBar() {
       Platform.OS === 'web' && {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        paddingBottom: 'env(safe-area-inset-bottom)',
+        // Extend container below viewport to cover safe area
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',
+        marginBottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (

@@ -171,12 +171,12 @@ export const useThemedStyles = () => {
     // Native Style Tab Bars
     nativeTabContainer: {
       position: Platform.OS === 'web' ? 'fixed' as any : 'absolute',
-      bottom: Platform.OS === 'web' ? 0 : -100, // Extend below viewport only on native to ensure coverage
+      bottom: 0,
       left: 0,
       right: 0,
       zIndex: 1000,
       backgroundColor: 'transparent',
-      paddingBottom: Platform.OS === 'web' ? 0 : 100, // Add padding on native to bring content back up
+      paddingBottom: Platform.OS === 'web' ? 0 : 100,
     },
     iosTabBar: {
       flexDirection: 'row',
