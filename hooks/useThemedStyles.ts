@@ -138,6 +138,13 @@ export const useThemedStyles = () => {
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
       shadowRadius: 2,
+      // @ts-ignore
+      ...(Platform.OS === 'web' ? {
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        backgroundColor: currentColors.backgroundAlt, // Ensure background is opaque when sticky
+      } : {}),
     },
     headerTitle: {
       fontSize: isPad ? 24 : 20,
