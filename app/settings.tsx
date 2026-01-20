@@ -62,6 +62,7 @@ export default function SettingsScreen() {
 
   // Currency selection state
   const [currencySearchQuery, setCurrencySearchQuery] = useState('');
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false);
 
   // Manage categories state
   const [customs, setCustoms] = useState<string[]>([]);
@@ -134,6 +135,7 @@ export default function SettingsScreen() {
   const handleCurrencyChange = (curr: Currency) => {
     setCurrency(curr);
     setCurrencySearchQuery('');
+    setShowCurrencyModal(false);
     showToast(`Currency changed to ${curr.name}`, 'success');
   };
 
@@ -1780,41 +1782,7 @@ export default function SettingsScreen() {
               justifyContent: 'space-between',
               minHeight: 44,
             }}
-            onPress={() => {
-              Alert.alert(
-                'Select Currency',
-                'Choose your preferred currency',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  ...CURRENCIES.slice(0, 10).map(curr => ({
-                    text: `${curr.symbol} ${curr.name} (${curr.code})`,
-                    onPress: () => handleCurrencyChange(curr)
-                  })),
-                  {
-                    text: 'View All Currencies',
-                    onPress: () => {
-                      // Use native prompt on web, show message on native
-                      if (Platform.OS === 'web') {
-                        const text = window.prompt('Search Currency\n\nEnter currency name or code:');
-                        if (text) {
-                          const found = CURRENCIES.find(c =>
-                            c.code.toLowerCase() === text.toLowerCase() ||
-                            c.name.toLowerCase().includes(text.toLowerCase())
-                          );
-                          if (found) {
-                            handleCurrencyChange(found);
-                          } else {
-                            Alert.alert('Not Found', 'Currency not found. Please try again.');
-                          }
-                        }
-                      } else {
-                        Alert.alert('Currency Search', 'Please use the currency selector to browse all available currencies.');
-                      }
-                    }
-                  }
-                ]
-              );
-            }}
+            onPress={() => setShowCurrencyModal(true)}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Icon name="card-outline" size={20} style={{ color: currentColors.text, marginRight: 12 }} />
@@ -1977,6 +1945,153 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Currency Selection Modal */}
+      <Modal
+        visible={showCurrencyModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowCurrencyModal(false);
+          setCurrencySearchQuery('');
+        }}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          justifyContent: 'flex-end',
+        }}>
+          <View style={{
+            backgroundColor: currentColors.background,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            maxHeight: '80%',
+            paddingBottom: 34,
+          }}>
+            {/* Modal Header */}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: currentColors.border,
+            }}>
+              <Text style={[themedStyles.title, { marginBottom: 0, fontSize: 20 }]}>Select Currency</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowCurrencyModal(false);
+                  setCurrencySearchQuery('');
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: currentColors.backgroundAlt,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Icon name="close" size={20} style={{ color: currentColors.text }} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={{ padding: 16, paddingBottom: 8 }}>
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: currentColors.backgroundAlt,
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                borderWidth: 1,
+                borderColor: currentColors.border,
+              }}>
+                <Icon name="search" size={20} style={{ color: currentColors.textSecondary, marginRight: 8 }} />
+                <TextInput
+                  style={[themedStyles.input, {
+                    flex: 1,
+                    marginBottom: 0,
+                    borderWidth: 0,
+                    backgroundColor: 'transparent',
+                    paddingVertical: 12,
+                  }]}
+                  value={currencySearchQuery}
+                  onChangeText={setCurrencySearchQuery}
+                  placeholder="Search currencies..."
+                  placeholderTextColor={currentColors.textSecondary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {currencySearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setCurrencySearchQuery('')}>
+                    <Icon name="close-circle" size={20} style={{ color: currentColors.textSecondary }} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Currency List */}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 16, paddingTop: 8 }}
+              showsVerticalScrollIndicator={true}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredCurrencies.length === 0 ? (
+                <View style={{ alignItems: 'center', padding: 32 }}>
+                  <Icon name="search" size={48} style={{ color: currentColors.textSecondary, marginBottom: 12 }} />
+                  <Text style={[themedStyles.text, { textAlign: 'center', fontWeight: '600', marginBottom: 4 }]}>
+                    No currencies found
+                  </Text>
+                  <Text style={[themedStyles.textSecondary, { textAlign: 'center' }]}>
+                    Try a different search term
+                  </Text>
+                </View>
+              ) : (
+                filteredCurrencies.map((curr, index) => (
+                  <TouchableOpacity
+                    key={curr.code}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 14,
+                      paddingHorizontal: 16,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      backgroundColor: currency.code === curr.code
+                        ? currentColors.primary + '15'
+                        : currentColors.backgroundAlt,
+                      borderWidth: currency.code === curr.code ? 2 : 1,
+                      borderColor: currency.code === curr.code
+                        ? currentColors.primary
+                        : currentColors.border,
+                    }}
+                    onPress={() => handleCurrencyChange(curr)}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[themedStyles.text, {
+                        fontWeight: '600',
+                        marginBottom: 2,
+                        color: currency.code === curr.code ? currentColors.primary : currentColors.text
+                      }]}>
+                        {curr.name}
+                      </Text>
+                      <Text style={[themedStyles.textSecondary, { fontSize: 14 }]}>
+                        {curr.symbol} • {curr.code}
+                      </Text>
+                    </View>
+                    {currency.code === curr.code && (
+                      <Icon name="checkmark-circle" size={24} style={{ color: currentColors.primary }} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
