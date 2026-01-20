@@ -69,7 +69,7 @@ function CustomTabBar() {
         borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 'env(safe-area-inset-bottom, 20px)' as any
+          ? 0 // Remove extra padding on web to let content sit lower, closer to home indicator
           : Math.max(insets.bottom, 12),
       }
     ]}>
@@ -264,7 +264,7 @@ function RootLayoutContent() {
     <View style={{
       flex: 1,
       minHeight: '100%',
-      backgroundColor: Platform.OS === 'web' ? currentColors.background : safeZoneBackgroundColor,
+      backgroundColor: safeZoneBackgroundColor, // Always use safe zone color which matches header
       flexDirection: isDesktop ? 'row' : 'column',
       paddingTop: Platform.OS === 'web'
         ? (isDesktop ? 0 : 'env(safe-area-inset-top)') as any
