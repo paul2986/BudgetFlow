@@ -69,11 +69,8 @@ function CustomTabBar() {
         borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area
         paddingBottom: Platform.OS === 'web'
-          ? 'env(safe-area-inset-bottom)' as any
+          ? 0
           : Math.max(insets.bottom, 12),
-        // Ensure proper vertical alignment
-        alignItems: Platform.OS === 'web' ? 'flex-start' : undefined,
-        paddingTop: Platform.OS === 'web' ? 12 : (isIOS ? 8 : 6),
       }
     ]}>
       {tabs.map((tab) => {
@@ -117,6 +114,7 @@ function CustomTabBar() {
       Platform.OS === 'web' && {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (
