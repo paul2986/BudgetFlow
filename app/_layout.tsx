@@ -114,9 +114,9 @@ function CustomTabBar() {
       Platform.OS === 'web' && {
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        // Extend container below viewport to cover safe area
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 60px)',
-        marginBottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
+        // Use min-height to ensure it extends to bottom
+        minHeight: 'calc(60px + env(safe-area-inset-bottom, 20px))',
+        paddingBottom: 'env(safe-area-inset-bottom, 20px)',
       } as any
     ]}>
       {(isIOS && Platform.OS !== 'web') ? (
@@ -205,21 +205,21 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          background-color: ${currentColors.background} !important;
+          background-color: ${safeZoneBackgroundColor} !important;
         }
         body { 
           margin: 0;
           padding: 0;
           width: 100%;
           min-height: 100dvh;
-          background-color: ${currentColors.background} !important;
+          background-color: ${safeZoneBackgroundColor} !important;
         }
         #root {
           min-height: 100dvh;
           width: 100%;
           display: flex;
           flex-direction: column;
-          background-color: ${currentColors.background} !important;
+          background-color: ${safeZoneBackgroundColor} !important;
         }
         /* Fancy Scrollbar */
         ::-webkit-scrollbar {
