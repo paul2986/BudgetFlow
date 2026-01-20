@@ -23,7 +23,7 @@ import { useDesktopModals } from '../hooks/useDesktopModals';
 
 export default function PeopleScreen() {
   const { data, addPerson, removePerson, addIncome, removeIncome, saving, refreshData, loading } = useBudgetData();
-  const { openModal } = useDesktopModals();
+  const { openModal, isDesktop } = useDesktopModals();
   const { currentColors } = useTheme();
   const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
   const { formatCurrency } = useCurrency();
@@ -134,7 +134,7 @@ export default function PeopleScreen() {
   }, [deletingPersonId, saving, removePerson]);
 
   const handleEditPerson = useCallback((person: Person) => {
-    if (Platform.OS === 'web') {
+    if (isDesktop) {
       openModal('edit-person', person.id);
     } else {
       router.push({
@@ -142,7 +142,7 @@ export default function PeopleScreen() {
         params: { personId: person.id, origin: 'people' }
       });
     }
-  }, [openModal]);
+  }, [openModal, isDesktop]);
 
   const handleAddIncomeFromModal = useCallback(async (personId: string, incomeData: Omit<Income, 'id' | 'personId'>) => {
     console.log('PeopleScreen: Add income from modal');

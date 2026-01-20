@@ -320,10 +320,10 @@ export default function ExpensesScreen() {
     [handleRemoveExpense]
   );
 
-  const { openModal } = useDesktopModals();
+  const { openModal, isDesktop } = useDesktopModals();
 
   const handleEditExpense = useCallback((expense: any) => {
-    if (Platform.OS === 'web') {
+    if (isDesktop) {
       openModal('edit-expense', expense.id);
     } else {
       router.push({
@@ -331,15 +331,15 @@ export default function ExpensesScreen() {
         params: { id: expense.id, origin: 'expenses' },
       });
     }
-  }, [openModal]);
+  }, [openModal, isDesktop]);
 
   const handleNavigateToAddExpense = useCallback(() => {
-    if (Platform.OS === 'web') {
+    if (isDesktop) {
       openModal('add-expense');
     } else {
       router.push('/add-expense');
     }
-  }, [openModal]);
+  }, [openModal, isDesktop]);
 
   const handleClearFilters = useCallback(() => {
     console.log('ExpensesScreen: Clearing all filters');

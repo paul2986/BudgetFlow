@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 import Modal from '../components/Modal';
 import ExpenseForm from '../components/forms/ExpenseForm';
 import PersonForm from '../components/forms/PersonForm';
@@ -11,6 +11,7 @@ type ModalType = 'add-expense' | 'edit-expense' | 'edit-person' | 'budgets' | nu
 interface DesktopModalsContextType {
     openModal: (type: ModalType, id?: string) => void;
     closeModal: () => void;
+    isDesktop: boolean;
 }
 
 const DesktopModalsContext = createContext<DesktopModalsContextType | undefined>(undefined);
@@ -18,13 +19,16 @@ const DesktopModalsContext = createContext<DesktopModalsContextType | undefined>
 export function DesktopModalsProvider({ children }: { children: React.ReactNode }) {
     const [modalType, setModalType] = useState<ModalType>(null);
     const [activeId, setActiveId] = useState<string | undefined>(undefined);
+    const { width } = useWindowDimensions();
+    const isDesktop = width >= 768;
 
     const openModal = useCallback((type: ModalType, id?: string) => {
-        if (Platform.OS === 'web') {
+        // Only open modals on desktop-sized screens
+        if (Platform.OS === 'web' && isDesktop) {
             setModalType(type);
             setActiveId(id);
         }
-    }, []);
+    }, [isDesktop]);
 
     const closeModal = useCallback(() => {
         setModalType(null);
@@ -32,11 +36,11 @@ export function DesktopModalsProvider({ children }: { children: React.ReactNode 
     }, []);
 
     return (
-        <DesktopModalsContext.Provider value={{ openModal, closeModal }}>
+        <DesktopModalsContext.Provider value={{ openModal, closeModal, isDesktop }}>
             {children}
 
-            {/* Desktop Modals */}
-            {Platform.OS === 'web' && (
+            {/* Desktop Modals - only show on desktop-sized screens */}
+            {Platform.OS === 'web' && isDesktop && (
                 <>
                     <Modal
                         visible={modalType === 'add-expense' || modalType === 'edit-expense'}
