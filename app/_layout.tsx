@@ -69,7 +69,7 @@ function CustomTabBar() {
         borderColor: currentColors.border,
         // Extend padding to cover the entire bottom safe area  
         paddingBottom: Platform.OS === 'web'
-          ? 'calc(env(safe-area-inset-bottom, 0px) + 16px)' as any
+          ? 'calc(env(safe-area-inset-bottom, 20px) + 12px)' as any
           : Math.max(insets.bottom, 12),
       }
     ]}>
@@ -82,7 +82,7 @@ function CustomTabBar() {
             key={tab.route}
             style={[
               themedStyles.nativeTabItem,
-              isActive && !isIOS && { backgroundColor: `${currentColors.primary}10` },
+              isActive && !isIOS && Platform.OS !== 'web' && { backgroundColor: `${currentColors.primary}10` },
             ]}
             onPress={() => navigateToTab(tab.route)}
             activeOpacity={0.7}
@@ -92,7 +92,7 @@ function CustomTabBar() {
               size={isIOS ? 26 : 24}
               style={{ color: iconColor }}
             />
-            {!isIOS && (
+            {!isIOS && Platform.OS !== 'web' && (
               <Text style={{
                 fontSize: 11,
                 marginTop: 4,
