@@ -79,14 +79,14 @@ export default function ExpenseCard({
             style={({ pressed }) => [
                 themedStyles.card,
                 {
-                    padding: 20,
+                    padding: 12,
                     opacity: isDeleting ? 0.6 : 1,
                     borderLeftWidth: 4,
                     borderLeftColor: isHousehold ? currentColors.household : currentColors.personal,
                     marginBottom: 0, // Handled by parent container gap
-                    transform: (Platform.OS === 'web' && hovered && !pressed) ? [{ translateY: -4 }] : [],
-                    shadowOpacity: (Platform.OS === 'web' && hovered) ? 0.2 : 0.1,
-                    shadowRadius: (Platform.OS === 'web' && hovered) ? 8 : 4,
+                    transform: (Platform.OS === 'web' && hovered && !pressed) ? [{ translateY: -2 }] : [],
+                    shadowOpacity: (Platform.OS === 'web' && hovered) ? 0.15 : 0.08,
+                    shadowRadius: (Platform.OS === 'web' && hovered) ? 6 : 3,
                     transitionDuration: '0.2s',
                     // Border logic for expiration
                     borderWidth: 1,
@@ -107,22 +107,22 @@ export default function ExpenseCard({
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
 
                 {/* Left Side: Info */}
-                <View style={{ flex: 1, marginRight: 12 }}>
-                    <Text style={[themedStyles.text, { fontWeight: '700', fontSize: 18, marginBottom: 8, lineHeight: 24 }]}>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                    <Text style={[themedStyles.text, { fontWeight: '700', fontSize: 15, marginBottom: 4, lineHeight: 20 }]} numberOfLines={1}>
                         {expense.description}
                     </Text>
 
                     {/* Tags Row */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
                         <View style={{
                             backgroundColor: isHousehold ? currentColors.household + '15' : currentColors.personal + '15',
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            borderRadius: 6,
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
                         }}>
                             <Text style={{
                                 color: isHousehold ? currentColors.household : currentColors.personal,
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: '700',
                                 textTransform: 'uppercase',
                             }}>
@@ -132,22 +132,42 @@ export default function ExpenseCard({
 
                         <View style={{
                             backgroundColor: currentColors.background,
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            borderRadius: 6,
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
+                            borderRadius: 4,
                             borderWidth: 1,
                             borderColor: currentColors.border,
                         }}>
-                            <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '500' }]}>
+                            <Text style={[themedStyles.textSecondary, { fontSize: 10, fontWeight: '500' }]}>
                                 {tag}
                             </Text>
                         </View>
+
+                        {expense.debtRepayment && (
+                            <View style={{
+                                backgroundColor: (expense.debtRepayment === 'mortgage' ? '#FF9500' : expense.debtRepayment === 'credit_card' ? '#5856D6' : '#34C759') + '15',
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                                borderRadius: 4,
+                                borderWidth: 1,
+                                borderColor: (expense.debtRepayment === 'mortgage' ? '#FF9500' : expense.debtRepayment === 'credit_card' ? '#5856D6' : '#34C759') + '30',
+                            }}>
+                                <Text style={{
+                                    color: expense.debtRepayment === 'mortgage' ? '#FF9500' : expense.debtRepayment === 'credit_card' ? '#5856D6' : '#34C759',
+                                    fontSize: 10,
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                }}>
+                                    {expense.debtRepayment === 'mortgage' ? 'Mortgage' : expense.debtRepayment === 'credit_card' ? 'Credit Card' : 'Loan'}
+                                </Text>
+                            </View>
+                        )}
                     </View>
 
                     {/* Person & Frequency */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: expirationInfo ? 8 : 0 }}>
-                        <Icon name="repeat" size={12} style={{ color: currentColors.textSecondary, marginRight: 4 }} />
-                        <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: expirationInfo ? 4 : 0 }}>
+                        <Icon name="repeat" size={10} style={{ color: currentColors.textSecondary, marginRight: 3 }} />
+                        <Text style={[themedStyles.textSecondary, { fontSize: 11 }]}>
                             {expense.frequency}
                             {isHousehold && (
                                 <> • {person ? person.name : 'Unassigned'}</>
@@ -160,31 +180,31 @@ export default function ExpenseCard({
                         <View style={{
                             flexDirection: 'row',
                             alignItems: 'center',
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
+                            paddingHorizontal: 6,
+                            paddingVertical: 2,
                             backgroundColor: expirationInfo.isExpired
                                 ? currentColors.error + '15'
                                 : expirationInfo.isExpiringSoon
                                     ? '#FF9500' + '15'
                                     : currentColors.textSecondary + '10',
-                            borderRadius: 8,
+                            borderRadius: 4,
                             alignSelf: 'flex-start',
-                            marginTop: 4
+                            marginTop: 2
                         }}>
                             <Icon
                                 name={expirationInfo.isExpired ? "time" : "timer-outline"}
-                                size={12}
+                                size={10}
                                 style={{
                                     color: expirationInfo.isExpired
                                         ? currentColors.error
                                         : expirationInfo.isExpiringSoon
                                             ? '#FF9500'
                                             : currentColors.textSecondary,
-                                    marginRight: 6
+                                    marginRight: 4
                                 }}
                             />
                             <Text style={{
-                                fontSize: 11,
+                                fontSize: 10,
                                 fontWeight: '600',
                                 color: expirationInfo.isExpired
                                     ? currentColors.error
@@ -199,24 +219,25 @@ export default function ExpenseCard({
                 </View>
 
                 {/* Right Side: Amount & Actions */}
-                <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={[
-                        themedStyles.text,
-                        {
-                            fontWeight: '800',
-                            fontSize: 20,
-                            color: isHousehold ? currentColors.household : currentColors.personal,
-                            marginBottom: 2,
-                        },
-                    ]}>
-                        {formatCurrency(expense.amount)}
-                    </Text>
-                    {shouldShowMonthlyValue && (
-                        <Text style={[themedStyles.textSecondary, { fontSize: 11, marginBottom: 16 }]}>
-                            {formatCurrency(monthlyAmount)}/mo
+                <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch' }}>
+                    <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={[
+                            themedStyles.text,
+                            {
+                                fontWeight: '700',
+                                fontSize: 16,
+                                color: isHousehold ? currentColors.household : currentColors.personal,
+                                marginBottom: 1,
+                            },
+                        ]}>
+                            {formatCurrency(expense.amount)}
                         </Text>
-                    )}
-                    {!shouldShowMonthlyValue && <View style={{ height: 16 }} />}
+                        {shouldShowMonthlyValue && (
+                            <Text style={[themedStyles.textSecondary, { fontSize: 10 }]}>
+                                {formatCurrency(monthlyAmount)}/mo
+                            </Text>
+                        )}
+                    </View>
 
                     {/* Action Buttons Row */}
                     <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -226,14 +247,14 @@ export default function ExpenseCard({
                                 onDelete(expense.id, expense.description);
                             }}
                             style={({ pressed }) => ({
-                                padding: 8,
-                                borderRadius: 8,
+                                padding: 6,
+                                borderRadius: 6,
                                 backgroundColor: pressed ? currentColors.error + '25' : currentColors.error + '10',
                                 borderWidth: 1,
                                 borderColor: currentColors.error + '30',
                             })}
                         >
-                            <Icon name="trash-outline" size={16} style={{ color: currentColors.error }} />
+                            <Icon name="trash-outline" size={14} style={{ color: currentColors.error }} />
                         </Pressable>
                     </View>
                 </View>

@@ -1325,12 +1325,20 @@ export default function SettingsScreen() {
   if (isPad) {
     return (
       <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        <StandardHeader
-          title="Settings"
-          showLeftIcon={false}
-          showRightIcon={false}
-          backgroundColor={currentColors.backgroundAlt}
-        />
+        {/* Desktop Header / Title Row */}
+        <View style={{
+          paddingHorizontal: 32,
+          paddingTop: 32,
+          paddingBottom: 16,
+          backgroundColor: currentColors.backgroundAlt,
+          flexDirection: 'row',
+          alignItems: 'center',
+          borderBottomWidth: 1,
+          borderBottomColor: currentColors.border,
+        }}>
+          <Icon name="settings-outline" size={28} style={{ color: currentColors.primary, marginRight: 12 }} />
+          <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0 }]}>Settings</Text>
+        </View>
 
         <View style={{ flex: 1, flexDirection: 'row' }}>
           {/* Left Navigation Sidebar */}

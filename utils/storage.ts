@@ -159,22 +159,24 @@ export type ExpensesFilters = {
   hasEndDate: boolean; // New filter for expenses with end dates
   filter: 'all' | 'household' | 'personal'; // Expense type filter
   personFilter: string | null; // Person filter
+  debtFilter?: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'; // Debt repayment filter
 };
 
 export const getExpensesFilters = async (): Promise<ExpensesFilters> => {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.EXPENSES_FILTERS);
-    if (!raw) return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null };
+    if (!raw) return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all' };
     const parsed = JSON.parse(raw);
     const category = parsed && typeof parsed.category === 'string' ? normalizeCategoryName(parsed.category) : null;
     const search = parsed && typeof parsed.search === 'string' ? parsed.search : '';
     const hasEndDate = parsed && typeof parsed.hasEndDate === 'boolean' ? parsed.hasEndDate : false;
     const filter = parsed && ['all', 'household', 'personal'].includes(parsed.filter) ? parsed.filter : 'all';
     const personFilter = parsed && typeof parsed.personFilter === 'string' ? parsed.personFilter : null;
-    return { category, search, hasEndDate, filter, personFilter };
+    const debtFilter = parsed && ['all', 'any', 'loan', 'mortgage', 'credit_card'].includes(parsed.debtFilter) ? parsed.debtFilter : 'all';
+    return { category, search, hasEndDate, filter, personFilter, debtFilter };
   } catch (e) {
     console.error('storage: getExpensesFilters error', e);
-    return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null };
+    return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all' };
   }
 };
 
@@ -186,6 +188,7 @@ export const saveExpensesFilters = async (filters: ExpensesFilters): Promise<voi
       hasEndDate: filters.hasEndDate || false,
       filter: filters.filter || 'all',
       personFilter: filters.personFilter || null,
+      debtFilter: filters.debtFilter || 'all',
     };
     await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(toSave));
   } catch (e) {
@@ -288,6 +291,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
           notes: typeof e.notes === 'string' ? e.notes : '',
           categoryTag: sanitizeCategoryTag(e.categoryTag || 'Misc'),
           endDate: sanitizeEndDate(e.frequency, e.endDate),
+          debtRepayment: e.debtRepayment,
         };
       })
       .filter((e: any) => e !== null) // Remove null entries (invalid personal expenses)
@@ -322,12 +326,19 @@ const validateAppData = (data: any): AppDataV2 => {
 
   const makeSafeBudget = (b: any): Budget => {
     const legacyShape = validateLegacyBudgetData(b);
-    // Ensure all expenses have valid categoryTag and properly sanitized endDate
-    const sanitizedExpenses = (legacyShape.expenses || []).map((e: Expense) => ({
-      ...e,
-      categoryTag: sanitizeCategoryTag((e as any).categoryTag || 'Misc'),
-      endDate: sanitizeEndDate((e as any).frequency, (e as any).endDate),
-    }));
+    // Ensure all expenses have valid categoryTag, properly sanitized endDate, household constraint, and debtRepayment tag
+    const sanitizedExpenses = (legacyShape.expenses || []).map((e: Expense) => {
+      const isHousehold = e.category === 'household';
+      const drRaw = (e as any).debtRepayment;
+      const debtRepayment = ['loan', 'mortgage', 'credit_card'].includes(drRaw) ? drRaw : undefined;
+      return {
+        ...e,
+        personId: isHousehold ? undefined : e.personId,
+        categoryTag: sanitizeCategoryTag((e as any).categoryTag || 'Misc'),
+        endDate: sanitizeEndDate((e as any).frequency, (e as any).endDate),
+        debtRepayment,
+      };
+    });
 
     // Ensure lock settings exist with defaults
     const lockSettings: BudgetLockSettings = {

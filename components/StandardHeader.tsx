@@ -11,17 +11,6 @@ import Icon from './Icon';
 export const HEADER_HEIGHT = 64;
 export const HEADER_HEIGHT_IPAD = 72;
 
-// Helper function to detect iPad
-const isIPad = () => {
-  const { width, height } = Dimensions.get('window');
-  const aspectRatio = height / width;
-
-  // iPad detection: larger screen + typical iPad aspect ratios
-  return Platform.OS === 'ios' && Math.min(width, height) >= 768 && (
-    (aspectRatio > 1.2 && aspectRatio < 1.4) || // Portrait iPad
-    (aspectRatio > 0.7 && aspectRatio < 0.85)   // Landscape iPad
-  );
-};
 
 interface HeaderButton {
   icon: string;
@@ -64,8 +53,7 @@ export default function StandardHeader({
   backgroundColor,
 }: StandardHeaderProps) {
   const { currentColors } = useTheme();
-  const { themedStyles } = useThemedStyles();
-  const isPad = isIPad();
+  const { themedStyles, isPad } = useThemedStyles();
 
   // Standardized button styling
   const buttonSize = isPad ? 52 : 44;

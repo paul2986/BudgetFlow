@@ -6,17 +6,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 
-// Helper function to detect iPad
-const isIPad = () => {
-  const { width, height } = Dimensions.get('window');
-  const aspectRatio = height / width;
 
-  // iPad detection: larger screen + typical iPad aspect ratios
-  return Platform.OS === 'ios' && Math.min(width, height) >= 768 && (
-    (aspectRatio > 1.2 && aspectRatio < 1.4) || // Portrait iPad
-    (aspectRatio > 0.7 && aspectRatio < 0.85)   // Landscape iPad
-  );
-};
 import {
   calculatePersonIncome,
   calculatePersonalExpenses,
@@ -44,8 +34,7 @@ export default function IndividualBreakdownsSection({
 }: IndividualBreakdownsSectionProps) {
   const { currentColors, isDarkMode } = useTheme();
   const { formatCurrency } = useCurrency();
-  const { themedStyles } = useThemedStyles();
-  const isPad = isIPad();
+  const { themedStyles, isPad } = useThemedStyles();
 
   // Helper function to convert amounts based on view mode
   const convertAmount = (amount: number): number => {
@@ -114,7 +103,10 @@ export default function IndividualBreakdownsSection({
                 borderColor: isDarkMode ? currentColors.border : currentColors.border,
                 borderWidth: 1,
                 marginBottom: 0,
-                width: isPad ? 'calc(50% - 10px)' as any : '100%',
+                width: isPad ? 'calc(33.333% - 14px)' as any : '100%',
+                flexGrow: isPad ? 1 : undefined,
+                flexShrink: isPad ? 1 : undefined,
+                flexBasis: isPad ? 'calc(33.333% - 14px)' as any : undefined,
                 overflow: 'hidden',
                 padding: 20,
               }

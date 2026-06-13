@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from './Icon';
@@ -25,6 +25,8 @@ interface ExpenseFilterModalProps {
   setSearchQuery: (query: string) => void;
   hasEndDateFilter: boolean;
   setHasEndDateFilter: (hasEndDate: boolean) => void;
+  debtFilter: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card';
+  setDebtFilter: (debtFilter: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card') => void;
   // Data
   people: any[];
   expenses: any[];
@@ -49,14 +51,16 @@ export default function ExpenseFilterModal({
   setSearchQuery,
   hasEndDateFilter,
   setHasEndDateFilter,
+  debtFilter,
+  setDebtFilter,
   people,
   expenses,
   customCategories,
   onClearFilters,
   announceFilter,
 }: ExpenseFilterModalProps) {
-  const { currentColors } = useTheme();
-  const { themedStyles } = useThemedStyles();
+  const { currentColors, isDarkMode } = useTheme();
+  const { themedStyles, isPad } = useThemedStyles();
 
   // FIXED: Local state for temporary filter values (applied when "Apply Filters" is pressed)
   const [tempFilter, setTempFilter] = useState<'all' | 'household' | 'personal'>('all');
@@ -64,6 +68,7 @@ export default function ExpenseFilterModal({
   const [tempCategoryFilters, setTempCategoryFilters] = useState<string[]>([]);
   const [tempSearchQuery, setTempSearchQuery] = useState<string>('');
   const [tempHasEndDateFilter, setTempHasEndDateFilter] = useState<boolean>(false);
+  const [tempDebtFilter, setTempDebtFilter] = useState<'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'>('all');
 
   // FIXED: Initialize temp state when modal opens with current filter values
   useEffect(() => {
@@ -73,7 +78,8 @@ export default function ExpenseFilterModal({
         personFilter,
         categoryFilter,
         searchQuery,
-        hasEndDateFilter
+        hasEndDateFilter,
+        debtFilter
       });
       setTempFilter(filter);
       setTempPersonFilter(personFilter);
@@ -82,8 +88,9 @@ export default function ExpenseFilterModal({
       setTempCategoryFilters(initialCategories);
       setTempSearchQuery(searchQuery);
       setTempHasEndDateFilter(hasEndDateFilter);
+      setTempDebtFilter(debtFilter || 'all');
     }
-  }, [visible, filter, personFilter, categoryFilter, categoryFilters, searchQuery, hasEndDateFilter]);
+  }, [visible, filter, personFilter, categoryFilter, categoryFilters, searchQuery, hasEndDateFilter, debtFilter]);
 
   const availableCategories = (() => {
     // Union of defaults + custom + any tag appearing in expenses (normalized)
@@ -108,6 +115,7 @@ export default function ExpenseFilterModal({
       categoryFilters?: string[];
       searchQuery?: string;
       hasEndDateFilter?: boolean;
+      debtFilter?: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card';
     }) => {
       let filtered = [...expenses];
 
@@ -154,6 +162,16 @@ export default function ExpenseFilterModal({
         });
       }
 
+      // Apply debt repayment filter
+      if (testFilters.debtFilter && testFilters.debtFilter !== 'all') {
+        filtered = filtered.filter((e) => {
+          if (testFilters.debtFilter === 'any') {
+            return !!e.debtRepayment;
+          }
+          return e.debtRepayment === testFilters.debtFilter;
+        });
+      }
+
       return filtered.length;
     };
 
@@ -163,7 +181,8 @@ export default function ExpenseFilterModal({
       personFilter: tempPersonFilter,
       categoryFilters: tempCategoryFilters,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter
+      hasEndDateFilter: tempHasEndDateFilter,
+      debtFilter: tempDebtFilter
     });
 
     const householdCount = countExpensesWithFilters({
@@ -171,7 +190,8 @@ export default function ExpenseFilterModal({
       personFilter: tempPersonFilter,
       categoryFilters: tempCategoryFilters,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter
+      hasEndDateFilter: tempHasEndDateFilter,
+      debtFilter: tempDebtFilter
     });
 
     const personalCount = countExpensesWithFilters({
@@ -179,7 +199,8 @@ export default function ExpenseFilterModal({
       personFilter: tempPersonFilter,
       categoryFilters: tempCategoryFilters,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter
+      hasEndDateFilter: tempHasEndDateFilter,
+      debtFilter: tempDebtFilter
     });
 
     // Calculate counts for people
@@ -190,7 +211,8 @@ export default function ExpenseFilterModal({
         personFilter: person.id,
         categoryFilters: tempCategoryFilters,
         searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: tempDebtFilter
       });
     });
 
@@ -200,7 +222,8 @@ export default function ExpenseFilterModal({
       personFilter: null,
       categoryFilters: tempCategoryFilters,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter
+      hasEndDateFilter: tempHasEndDateFilter,
+      debtFilter: tempDebtFilter
     });
 
     // Calculate counts for categories
@@ -211,7 +234,8 @@ export default function ExpenseFilterModal({
         personFilter: tempPersonFilter,
         categoryFilter: category,
         searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: tempDebtFilter
       });
     });
 
@@ -221,7 +245,8 @@ export default function ExpenseFilterModal({
       personFilter: tempPersonFilter,
       categoryFilter: null,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter
+      hasEndDateFilter: tempHasEndDateFilter,
+      debtFilter: tempDebtFilter
     });
 
     // Calculate count for end date filter
@@ -230,7 +255,8 @@ export default function ExpenseFilterModal({
       personFilter: tempPersonFilter,
       categoryFilters: tempCategoryFilters,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: true
+      hasEndDateFilter: true,
+      debtFilter: tempDebtFilter
     });
 
     const withoutEndDateCount = countExpensesWithFilters({
@@ -238,8 +264,53 @@ export default function ExpenseFilterModal({
       personFilter: tempPersonFilter,
       categoryFilters: tempCategoryFilters,
       searchQuery: tempSearchQuery,
-      hasEndDateFilter: false
+      hasEndDateFilter: false,
+      debtFilter: tempDebtFilter
     });
+
+    // Calculate counts for debt repayment tags
+    const debtCounts = {
+      all: countExpensesWithFilters({
+        filter: tempFilter,
+        personFilter: tempPersonFilter,
+        categoryFilters: tempCategoryFilters,
+        searchQuery: tempSearchQuery,
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: 'all'
+      }),
+      any: countExpensesWithFilters({
+        filter: tempFilter,
+        personFilter: tempPersonFilter,
+        categoryFilters: tempCategoryFilters,
+        searchQuery: tempSearchQuery,
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: 'any'
+      }),
+      loan: countExpensesWithFilters({
+        filter: tempFilter,
+        personFilter: tempPersonFilter,
+        categoryFilters: tempCategoryFilters,
+        searchQuery: tempSearchQuery,
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: 'loan'
+      }),
+      mortgage: countExpensesWithFilters({
+        filter: tempFilter,
+        personFilter: tempPersonFilter,
+        categoryFilters: tempCategoryFilters,
+        searchQuery: tempSearchQuery,
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: 'mortgage'
+      }),
+      credit_card: countExpensesWithFilters({
+        filter: tempFilter,
+        personFilter: tempPersonFilter,
+        categoryFilters: tempCategoryFilters,
+        searchQuery: tempSearchQuery,
+        hasEndDateFilter: tempHasEndDateFilter,
+        debtFilter: 'credit_card'
+      }),
+    };
 
     console.log('ExpenseFilterModal: Calculated counts:', {
       expenseTypes: { all: allCount, household: householdCount, personal: personalCount },
@@ -247,7 +318,8 @@ export default function ExpenseFilterModal({
       allPeople: allPeopleCount,
       categories: categoryCounts,
       allCategories: allCategoriesCount,
-      endDate: { with: withEndDateCount, without: withoutEndDateCount }
+      endDate: { with: withEndDateCount, without: withoutEndDateCount },
+      debt: debtCounts
     });
 
     return {
@@ -256,11 +328,12 @@ export default function ExpenseFilterModal({
       allPeople: allPeopleCount,
       categories: categoryCounts,
       allCategories: allCategoriesCount,
-      endDate: { with: withEndDateCount, without: withoutEndDateCount }
+      endDate: { with: withEndDateCount, without: withoutEndDateCount },
+      debt: debtCounts
     };
-  }, [expenses, tempFilter, tempPersonFilter, tempCategoryFilters, tempSearchQuery, tempHasEndDateFilter, people, availableCategories]);
+  }, [expenses, tempFilter, tempPersonFilter, tempCategoryFilters, tempSearchQuery, tempHasEndDateFilter, tempDebtFilter, people, availableCategories]);
 
-  const hasActiveFilters = tempCategoryFilters.length > 0 || !!tempSearchQuery.trim() || (tempFilter !== 'all') || !!tempPersonFilter || tempHasEndDateFilter;
+  const hasActiveFilters = tempCategoryFilters.length > 0 || !!tempSearchQuery.trim() || (tempFilter !== 'all') || !!tempPersonFilter || tempHasEndDateFilter || (tempDebtFilter !== 'all');
 
   const handleCancel = () => {
     console.log('ExpenseFilterModal: Cancel pressed, resetting temp state');
@@ -272,6 +345,7 @@ export default function ExpenseFilterModal({
     setTempCategoryFilters(currentCategories);
     setTempSearchQuery(searchQuery);
     setTempHasEndDateFilter(hasEndDateFilter);
+    setTempDebtFilter(debtFilter || 'all');
     onClose();
   };
 
@@ -281,7 +355,8 @@ export default function ExpenseFilterModal({
       tempPersonFilter,
       tempCategoryFilters,
       tempSearchQuery,
-      tempHasEndDateFilter
+      tempHasEndDateFilter,
+      tempDebtFilter
     });
 
     // FIXED: Apply the temporary filter values to the actual state
@@ -294,6 +369,7 @@ export default function ExpenseFilterModal({
     setCategoryFilter(tempCategoryFilters.length > 0 ? tempCategoryFilters[0] : null);
     setSearchQuery(tempSearchQuery);
     setHasEndDateFilter(tempHasEndDateFilter);
+    setDebtFilter(tempDebtFilter);
 
     // FIXED: Build proper announcement message
     let message = 'Filters applied';
@@ -313,6 +389,10 @@ export default function ExpenseFilterModal({
         activeFilters.push(`person: ${personName}`);
       }
       if (tempHasEndDateFilter) activeFilters.push('has end date');
+      if (tempDebtFilter !== 'all') {
+        const debtLabel = tempDebtFilter === 'any' ? 'Any Debt' : tempDebtFilter;
+        activeFilters.push(`debt: ${debtLabel}`);
+      }
       message = `Filters applied: ${activeFilters.join(', ')}`;
     } else {
       message = 'No filters applied - showing all expenses';
@@ -328,6 +408,7 @@ export default function ExpenseFilterModal({
     setTempCategoryFilters([]);
     setTempSearchQuery('');
     setTempHasEndDateFilter(false);
+    setTempDebtFilter('all');
   };
 
   const handleCategoryToggle = (category: string) => {
@@ -417,6 +498,27 @@ export default function ExpenseFilterModal({
     );
   };
 
+  const DebtFilterButton = ({ debtFilterType, label }: { debtFilterType: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'; label: string }) => {
+    const isSelected = tempDebtFilter === debtFilterType;
+    const count = expenseCounts.debt[debtFilterType];
+
+    return (
+      <TouchableOpacity
+        style={getFilterButtonStyle(isSelected)}
+        onPress={() => {
+          console.log('ExpenseFilterModal: DebtFilterButton pressed:', debtFilterType);
+          setTempDebtFilter(debtFilterType);
+        }}
+        activeOpacity={0.7}
+      >
+        <Text style={getFilterTextStyle(isSelected)}>
+          {label}
+        </Text>
+        <CountBubble count={count} isSelected={isSelected} />
+      </TouchableOpacity>
+    );
+  };
+
   // FIXED: PersonButton component with content-based width
   const PersonButton = ({ personId, label, count }: { personId: string | null; label: string; count: number }) => {
     const isSelected = tempPersonFilter === personId;
@@ -460,6 +562,294 @@ export default function ExpenseFilterModal({
       </TouchableOpacity>
     );
   };
+
+  if (isPad) {
+    if (!visible) return null;
+    return (
+      <>
+        {/* Backdrop for click outside to close */}
+        <Pressable
+          onPress={handleCancel}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999,
+            backgroundColor: 'transparent',
+          }}
+        />
+        {/* Floating Popover Container */}
+        <View style={{
+          position: 'absolute',
+          top: 84, // Anchored below the Filters button with a clean 8px gap
+          right: 32, // Aligned with the right margin of the header toolbar and card table
+          width: 380,
+          maxHeight: 640,
+          backgroundColor: isDarkMode ? currentColors.backgroundAlt : '#FFFFFF',
+          borderRadius: 16,
+          borderWidth: 1,
+          borderColor: currentColors.border,
+          zIndex: 1000,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.12,
+          shadowRadius: 24,
+          elevation: 8,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          {/* Popover Header */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            borderBottomWidth: 1,
+            borderBottomColor: currentColors.border,
+            backgroundColor: currentColors.backgroundAlt,
+          }}>
+            <Text style={[themedStyles.text, { fontSize: 16, fontWeight: '700' }]}>Filters</Text>
+            <TouchableOpacity onPress={handleCancel}>
+              <Icon name="close" size={18} style={{ color: currentColors.textSecondary }} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Scrollable Popover Content */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16 }}>
+            {/* Search */}
+            <View>
+              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Search</Text>
+              <TextInput
+                style={[themedStyles.input, { marginBottom: 0 }]}
+                placeholder="Search by description"
+                placeholderTextColor={currentColors.textSecondary}
+                value={tempSearchQuery}
+                onChangeText={setTempSearchQuery}
+              />
+            </View>
+
+            {/* Expense Type */}
+            <View>
+              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Expense Type</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+                <FilterButton filterType="all" label="All" />
+                <FilterButton filterType="household" label="Household" />
+                <FilterButton filterType="personal" label="Personal" />
+              </View>
+            </View>
+
+            {/* Expiration */}
+            <View>
+              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Expiration</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+                <TouchableOpacity
+                  style={getFilterButtonStyle(tempHasEndDateFilter)}
+                  onPress={() => setTempHasEndDateFilter(!tempHasEndDateFilter)}
+                >
+                  <Icon
+                    name="timer-outline"
+                    size={14}
+                    style={{
+                      color: tempHasEndDateFilter ? '#FFFFFF' : currentColors.text,
+                      marginRight: 6
+                    }}
+                  />
+                  <Text style={getFilterTextStyle(tempHasEndDateFilter)}>
+                    Only expenses with end dates
+                  </Text>
+                  <CountBubble count={expenseCounts.endDate.with} isSelected={tempHasEndDateFilter} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Debt Repayments */}
+            <View>
+              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Debt Repayments</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+                <DebtFilterButton debtFilterType="all" label="All" />
+                <DebtFilterButton debtFilterType="any" label="Any Debt" />
+                <DebtFilterButton debtFilterType="loan" label="Loans" />
+                <DebtFilterButton debtFilterType="mortgage" label="Mortgages" />
+                <DebtFilterButton debtFilterType="credit_card" label="Cards" />
+              </View>
+            </View>
+
+            {/* Person Assignee */}
+            {people.length > 0 && (
+              <View>
+                <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Person</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ paddingHorizontal: 4, flexDirection: 'row' }}>
+                    <PersonButton
+                      personId={null}
+                      label="All People"
+                      count={expenseCounts.allPeople}
+                    />
+                    {people.map((person) => (
+                      <PersonButton
+                        key={person.id}
+                        personId={person.id}
+                        label={person.name}
+                        count={expenseCounts.people[person.id] || 0}
+                      />
+                    ))}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Category Tags */}
+            <View>
+              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>
+                Categories {tempCategoryFilters.length > 0 && `(${tempCategoryFilters.length} selected)`}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={getFilterButtonStyle(tempCategoryFilters.length === 0)}
+                  onPress={() => setTempCategoryFilters([])}
+                >
+                  <Text style={getFilterTextStyle(tempCategoryFilters.length === 0)}>
+                    All Categories
+                  </Text>
+                  <CountBubble count={expenseCounts.allCategories} isSelected={tempCategoryFilters.length === 0} />
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+                {availableCategories.map((cat) => (
+                  <View key={cat} style={{ margin: 4 }}>
+                    <CategoryButton
+                      category={cat}
+                      count={expenseCounts.categories[cat] || 0}
+                    />
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Active filter summary preview */}
+            {hasActiveFilters && (
+              <View>
+                <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Preview Filters</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {tempCategoryFilters.length > 0 && (
+                      <View style={[themedStyles.badge, { backgroundColor: currentColors.secondary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.secondary }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="pricetag-outline" size={14} style={{ color: currentColors.secondary, marginRight: 6 }} />
+                          <Text style={[themedStyles.text, { color: currentColors.secondary, fontSize: 12 }]}>
+                            {tempCategoryFilters.length === 1 ? tempCategoryFilters[0] : `${tempCategoryFilters.length} categories`}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                    {!!tempSearchQuery.trim() && (
+                      <View style={[themedStyles.badge, { backgroundColor: currentColors.primary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.primary }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="search-outline" size={14} style={{ color: currentColors.primary, marginRight: 6 }} />
+                          <Text style={[themedStyles.text, { color: currentColors.primary, fontSize: 12 }]}>Search: "{tempSearchQuery.trim()}"</Text>
+                        </View>
+                      </View>
+                    )}
+                    {tempFilter !== 'all' && (
+                      <View style={[themedStyles.badge, { backgroundColor: currentColors.household + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.household }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="people-outline" size={14} style={{ color: currentColors.household, marginRight: 6 }} />
+                          <Text style={[themedStyles.text, { color: currentColors.household, fontSize: 12 }]}>
+                            Type: {tempFilter === 'household' ? 'Household' : 'Personal'}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                    {tempPersonFilter && (
+                      <View style={[themedStyles.badge, { backgroundColor: currentColors.personal + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.personal }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="person-outline" size={14} style={{ color: currentColors.personal, marginRight: 6 }} />
+                          <Text style={[themedStyles.text, { color: currentColors.personal, fontSize: 12 }]}>
+                            Person: {people.find(p => p.id === tempPersonFilter)?.name || 'Unknown'}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                    {tempHasEndDateFilter && (
+                      <View style={[themedStyles.badge, { backgroundColor: '#FF9500' + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: '#FF9500' }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="timer-outline" size={14} style={{ color: '#FF9500', marginRight: 6 }} />
+                          <Text style={[themedStyles.text, { color: '#FF9500', fontSize: 12 }]}>Has end date</Text>
+                        </View>
+                      </View>
+                    )}
+                    {tempDebtFilter !== 'all' && (
+                      <View style={[themedStyles.badge, { backgroundColor: '#5856D6' + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: '#5856D6' }]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Icon name="cash-outline" size={14} style={{ color: '#5856D6', marginRight: 6 }} />
+                          <Text style={[themedStyles.text, { color: '#5856D6', fontSize: 12 }]}>
+                            Debt: {tempDebtFilter === 'any' ? 'Any Debt' : tempDebtFilter === 'loan' ? 'Loan' : tempDebtFilter === 'mortgage' ? 'Mortgage' : 'Credit Card'}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Popover Action Footer */}
+          <View style={{
+            flexDirection: 'row',
+            gap: 12,
+            padding: 16,
+            borderTopWidth: 1,
+            borderTopColor: currentColors.border,
+            backgroundColor: currentColors.backgroundAlt,
+          }}>
+            {hasActiveFilters && (
+              <TouchableOpacity
+                onPress={handleClearFilters}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: currentColors.error,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexDirection: 'row',
+                  gap: 6,
+                }}
+              >
+                <Icon name="refresh-outline" size={16} style={{ color: currentColors.error }} />
+                <Text style={{ color: currentColors.error, fontWeight: '600', fontSize: 13 }}>Clear</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={handleApplyFilters}
+              style={{
+                flex: 2,
+                height: 40,
+                backgroundColor: currentColors.primary,
+                borderRadius: 8,
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row',
+                gap: 6,
+              }}
+            >
+              <Icon name="search-outline" size={16} style={{ color: '#FFFFFF' }} />
+              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>
+                {hasActiveFilters ? 'Apply Filters' : 'Show All'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </>
+    );
+  }
 
   return (
     <Modal
@@ -527,6 +917,18 @@ export default function ExpenseFilterModal({
                 </Text>
                 <CountBubble count={expenseCounts.endDate.with} isSelected={tempHasEndDateFilter} />
               </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Debt Repayments filter */}
+          <View style={[themedStyles.section, { paddingBottom: 0 }]}>
+            <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Debt Repayments</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
+              <DebtFilterButton debtFilterType="all" label="All" />
+              <DebtFilterButton debtFilterType="any" label="Any Debt" />
+              <DebtFilterButton debtFilterType="loan" label="Loans" />
+              <DebtFilterButton debtFilterType="mortgage" label="Mortgages" />
+              <DebtFilterButton debtFilterType="credit_card" label="Cards" />
             </View>
           </View>
 
@@ -705,6 +1107,29 @@ export default function ExpenseFilterModal({
                         <Icon name="timer-outline" size={14} style={{ color: '#FF9500', marginRight: 6 }} />
                         <Text style={[themedStyles.text, { color: '#FF9500', fontSize: 12 }]}>
                           Has end date
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  {tempDebtFilter !== 'all' && (
+                    <View
+                      style={[
+                        themedStyles.badge,
+                        {
+                          backgroundColor: '#5856D6' + '20',
+                          borderRadius: 16,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          marginRight: 8,
+                          borderWidth: 1,
+                          borderColor: '#5856D6',
+                        },
+                      ]}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Icon name="cash-outline" size={14} style={{ color: '#5856D6', marginRight: 6 }} />
+                        <Text style={[themedStyles.text, { color: '#5856D6', fontSize: 12 }]}>
+                          Debt: {tempDebtFilter === 'any' ? 'Any Debt' : tempDebtFilter === 'loan' ? 'Loan' : tempDebtFilter === 'mortgage' ? 'Mortgage' : 'Credit Card'}
                         </Text>
                       </View>
                     </View>

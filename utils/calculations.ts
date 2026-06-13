@@ -78,27 +78,36 @@ export const getEndingSoon = (expenses: Expense[], days: number = 30): { expirin
   };
 };
 
+const toCents = (num: number): number => Math.round(num * 100);
+const fromCents = (cents: number): number => cents / 100;
+
 export const calculateAnnualAmount = (amount: number, frequency: Frequency): number => {
   if (typeof amount !== 'number' || isNaN(amount)) return 0;
   
+  const cents = toCents(amount);
+  let annualCents = 0;
   switch (frequency) {
     case 'daily':
-      return amount * 365;
+      annualCents = cents * 365;
+      break;
     case 'weekly':
-      return amount * 52;
+      annualCents = cents * 52;
+      break;
     case 'monthly':
-      return amount * 12;
+      annualCents = cents * 12;
+      break;
     case 'yearly':
-      return amount;
     case 'one-time':
-      return amount;
     default:
-      return amount;
+      annualCents = cents;
+      break;
   }
+  return fromCents(annualCents);
 };
 
 export const calculateMonthlyAmount = (amount: number, frequency: Frequency): number => {
-  return calculateAnnualAmount(amount, frequency) / 12;
+  const annualCents = toCents(calculateAnnualAmount(amount, frequency));
+  return fromCents(Math.round(annualCents / 12));
 };
 
 export const calculateTotalIncome = (people: Person[]): number => {
@@ -108,21 +117,17 @@ export const calculateTotalIncome = (people: Person[]): number => {
     return 0;
   }
 
-  return people.reduce((total, person) => {
-    // Add null checks for person and person.income
-    if (!person || !person.income || !Array.isArray(person.income)) {
-      console.log('calculateTotalIncome: person.income is not an array:', person);
-      return total;
+  let totalCents = 0;
+  people.forEach((person) => {
+    if (person && person.income && Array.isArray(person.income)) {
+      person.income.forEach((income) => {
+        if (income && typeof income.amount === 'number' && !isNaN(income.amount)) {
+          totalCents += toCents(calculateAnnualAmount(income.amount, income.frequency));
+        }
+      });
     }
-
-    const personIncome = person.income.reduce((sum, income) => {
-      if (!income || typeof income.amount !== 'number' || isNaN(income.amount)) {
-        return sum;
-      }
-      return sum + calculateAnnualAmount(income.amount, income.frequency);
-    }, 0);
-    return total + personIncome;
-  }, 0);
+  });
+  return fromCents(totalCents);
 };
 
 export const calculatePersonIncome = (person: Person): number => {
@@ -132,12 +137,13 @@ export const calculatePersonIncome = (person: Person): number => {
     return 0;
   }
 
-  return person.income.reduce((sum, income) => {
-    if (!income || typeof income.amount !== 'number' || isNaN(income.amount)) {
-      return sum;
+  let totalCents = 0;
+  person.income.forEach((income) => {
+    if (income && typeof income.amount === 'number' && !isNaN(income.amount)) {
+      totalCents += toCents(calculateAnnualAmount(income.amount, income.frequency));
     }
-    return sum + calculateAnnualAmount(income.amount, income.frequency);
-  }, 0);
+  });
+  return fromCents(totalCents);
 };
 
 export const calculateTotalExpenses = (expenses: Expense[]): number => {
@@ -148,13 +154,13 @@ export const calculateTotalExpenses = (expenses: Expense[]): number => {
   }
 
   const asOf = todayYMD();
-  return expenses.reduce((total, expense) => {
-    if (!expense || typeof expense.amount !== 'number' || isNaN(expense.amount)) {
-      return total;
+  let totalCents = 0;
+  expenses.forEach((expense) => {
+    if (expense && typeof expense.amount === 'number' && !isNaN(expense.amount) && isExpenseActive(expense, asOf)) {
+      totalCents += toCents(calculateAnnualAmount(expense.amount, expense.frequency));
     }
-    if (!isExpenseActive(expense, asOf)) return total;
-    return total + calculateAnnualAmount(expense.amount, expense.frequency);
-  }, 0);
+  });
+  return fromCents(totalCents);
 };
 
 export const calculateHouseholdExpenses = (expenses: Expense[]): number => {
@@ -165,15 +171,16 @@ export const calculateHouseholdExpenses = (expenses: Expense[]): number => {
   }
 
   const asOf = todayYMD();
-  return expenses
+  let totalCents = 0;
+  expenses
     .filter((expense) => expense && expense.category === 'household')
     .filter((expense) => isExpenseActive(expense, asOf))
-    .reduce((total, expense) => {
-      if (!expense || typeof expense.amount !== 'number' || isNaN(expense.amount)) {
-        return total;
+    .forEach((expense) => {
+      if (expense && typeof expense.amount === 'number' && !isNaN(expense.amount)) {
+        totalCents += toCents(calculateAnnualAmount(expense.amount, expense.frequency));
       }
-      return total + calculateAnnualAmount(expense.amount, expense.frequency);
-    }, 0);
+    });
+  return fromCents(totalCents);
 };
 
 export const calculatePersonalExpenses = (expenses: Expense[], personId?: string): number => {
@@ -184,15 +191,16 @@ export const calculatePersonalExpenses = (expenses: Expense[], personId?: string
   }
 
   const asOf = todayYMD();
-  return expenses
+  let totalCents = 0;
+  expenses
     .filter((expense) => expense && expense.category === 'personal' && (!personId || expense.personId === personId))
     .filter((expense) => isExpenseActive(expense, asOf))
-    .reduce((total, expense) => {
-      if (!expense || typeof expense.amount !== 'number' || isNaN(expense.amount)) {
-        return total;
+    .forEach((expense) => {
+      if (expense && typeof expense.amount === 'number' && !isNaN(expense.amount)) {
+        totalCents += toCents(calculateAnnualAmount(expense.amount, expense.frequency));
       }
-      return total + calculateAnnualAmount(expense.amount, expense.frequency);
-    }, 0);
+    });
+  return fromCents(totalCents);
 };
 
 export const calculateHouseholdShare = (
@@ -211,17 +219,20 @@ export const calculateHouseholdShare = (
     return 0;
   }
 
+  const householdCents = toCents(householdExpenses);
+
   if (distributionMethod === 'even') {
-    return householdExpenses / people.length;
+    return fromCents(Math.round(householdCents / people.length));
   } else {
     const totalIncome = calculateTotalIncome(people);
-    if (totalIncome === 0) return householdExpenses / people.length;
+    if (totalIncome === 0) return fromCents(Math.round(householdCents / people.length));
 
     const person = people.find((p) => p && p.id === personId);
     if (!person) return 0;
 
     const personIncome = calculatePersonIncome(person);
-    return (personIncome / totalIncome) * householdExpenses;
+    const shareCents = Math.round((personIncome / totalIncome) * householdCents);
+    return fromCents(shareCents);
   }
 };
 
@@ -230,7 +241,8 @@ export const roundTo = (val: number, digits: number): number => {
     return 0;
   }
   const factor = Math.pow(10, digits);
-  return Math.round(val * factor) / factor;
+  // Prevent floating point representation errors in rounding with Math.sign(val) * Number.EPSILON
+  return Math.round((val + Math.sign(val) * Number.EPSILON) * factor) / factor;
 };
 
 /**

@@ -330,8 +330,6 @@ function RootLayoutContent() {
             <Tabs.Screen name="edit-income" options={{ href: null }} />
             <Tabs.Screen name="budgets" options={{ href: null }} />
             <Tabs.Screen name="tools" />
-            <Tabs.Screen name="import-link" options={{ href: null }} />
-            <Tabs.Screen name="import-budget" options={{ href: null }} />
             <Tabs.Screen name="budget-lock" options={{ href: null }} />
             <Tabs.Screen name="manage-categories" options={{ href: null }} />
             <Tabs.Screen name="auth/index" options={{ href: null }} />

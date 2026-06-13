@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
 });
 
 export default function ToolsScreen() {
-  const { themedStyles } = useThemedStyles();
+  const { themedStyles, isPad } = useThemedStyles();
   const { currentColors } = useTheme();
   const { formatCurrency, currency } = useCurrency();
   const { showToast } = useToast();
@@ -517,33 +517,99 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Tools" showLeftIcon={false} showRightIcon={false} />
-      <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 0, paddingTop: 16 }]}>
-        {/* Credit Card Calculator Section - matching dashboard style */}
-        <View style={{ marginBottom: 24 }}>
-          <View style={{ 
-            flexDirection: 'row', 
-            alignItems: 'center', 
-            marginBottom: 16,
-            minHeight: 32,
-          }}>
-            <Icon 
-              name="calculator" 
-              size={24} 
-              style={{ 
-                color: currentColors.primary, 
-                marginRight: 12,
-                marginTop: -2,
-              }} 
-            />
-            <Text style={[themedStyles.subtitle, { fontSize: 22, fontWeight: '700', marginBottom: 0 }]}>
-              Credit Card Payoff Calculator
-            </Text>
-          </View>
-          {renderCalculatorCard()}
+      {isPad ? (
+        // Desktop Header
+        <View style={{
+          paddingHorizontal: 32,
+          paddingTop: 32,
+          paddingBottom: 16,
+          backgroundColor: currentColors.background,
+          flexDirection: 'row',
+          alignItems: 'center',
+        }}>
+          <Icon name="calculator-outline" size={28} style={{ color: currentColors.primary, marginRight: 12 }} />
+          <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0 }]}>Tools</Text>
         </View>
+      ) : (
+        <StandardHeader title="Tools" showLeftIcon={false} showRightIcon={false} />
+      )}
+      <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 0, paddingTop: 16 }]}>
+        {isPad ? (
+          // Two column layout for desktop
+          <View>
+            {/* Title Section */}
+            <View style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              marginBottom: 20,
+              minHeight: 32,
+            }}>
+              <Icon 
+                name="calculator" 
+                size={24} 
+                style={{ 
+                  color: currentColors.primary, 
+                  marginRight: 12,
+                  marginTop: -2,
+                }} 
+              />
+              <Text style={[themedStyles.subtitle, { fontSize: 22, fontWeight: '700', marginBottom: 0 }]}>
+                Credit Card Payoff Calculator
+              </Text>
+            </View>
 
-        {renderResults()}
+            <View style={{ flexDirection: 'row', gap: 24, alignItems: 'flex-start' }}>
+              {/* Left Column (Inputs) */}
+              <View style={{ flex: 1.2 }}>
+                {renderCalculatorCard()}
+              </View>
+
+              {/* Right Column (Results or Placeholder) */}
+              <View style={{ flex: 1.5 }}>
+                {showResults ? (
+                  renderResults()
+                ) : (
+                  <View style={[themedStyles.card, { minHeight: 380, justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
+                    <Icon name="calculator-outline" size={48} style={{ color: currentColors.primary + 'AA', marginBottom: 20 }} />
+                    <Text style={[themedStyles.subtitle, { textAlign: 'center', fontSize: 20, marginBottom: 10, fontWeight: '700' }]}>Payoff Analysis</Text>
+                    <Text style={[themedStyles.textSecondary, { textAlign: 'center', lineHeight: 22, maxWidth: 360 }]}>
+                      Enter your credit card balance, APR %, and monthly payment on the left, then click Calculate to generate a detailed payoff schedule, total interest projection, and amortization timeline.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+        ) : (
+          // Standard single column layout for mobile
+          <>
+            {/* Credit Card Calculator Section - matching dashboard style */}
+            <View style={{ marginBottom: 24 }}>
+              <View style={{ 
+                flexDirection: 'row', 
+                alignItems: 'center', 
+                marginBottom: 16,
+                minHeight: 32,
+              }}>
+                <Icon 
+                  name="calculator" 
+                  size={24} 
+                  style={{ 
+                    color: currentColors.primary, 
+                    marginRight: 12,
+                    marginTop: -2,
+                  }} 
+                />
+                <Text style={[themedStyles.subtitle, { fontSize: 22, fontWeight: '700', marginBottom: 0 }]}>
+                  Credit Card Payoff Calculator
+                </Text>
+              </View>
+              {renderCalculatorCard()}
+            </View>
+
+            {renderResults()}
+          </>
+        )}
       </ScrollView>
     </View>
   );

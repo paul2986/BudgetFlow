@@ -51,6 +51,53 @@ const safeAsyncResult = async <T extends unknown>(
   }
 };
 
+const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
+  if (!local || !local.budgets) return remote || { version: 2, budgets: [], activeBudgetId: '' };
+  if (!remote || !remote.budgets) return local;
+
+  const mergedBudgetsMap = new Map<string, Budget>();
+
+  local.budgets.forEach(b => {
+    if (b && b.id) {
+      mergedBudgetsMap.set(b.id, b);
+    }
+  });
+
+  remote.budgets.forEach(remoteBudget => {
+    if (!remoteBudget || !remoteBudget.id) return;
+
+    const localBudget = mergedBudgetsMap.get(remoteBudget.id);
+    if (!localBudget) {
+      mergedBudgetsMap.set(remoteBudget.id, remoteBudget);
+    } else {
+      const localModified = localBudget.modifiedAt || 0;
+      const remoteModified = remoteBudget.modifiedAt || 0;
+
+      if (remoteModified > localModified) {
+        mergedBudgetsMap.set(remoteBudget.id, remoteBudget);
+      } else {
+        mergedBudgetsMap.set(remoteBudget.id, localBudget);
+      }
+    }
+  });
+
+  const mergedBudgets = Array.from(mergedBudgetsMap.values());
+
+  let activeBudgetId = local.activeBudgetId;
+  if (activeBudgetId && !mergedBudgetsMap.has(activeBudgetId)) {
+    activeBudgetId = remote.activeBudgetId;
+  }
+  if (!activeBudgetId || !mergedBudgetsMap.has(activeBudgetId)) {
+    activeBudgetId = mergedBudgets[0]?.id || '';
+  }
+
+  return {
+    version: 2,
+    budgets: mergedBudgets,
+    activeBudgetId
+  };
+};
+
 // Context Type definition
 type BudgetDataContextType = ReturnType<typeof useBudgetDataInternal>;
 
@@ -124,29 +171,26 @@ const useBudgetDataInternal = () => {
         if (!error && supabaseData?.app_data) {
           const remoteData = supabaseData.app_data as AppDataV2;
 
-          // Determine "freshness" using modifiedAt of active budgets or fallback to budget array length/content
-          const activeLocal = getActiveBudget(localApp);
-          const activeRemote = getActiveBudget(remoteData);
+          const merged = mergeAppData(localApp, remoteData);
+          const localJson = JSON.stringify(localApp);
+          const remoteJson = JSON.stringify(remoteData);
+          const mergedJson = JSON.stringify(merged);
 
-          const localModified = activeLocal?.modifiedAt || 0;
-          const remoteModified = activeRemote?.modifiedAt || 0;
+          const hasLocalUpdates = mergedJson !== remoteJson;
+          const hasRemoteUpdates = mergedJson !== localJson;
 
-          console.log('useBudgetData: Sync conflict check', {
-            localModified,
-            remoteModified,
-            localBudgets: localApp.budgets.length,
-            remoteBudgets: remoteData.budgets.length
+          console.log('useBudgetData: Sync conflict check via budget merging', {
+            localBudgetsCount: localApp.budgets.length,
+            remoteBudgetsCount: remoteData.budgets.length,
+            mergedBudgetsCount: merged.budgets.length,
+            hasLocalUpdates,
+            hasRemoteUpdates
           });
 
-          // Logic: "Last Write Wins" based on the ACTIVE budget's modifiedAt
-          // If remote is newer (>), take it.
-          // If local is newer (>), PUSH it to cloud.
-          // If equal, take remote (to be safe/consistent).
-
-          if (remoteModified >= localModified) {
-            console.log('useBudgetData: Cloud data is newer or equal, adopting it');
-            setAppData(remoteData);
-            const active = getActiveBudget(remoteData);
+          if (hasRemoteUpdates) {
+            console.log('useBudgetData: Cloud data has newer/different budgets, adopting them');
+            setAppData(merged);
+            const active = getActiveBudget(merged);
             if (active) {
               setData({
                 people: active.people || [],
@@ -154,22 +198,9 @@ const useBudgetDataInternal = () => {
                 householdSettings: active.householdSettings || { distributionMethod: 'even' }
               });
             }
-            await saveAppData(remoteData);
+            await saveAppData(merged);
           } else {
-            console.log('useBudgetData: Local data is newer, pushing to cloud...');
-            // We can push asynchronously to not block UI
-            const { error: pushError } = await supabase.from('user_data').upsert(
-              {
-                user_id: user.id,
-                app_data: localApp,
-                updated_at: new Date().toISOString()
-              },
-              { onConflict: 'user_id' }
-            );
-            if (pushError) console.error('useBudgetData: Failed to push newer local state to cloud:', pushError);
-            else console.log('useBudgetData: Successfully pushed newer local state to cloud');
-
-            // Keep local state as is, but ensure appData state is synced
+            // Even if no remote changes are merged in, keep our local appData state in sync
             setAppData(localApp);
             const active = getActiveBudget(localApp);
             if (active) {
@@ -179,6 +210,20 @@ const useBudgetDataInternal = () => {
                 householdSettings: active.householdSettings || { distributionMethod: 'even' }
               });
             }
+          }
+
+          if (hasLocalUpdates) {
+            console.log('useBudgetData: Local data has newer/different budgets, pushing merged state to cloud...');
+            const { error: pushError } = await supabase.from('user_data').upsert(
+              {
+                user_id: user.id,
+                app_data: merged,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id' }
+            );
+            if (pushError) console.error('useBudgetData: Failed to push merged state to cloud:', pushError);
+            else console.log('useBudgetData: Successfully pushed merged state to cloud');
           }
           return;
         } else if (error && error.code === 'PGRST116') {

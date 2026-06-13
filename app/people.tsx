@@ -239,19 +239,52 @@ export default function PeopleScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader
-        title="People"
-        showLeftIcon={false}
-        rightButtons={[
-          {
-            icon: 'add' as const,
-            onPress: handleNavigateToAddPerson,
-            backgroundColor: currentColors.primary,
-            iconColor: '#FFFFFF',
-          }
-        ]}
-        loading={saving}
-      />
+      {isPad ? (
+        // Desktop Header / Title Row
+        <View style={{
+          paddingHorizontal: 32,
+          paddingTop: 32,
+          paddingBottom: 16,
+          backgroundColor: currentColors.background,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Icon name="people-outline" size={28} style={{ color: currentColors.primary, marginRight: 12 }} />
+            <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0 }]}>People</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleNavigateToAddPerson}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: currentColors.primary,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              height: 44,
+              boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
+            }}
+          >
+            <Icon name="add" size={20} style={{ color: '#FFFFFF', marginRight: 6 }} />
+            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700' }}>Add Person</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <StandardHeader
+          title="People"
+          showLeftIcon={false}
+          rightButtons={[
+            {
+              icon: 'add' as const,
+              onPress: handleNavigateToAddPerson,
+              backgroundColor: currentColors.primary,
+              iconColor: '#FFFFFF',
+            }
+          ]}
+          loading={saving}
+        />
+      )}
 
       <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 16, paddingTop: 16 }]}>
         {/* Loading indicator while data is being loaded */}

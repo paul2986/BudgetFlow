@@ -26,6 +26,7 @@ import OverviewSection from '../components/OverviewSection';
 import IndividualBreakdownsSection from '../components/IndividualBreakdownsSection';
 import ExpiringSection from '../components/ExpiringSection';
 import ExpenseBreakdownSection from '../components/ExpenseBreakdownSection';
+import DebtRepaymentSection from '../components/DebtRepaymentSection';
 import Button from '../components/Button';
 import InfoModal from '../components/InfoModal';
 
@@ -594,10 +595,12 @@ export default function HomeScreen() {
   if (budgetLocked) {
     return (
       <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        <StandardHeader
-          title={activeBudget?.name || 'Budget'}
-          backgroundColor={currentColors.backgroundAlt}
-        />
+        {!isPad && (
+          <StandardHeader
+            title={activeBudget?.name || 'Budget'}
+            backgroundColor={currentColors.backgroundAlt}
+          />
+        )}
 
         <View style={{ flex: 1, position: 'relative' }}>
           <View style={{ flex: 1, opacity: 0.3 }}>
@@ -691,12 +694,14 @@ export default function HomeScreen() {
   if (isFirstTimeUser) {
     return (
       <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        <StandardHeader
-          title={activeBudget?.name || 'Budget'}
-          rightIcon="wallet-outline"
-          onRightPress={() => router.push('/budgets')}
-          backgroundColor={currentColors.backgroundAlt}
-        />
+        {!isPad && (
+          <StandardHeader
+            title={activeBudget?.name || 'Budget'}
+            rightIcon="wallet-outline"
+            onRightPress={() => router.push('/budgets')}
+            backgroundColor={currentColors.backgroundAlt}
+          />
+        )}
 
         <ScrollView
           style={themedStyles.content}
@@ -801,12 +806,14 @@ export default function HomeScreen() {
 
     return (
       <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        <StandardHeader
-          title={activeBudget?.name || 'Budget'}
-          rightIcon="wallet-outline"
-          onRightPress={() => router.push('/budgets')}
-          backgroundColor={currentColors.backgroundAlt}
-        />
+        {!isPad && (
+          <StandardHeader
+            title={activeBudget?.name || 'Budget'}
+            rightIcon="wallet-outline"
+            onRightPress={() => router.push('/budgets')}
+            backgroundColor={currentColors.backgroundAlt}
+          />
+        )}
 
         <ScrollView
           style={themedStyles.content}
@@ -951,12 +958,14 @@ export default function HomeScreen() {
   // Full dashboard: Show everything when both people and expenses exist
   return (
     <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-      <StandardHeader
-        title={activeBudget?.name || 'Budget'}
-        rightIcon="wallet-outline"
-        onRightPress={() => router.push('/budgets')}
-        backgroundColor={currentColors.backgroundAlt}
-      />
+      {!isPad && (
+        <StandardHeader
+          title={activeBudget?.name || 'Budget'}
+          rightIcon="wallet-outline"
+          onRightPress={() => router.push('/budgets')}
+          backgroundColor={currentColors.backgroundAlt}
+        />
+      )}
 
       <ScrollView
         style={themedStyles.content}
@@ -1028,151 +1037,191 @@ export default function HomeScreen() {
                   </View>
                 </View>
 
-                {/* 2. Grid Layout for Breakdowns (Left) + Expiring (Right) */}
-                <View style={{ flexDirection: 'row', gap: 24 }}>
-                  {/* Left Column (2/3) */}
-                  <View style={{ flex: 2 }}>
-
-                    {/* Individual Breakdowns */}
-                    <View style={{ marginBottom: 24 }}>
-                      <View style={{
-                        flexDirection: 'row',
+                {/* 2. Individual Breakdowns - Full Width */}
+                <View style={{ marginBottom: 24 }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 16,
+                    minHeight: 32,
+                  }}>
+                    <Icon
+                      name="people-outline"
+                      size={28}
+                      style={{
+                        color: currentColors.primary,
+                        marginRight: 12,
+                        marginTop: -2,
+                      }}
+                    />
+                    <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
+                      Individual Breakdowns
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => showInfoModal(
+                        'Individual Breakdowns',
+                        'This section shows a detailed breakdown for each person in your budget. It displays their total income, personal expenses, household share, and remaining balance. The progress bar visualizes how their income is allocated across different expense categories.'
+                      )}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: currentColors.info + '20',
                         alignItems: 'center',
-                        marginBottom: 16,
-                        minHeight: 32,
-                      }}>
-                        <Icon
-                          name="people-outline"
-                          size={28}
-                          style={{
-                            color: currentColors.primary,
-                            marginRight: 12,
-                            marginTop: -2,
-                          }}
-                        />
-                        <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
-                          Individual Breakdowns
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => showInfoModal(
-                            'Individual Breakdowns',
-                            'This section shows a detailed breakdown for each person in your budget. It displays their total income, personal expenses, household share, and remaining balance. The progress bar visualizes how their income is allocated across different expense categories.'
-                          )}
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            backgroundColor: currentColors.info + '20',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
-                        </TouchableOpacity>
-                      </View>
-                      <IndividualBreakdownsSection
-                        people={people}
-                        expenses={expenses}
-                        householdSettings={data.householdSettings}
-                        totalHouseholdExpenses={calculations.householdExpenses}
-                        viewMode={globalViewMode}
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
+                    </TouchableOpacity>
+                  </View>
+                  <IndividualBreakdownsSection
+                    people={people}
+                    expenses={expenses}
+                    householdSettings={data.householdSettings}
+                    totalHouseholdExpenses={calculations.householdExpenses}
+                    viewMode={globalViewMode}
+                  />
+                </View>
+
+                {/* 3. Expense Breakdown - Full Width */}
+                <View style={{ marginBottom: 24 }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 16,
+                    minHeight: 32,
+                  }}>
+                    <Icon
+                      name="pie-chart-outline"
+                      size={28}
+                      style={{
+                        color: currentColors.primary,
+                        marginRight: 12,
+                        marginTop: -2,
+                      }}
+                    />
+                    <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
+                      Expense Breakdown
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => showInfoModal(
+                        'Expense Breakdown',
+                        'This section categorizes all your expenses into household and personal types. Each category shows the total amount, number of expenses, and percentage of your overall spending. Tap on any category to view the detailed list of expenses within that category.'
+                      )}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        backgroundColor: currentColors.info + '20',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
+                    </TouchableOpacity>
+                  </View>
+                  <ExpenseBreakdownSection
+                    key={`expense-breakdown-${activeBudget?.id || 'no-budget'}`}
+                    expenses={expenses}
+                    people={people}
+                    viewMode={globalViewMode}
+                  />
+                </View>
+
+                 {/* 4. Debt Repayments & Ending/Expired side-by-side on desktop */}
+                <View style={{ flexDirection: 'row', gap: 24, marginBottom: 24 }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: 16,
+                      minHeight: 32,
+                    }}>
+                      <Icon
+                        name="trending-down-outline"
+                        size={28}
+                        style={{
+                          color: currentColors.primary,
+                          marginRight: 12,
+                          marginTop: -2,
+                        }}
                       />
+                      <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
+                        Debt Repayments
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => showInfoModal(
+                          'Debt Repayments',
+                          'This section summarizes all your expenses that are tagged as debt repayments (loans, mortgages, or credit card bills). It displays your monthly total paid towards debt and individual breakdowns of these repayments.'
+                        )}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          backgroundColor: currentColors.info + '20',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
+                      </TouchableOpacity>
                     </View>
-
-                    {/* Expense Breakdown */}
-                    <View style={{ marginBottom: 24 }}>
-                      <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginBottom: 16,
-                        minHeight: 32,
-                      }}>
-                        <Icon
-                          name="pie-chart-outline"
-                          size={28}
-                          style={{
-                            color: currentColors.primary,
-                            marginRight: 12,
-                            marginTop: -2,
-                          }}
-                        />
-                        <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
-                          Expense Breakdown
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => showInfoModal(
-                            'Expense Breakdown',
-                            'This section categorizes all your expenses into household and personal types. Each category shows the total amount, number of expenses, and percentage of your overall spending. Tap on any category to view the detailed list of expenses within that category.'
-                          )}
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            backgroundColor: currentColors.info + '20',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
-                        </TouchableOpacity>
-                      </View>
-                      <ExpenseBreakdownSection
-                        key={`expense-breakdown-${activeBudget?.id || 'no-budget'}`}
-                        expenses={expenses}
-                        people={people}
-                        viewMode={globalViewMode}
-                      />
+                    <View style={[
+                      themedStyles.card,
+                      {
+                        marginBottom: 0,
+                        padding: 0,
+                        flex: 1
+                      }
+                    ]}>
+                      <DebtRepaymentSection expenses={expenses} people={people} />
                     </View>
                   </View>
 
-                  {/* Right Column (1/3) */}
                   <View style={{ flex: 1 }}>
-                    {/* Ending/Expiring Section */}
-                    <View style={{ marginBottom: 24 }}>
-                      <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        marginBottom: 16,
-                        minHeight: 32,
-                      }}>
-                        <Icon
-                          name="time-outline"
-                          size={28}
-                          style={{
-                            color: currentColors.primary,
-                            marginRight: 12,
-                            marginTop: -2,
-                          }}
-                        />
-                        <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
-                          Ending & Expired
-                        </Text>
-                        <TouchableOpacity
-                          onPress={() => showInfoModal(
-                            'Ending & Expired',
-                            'This section helps you track expenses that have end dates. The "Expiring Soon" tab shows expenses ending within the next 30 days, while the "Ended" tab displays expenses that have already expired. You can extend the end date of expiring expenses by tapping the "Extend" button.'
-                          )}
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            backgroundColor: currentColors.info + '20',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
-                        </TouchableOpacity>
-                      </View>
-                      <View style={[
-                        themedStyles.card,
-                        {
-                          marginBottom: 0,
-                          flex: 1 // Fill height
-                        }
-                      ]}>
-                        <ExpiringSection expenses={expenses} />
-                      </View>
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: 16,
+                      minHeight: 32,
+                    }}>
+                      <Icon
+                        name="time-outline"
+                        size={28}
+                        style={{
+                          color: currentColors.primary,
+                          marginRight: 12,
+                          marginTop: -2,
+                        }}
+                      />
+                      <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
+                        Ending & Expired
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => showInfoModal(
+                          'Ending & Expired',
+                          'This section helps you track expenses that have end dates. The "Expiring Soon" tab shows expenses ending within the next 30 days, while the "Ended" tab displays expenses that have already expired. You can extend the end date of expiring expenses by tapping the "Extend" button.'
+                        )}
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          backgroundColor: currentColors.info + '20',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={[
+                      themedStyles.card,
+                      {
+                        marginBottom: 0,
+                        flex: 1
+                      }
+                    ]}>
+                      <ExpiringSection expenses={expenses} />
                     </View>
                   </View>
                 </View>
@@ -1325,7 +1374,7 @@ export default function HomeScreen() {
                 </View>
 
                 {/* 4. Ending/Expiring Section */}
-                <View style={{ marginBottom: 100 }}>
+                <View style={{ marginBottom: 24 }}>
                   <View style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -1368,6 +1417,54 @@ export default function HomeScreen() {
                     }
                   ]}>
                     <ExpiringSection expenses={expenses} />
+                  </View>
+                </View>
+
+                {/* 5. Debt Repayments Section */}
+                <View style={{ marginBottom: 100 }}>
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    marginBottom: 16,
+                    minHeight: 32,
+                  }}>
+                    <Icon
+                      name="trending-down-outline"
+                      size={24}
+                      style={{
+                        color: currentColors.primary,
+                        marginRight: 12,
+                        marginTop: -2,
+                      }}
+                    />
+                    <Text style={[themedStyles.subtitle, { fontSize: 22, fontWeight: '700', marginBottom: 0, flex: 1 }]}>
+                      Debt Repayments
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => showInfoModal(
+                        'Debt Repayments',
+                        'This section summarizes all your expenses that are tagged as debt repayments (loans, mortgages, or credit card bills). It displays your monthly total paid towards debt and individual breakdowns of these repayments.'
+                      )}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: currentColors.info + '20',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Icon name="information-circle-outline" size={20} style={{ color: currentColors.info }} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={[
+                    themedStyles.card,
+                    {
+                      marginBottom: 0,
+                      padding: 0
+                    }
+                  ]}>
+                    <DebtRepaymentSection expenses={expenses} people={people} />
                   </View>
                 </View>
               </>

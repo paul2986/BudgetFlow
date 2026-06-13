@@ -58,6 +58,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time'>('monthly');
     const [personId, setPersonId] = useState<string>('');
     const [categoryTag, setCategoryTag] = useState<ExpenseCategory>('Misc');
+    const [debtRepayment, setDebtRepayment] = useState<'loan' | 'mortgage' | 'credit_card' | undefined>(undefined);
     const [deleting, setDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -111,6 +112,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             setFrequency((expenseToEdit.frequency as any) || 'monthly');
             setPersonId(expenseToEdit.personId || '');
             setCategoryTag(normalizeCategoryName((expenseToEdit.categoryTag as any) || 'Misc') as any);
+            setDebtRepayment(expenseToEdit.debtRepayment || undefined);
 
             try {
                 const d = new Date(expenseToEdit.date);
@@ -158,11 +160,12 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 amount: parseFloat(amount),
                 category,
                 frequency,
-                personId: actualPersonId || undefined,
+                personId: category === 'household' ? undefined : (actualPersonId || undefined),
                 date: new Date(startDateYMD + 'T00:00:00Z').toISOString(),
                 notes: '',
                 categoryTag: categoryTag || 'Misc',
                 endDate: endDate ? toYMD(endDate) : undefined,
+                debtRepayment: debtRepayment || undefined,
             };
 
             const result = isEditMode ? await updateExpense(expenseData) : await addExpense(expenseData);
@@ -284,6 +287,31 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                                 }]}
                             >
                                 <Text style={{ color: categoryTag === tag ? '#FFF' : currentColors.text, fontWeight: '600' }}>{tag}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Debt Repayment Tag */}
+                <View style={themedStyles.section}>
+                    <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 8 }]}>Debt Repayment Tag (Optional)</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                        {[
+                            { value: undefined, label: 'None' },
+                            { value: 'loan', label: 'Loan' },
+                            { value: 'mortgage', label: 'Mortgage' },
+                            { value: 'credit_card', label: 'Credit Card' }
+                        ].map(opt => (
+                            <TouchableOpacity
+                                key={opt.label}
+                                onPress={() => setDebtRepayment(opt.value as any)}
+                                style={[styles.badge, {
+                                    backgroundColor: debtRepayment === opt.value ? currentColors.secondary : currentColors.border
+                                }]}
+                            >
+                                <Text style={{ color: debtRepayment === opt.value ? '#FFF' : currentColors.text, fontWeight: '600' }}>
+                                    {opt.label}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>

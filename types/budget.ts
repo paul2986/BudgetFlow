@@ -19,6 +19,7 @@ export const DEFAULT_CATEGORIES: string[] = [
   'Groceries',
   'Rent',
   'Mortgage',
+  'Loan',
   'Utilities',
   'Transport',
   'Entertainment',
@@ -44,6 +45,7 @@ export interface Expense {
   notes?: string; // Optional notes for additional context
   categoryTag?: ExpenseCategory; // Optional category tag for filtering/reporting (default 'Misc')
   endDate?: string; // YYYY-MM-DD, optional end date for recurring expenses (frequency != 'one-time')
+  debtRepayment?: 'loan' | 'mortgage' | 'credit_card'; // Optional tag for debt repayment
 }
 
 export interface HouseholdSettings {
