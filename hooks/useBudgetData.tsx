@@ -51,6 +51,85 @@ const safeAsyncResult = async <T extends unknown>(
   }
 };
 
+// Tombstones older than this are ignored when merging (matches storage pruning).
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+// Union two tombstone maps, keeping the latest deletion time per id and dropping
+// entries that have aged out.
+const mergeDeletions = (
+  a?: Record<string, number>,
+  b?: Record<string, number>
+): Record<string, number> => {
+  const out: Record<string, number> = {};
+  const now = Date.now();
+  const absorb = (m?: Record<string, number>) => {
+    if (!m) return;
+    for (const [id, ts] of Object.entries(m)) {
+      if (typeof ts !== 'number' || now - ts > TOMBSTONE_TTL_MS) continue;
+      if (!(id in out) || ts > out[id]) out[id] = ts;
+    }
+  };
+  absorb(a);
+  absorb(b);
+  return out;
+};
+
+// Effective last-modified time for an entity. Legacy entities without their own
+// timestamp fall back to their budget's modifiedAt, preserving prior behaviour.
+const entityTime = (entity: { updatedAt?: number }, budgetModifiedAt: number): number =>
+  typeof entity?.updatedAt === 'number' ? entity.updatedAt : budgetModifiedAt;
+
+// Merge two lists of id'd entities (expenses or people): union by id, pick the
+// most-recently-updated copy for conflicts, and drop anything a newer tombstone
+// has deleted. This is what prevents concurrent edits on two devices from wiping
+// each other's additions.
+const mergeEntities = <T extends { id: string; updatedAt?: number }>(
+  localArr: T[] = [],
+  remoteArr: T[] = [],
+  localMod: number,
+  remoteMod: number,
+  deletions: Record<string, number>
+): T[] => {
+  const byId = new Map<string, { entity: T; time: number }>();
+  const consider = (arr: T[], mod: number) => {
+    for (const e of arr) {
+      if (!e || !e.id) continue;
+      const t = entityTime(e, mod);
+      const existing = byId.get(e.id);
+      if (!existing || t >= existing.time) byId.set(e.id, { entity: e, time: t });
+    }
+  };
+  consider(localArr, localMod);
+  consider(remoteArr, remoteMod);
+
+  const result: T[] = [];
+  byId.forEach(({ entity, time }) => {
+    const deletedAt = deletions[entity.id];
+    // Tombstone wins only if the deletion is at least as recent as the last edit;
+    // an edit that happened after a delete intentionally resurrects the entity.
+    if (typeof deletedAt === 'number' && deletedAt >= time) return;
+    result.push(entity);
+  });
+  return result;
+};
+
+// Merge a single budget that exists on both sides, at the entity level.
+const mergeBudget = (local: Budget, remote: Budget): Budget => {
+  const localMod = local.modifiedAt || 0;
+  const remoteMod = remote.modifiedAt || 0;
+  // Budget-level scalar fields (name, householdSettings, lock) use whole-budget LWW.
+  const base = remoteMod > localMod ? remote : local;
+  const deletions = mergeDeletions(local.deletions, remote.deletions);
+
+  return {
+    ...base,
+    expenses: mergeEntities(local.expenses, remote.expenses, localMod, remoteMod, deletions),
+    people: mergeEntities(local.people, remote.people, localMod, remoteMod, deletions),
+    deletions,
+    modifiedAt: Math.max(localMod, remoteMod),
+  };
+};
+
 const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
   if (!local || !local.budgets) return remote || { version: 2, budgets: [], activeBudgetId: '' };
   if (!remote || !remote.budgets) return local;
@@ -68,16 +147,12 @@ const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
 
     const localBudget = mergedBudgetsMap.get(remoteBudget.id);
     if (!localBudget) {
+      // Budget only exists remotely: adopt it. (Whole-budget deletion across
+      // devices is not yet tombstoned, so a budget deleted on one device can
+      // reappear from another — a known, narrower limitation than data loss.)
       mergedBudgetsMap.set(remoteBudget.id, remoteBudget);
     } else {
-      const localModified = localBudget.modifiedAt || 0;
-      const remoteModified = remoteBudget.modifiedAt || 0;
-
-      if (remoteModified > localModified) {
-        mergedBudgetsMap.set(remoteBudget.id, remoteBudget);
-      } else {
-        mergedBudgetsMap.set(remoteBudget.id, localBudget);
-      }
+      mergedBudgetsMap.set(remoteBudget.id, mergeBudget(localBudget, remoteBudget));
     }
   });
 
@@ -352,9 +427,19 @@ const useBudgetDataInternal = () => {
   }, [refreshFromStorage]);
 
   // Supabase sync effect - simplified to just trigger on user change
+  const hadUserRef = useRef(false);
   useEffect(() => {
     if (user) {
+      hadUserRef.current = true;
       refreshFromStorage();
+    } else if (hadUserRef.current) {
+      // Transitioned from signed-in to signed-out: drop in-memory data so the
+      // provider doesn't hold the previous account's budgets (local storage and
+      // cache are already wiped by signOut). Guarded so we don't clear during the
+      // initial unauthenticated load.
+      hadUserRef.current = false;
+      setAppData({ version: 2, budgets: [], activeBudgetId: '' });
+      setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
     }
   }, [user, refreshFromStorage]);
 
@@ -433,9 +518,11 @@ const useBudgetDataInternal = () => {
     [runQueue]
   );
 
-  // Atomic save operation with immediate state update
+  // Atomic save operation with immediate state update.
+  // `deletedIds` records tombstones for removed people/expenses so the deletion
+  // survives a later merge with another device that still has those entities.
   const saveData = useCallback(
-    async (newData: BudgetSlice): Promise<{ success: boolean; error?: Error }> => {
+    async (newData: BudgetSlice, deletedIds?: string[]): Promise<{ success: boolean; error?: Error }> => {
       try {
         console.log('useBudgetData: ===== SAVE DATA CALLED =====');
         console.log('useBudgetData: Atomic save operation started');
@@ -460,12 +547,21 @@ const useBudgetDataInternal = () => {
 
         console.log('useBudgetData: Active budget found:', active.id, active.name);
 
-        // Create updated active budget object
+        // Create updated active budget object. `...newData` (the editable slice)
+        // has no `deletions` key, so the existing tombstones from `...active` are
+        // preserved; we then stamp any newly deleted ids.
         const updatedActive: Budget = {
           ...active,
           ...newData,
           modifiedAt: Date.now(),
         };
+
+        if (deletedIds && deletedIds.length) {
+          const now = Date.now();
+          const deletions = { ...(active.deletions || {}) };
+          deletedIds.forEach((id) => { deletions[id] = now; });
+          updatedActive.deletions = deletions;
+        }
 
         console.log('useBudgetData: Updated active budget created');
 
@@ -641,7 +737,7 @@ const useBudgetDataInternal = () => {
       console.log('useBudgetData: Adding person:', person);
       return queueSave(async () => {
         const newData = await createDataCopy();
-        newData.people.push(person);
+        newData.people.push({ ...person, updatedAt: Date.now() });
         return await saveData(newData);
       });
     },
@@ -661,7 +757,8 @@ const useBudgetDataInternal = () => {
           throw new Error('Person not found');
         }
 
-        // Remove person and their associated expenses
+        // Remove person and their associated expenses, tombstoning all removed ids
+        const removedExpenseIds = newData.expenses.filter((e) => e.personId === personId).map((e) => e.id);
         newData.people = newData.people.filter((p) => p.id !== personId);
         newData.expenses = newData.expenses.filter((e) => e.personId !== personId);
 
@@ -670,7 +767,7 @@ const useBudgetDataInternal = () => {
           expensesCount: newData.expenses.length,
         });
 
-        return await saveData(newData);
+        return await saveData(newData, [personId, ...removedExpenseIds]);
       });
     },
     [queueSave, createDataCopy, saveData]
@@ -681,7 +778,7 @@ const useBudgetDataInternal = () => {
       console.log('useBudgetData: Updating person:', updatedPerson);
       return queueSave(async () => {
         const newData = await createDataCopy();
-        newData.people = newData.people.map((p) => (p.id === updatedPerson.id ? updatedPerson : p));
+        newData.people = newData.people.map((p) => (p.id === updatedPerson.id ? { ...updatedPerson, updatedAt: Date.now() } : p));
         return await saveData(newData);
       });
     },
@@ -702,6 +799,7 @@ const useBudgetDataInternal = () => {
         }
 
         newData.people[personIndex].income.push(income);
+        newData.people[personIndex].updatedAt = Date.now();
 
         console.log('useBudgetData: New data after adding income:', {
           peopleCount: newData.people.length,
@@ -737,6 +835,7 @@ const useBudgetDataInternal = () => {
 
         // Remove the income
         newData.people[personIndex].income = newData.people[personIndex].income.filter((i) => i.id !== incomeId);
+        newData.people[personIndex].updatedAt = Date.now();
 
         console.log('useBudgetData: New data after removing income:', {
           personId,
@@ -784,6 +883,7 @@ const useBudgetDataInternal = () => {
           ...newData.people[personIndex].income[incomeIndex],
           ...updates,
         };
+        newData.people[personIndex].updatedAt = Date.now();
 
         console.log('useBudgetData: New data after updating income:', {
           personId,
@@ -811,6 +911,7 @@ const useBudgetDataInternal = () => {
         const expenseWithId = {
           ...expense,
           id: expense.id || `expense_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          updatedAt: Date.now(),
         };
 
         console.log('useBudgetData: Expense with ID:', expenseWithId);
@@ -885,7 +986,7 @@ const useBudgetDataInternal = () => {
         });
 
         console.log('useBudgetData: About to call saveData...');
-        const saveResult = await saveData(newData);
+        const saveResult = await saveData(newData, [expenseId]);
         console.log('useBudgetData: saveData result:', saveResult);
         return saveResult;
       });
@@ -916,7 +1017,7 @@ const useBudgetDataInternal = () => {
           throw new Error('Expense not found');
         }
 
-        newData.expenses = newData.expenses.map((e) => (e.id === updatedExpense.id ? updatedExpense : e));
+        newData.expenses = newData.expenses.map((e) => (e.id === updatedExpense.id ? { ...updatedExpense, updatedAt: Date.now() } : e));
 
         console.log('useBudgetData: New data after updating expense:', {
           peopleCount: newData.people.length,

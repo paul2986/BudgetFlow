@@ -3,6 +3,7 @@ export interface Person {
   id: string;
   name: string;
   income: Income[];
+  updatedAt?: number; // epoch millis; bumped on any change to this person (incl. their income) for sync merging
 }
 
 export interface Income {
@@ -46,6 +47,7 @@ export interface Expense {
   categoryTag?: ExpenseCategory; // Optional category tag for filtering/reporting (default 'Misc')
   endDate?: string; // YYYY-MM-DD, optional end date for recurring expenses (frequency != 'one-time')
   debtRepayment?: 'loan' | 'mortgage' | 'credit_card'; // Optional tag for debt repayment
+  updatedAt?: number; // epoch millis; bumped on add/update for sync merging
 }
 
 export interface HouseholdSettings {
@@ -69,6 +71,9 @@ export interface Budget {
   createdAt: number; // epoch millis
   modifiedAt: number; // epoch millis
   lock?: BudgetLockSettings; // Default: { locked: false, autoLockMinutes: 0 }
+  // Tombstones for deleted people/expenses: id -> deletion epoch millis. Used so a
+  // delete on one device isn't resurrected when merging with another device's copy.
+  deletions?: Record<string, number>;
 }
 
 export interface AppDataV2 {

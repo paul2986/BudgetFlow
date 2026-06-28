@@ -24,7 +24,12 @@ const sendErrorToParent = (level: string, message: string, data: any) => {
   clearErrorAfterDelay(errorKey);
 
   try {
-    if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
+    // Forwarding errors to a parent frame is only useful inside the dev/preview
+    // harness. Doing it in production would leak error payloads (which can contain
+    // user/financial context) to any embedding page via the wildcard origin, so
+    // restrict it to development builds only.
+    const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+    if (isDev && typeof window !== 'undefined' && window.parent && window.parent !== window) {
       window.parent.postMessage({
         type: 'EXPO_ERROR',
         level: level,
@@ -35,8 +40,8 @@ const sendErrorToParent = (level: string, message: string, data: any) => {
         source: 'expo-template'
       }, '*');
     } else {
-      // Fallback to console if no parent window
-      console.error('🚨 ERROR (no parent):', level, message, data);
+      // Production (or no parent window): log locally only.
+      console.error('🚨 ERROR:', level, message, data);
     }
   } catch (error) {
     console.error('❌ Failed to send error to parent:', error);
@@ -254,10 +259,8 @@ export const setupErrorLogging = () => {
       try {
         if (typeof callback === 'function') {
           return callback(...callbackArgs);
-        } else if (typeof callback === 'string') {
-          // Handle string callbacks (eval)
-          return eval(callback);
         }
+        // String callbacks (implicit eval) are intentionally not supported.
       } catch (error) {
         console.error('🚨 SETTIMEOUT ERROR:', error);
         sendErrorToParent('error', 'SetTimeout Error', {
@@ -277,10 +280,8 @@ export const setupErrorLogging = () => {
       try {
         if (typeof callback === 'function') {
           return callback(...callbackArgs);
-        } else if (typeof callback === 'string') {
-          // Handle string callbacks (eval)
-          return eval(callback);
         }
+        // String callbacks (implicit eval) are intentionally not supported.
       } catch (error) {
         console.error('🚨 SETINTERVAL ERROR:', error);
         sendErrorToParent('error', 'SetInterval Error', {

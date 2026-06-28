@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabase';
+import { clearLocalAppData } from '../utils/storage';
 import { Session, User } from '@supabase/supabase-js';
 
 export const useAuth = () => {
@@ -35,10 +36,18 @@ export const useAuth = () => {
       setSession(null);
       setUser(null);
       console.log('useAuth: Local state cleared');
-      // 2. Perform actual sign out
+      // 2. Wipe locally persisted/cached budget data so the next account on this
+      //    device can't see (or sync up) the previous user's data.
+      try {
+        await clearLocalAppData();
+        console.log('useAuth: Local app data cleared');
+      } catch (e) {
+        console.error('useAuth: Failed to clear local app data on sign out', e);
+      }
+      // 3. Perform actual sign out
       await supabase.auth.signOut();
       console.log('useAuth: Supabase signOut complete');
-      // 3. Reload page on web to ensure clean state
+      // 4. Reload page on web to ensure clean state
       if (typeof window !== 'undefined') {
         console.log('useAuth: Reloading page...');
         window.location.href = '/';

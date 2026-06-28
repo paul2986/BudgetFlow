@@ -57,9 +57,50 @@ const getDefaultLockSettings = (): BudgetLockSettings => ({
   autoLockMinutes: 0,
 });
 
+// Tombstones older than this are pruned so the deletions map can't grow unbounded.
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
+// Validate and prune a budget's deletions (tombstone) map
+const sanitizeDeletions = (raw: any): Record<string, number> => {
+  if (!raw || typeof raw !== 'object') return {};
+  const now = Date.now();
+  const out: Record<string, number> = {};
+  for (const [id, ts] of Object.entries(raw)) {
+    if (typeof id === 'string' && typeof ts === 'number' && now - ts <= TOMBSTONE_TTL_MS) {
+      out[id] = ts;
+    }
+  }
+  return out;
+};
+
 // v2 app data saving protection and in-memory cache
 let appDataCache: AppDataV2 | null = null;
 let appDataLoadingPromise: Promise<AppDataV2> | null = null;
+
+// Reset the in-memory cache. Used on sign-out so a different account on the
+// same device/browser cannot read the previous user's data from memory.
+export const resetAppDataCache = (): void => {
+  appDataCache = null;
+  appDataLoadingPromise = null;
+};
+
+// Wipe all locally persisted app data from device storage. This is a local-only
+// operation (no cloud interaction) intended for sign-out, so the next account on
+// this device starts from a clean slate instead of inheriting/merging stale data.
+export const clearLocalAppData = async (): Promise<void> => {
+  try {
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.APP_DATA_V2,
+      STORAGE_KEYS.BUDGET_DATA,
+      STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES,
+      STORAGE_KEYS.EXPENSES_FILTERS,
+    ]);
+  } catch (e) {
+    console.error('storage: clearLocalAppData error', e);
+  } finally {
+    resetAppDataCache();
+  }
+};
 
 export const getCustomExpenseCategories = async (): Promise<string[]> => {
   try {
@@ -227,6 +268,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
       .map((p: any) => ({
         id: p.id,
         name: p.name,
+        updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : undefined,
         income: Array.isArray(p.income)
           ? p.income
             .filter((i: any) => i && typeof i === 'object' && i.id && typeof i.amount === 'number')
@@ -292,6 +334,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
           categoryTag: sanitizeCategoryTag(e.categoryTag || 'Misc'),
           endDate: sanitizeEndDate(e.frequency, e.endDate),
           debtRepayment: e.debtRepayment,
+          updatedAt: typeof e.updatedAt === 'number' ? e.updatedAt : undefined,
         };
       })
       .filter((e: any) => e !== null) // Remove null entries (invalid personal expenses)
@@ -360,6 +403,7 @@ const validateAppData = (data: any): AppDataV2 => {
       createdAt,
       modifiedAt,
       lock: lockSettings,
+      deletions: sanitizeDeletions(b?.deletions),
     };
   };
 
