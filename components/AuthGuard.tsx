@@ -1,34 +1,28 @@
-
 import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
-    TextInput,
-    TouchableOpacity,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
     ActivityIndicator,
-    useWindowDimensions,
-    StyleSheet,
     Image,
+    Pressable,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withTiming,
-    withDelay,
-    Easing,
-} from 'react-native-reanimated';
-import { supabase } from '../utils/supabase';
+import { supabase, AUTH_REDIRECT_HTTPS } from '../utils/supabase';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import Button from './Button';
 import Icon from './Icon';
+import { Input, SegmentedControl } from './ui';
+import { type, radius, space, elevation } from '../styles/tokens';
+
+/**
+ * Auth screen (DESIGN.md §2.7 Auth): static calm layout — no infinite
+ * background animation — with labeled inputs, password visibility toggle,
+ * correct autocomplete hints, and a reset-password path.
+ */
 
 interface AuthGuardProps {
     user: any;
@@ -36,152 +30,102 @@ interface AuthGuardProps {
     children: React.ReactNode;
 }
 
-const AnimatedCircle = ({ size, color, delay, duration, initialX, initialY }: any) => {
-    const translateX = useSharedValue(0);
-    const translateY = useSharedValue(0);
-    const opacity = useSharedValue(0.1);
-
-    useEffect(() => {
-        translateX.value = withDelay(
-            delay,
-            withRepeat(
-                withTiming(Math.random() * 100 - 50, {
-                    duration: duration,
-                    easing: Easing.inOut(Easing.sin),
-                }),
-                -1,
-                true
-            )
-        );
-        translateY.value = withDelay(
-            delay,
-            withRepeat(
-                withTiming(Math.random() * 100 - 50, {
-                    duration: duration * 1.2,
-                    easing: Easing.inOut(Easing.sin),
-                }),
-                -1,
-                true
-            )
-        );
-    }, []);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [
-            { translateX: translateX.value },
-            { translateY: translateY.value },
-        ],
-        opacity: opacity.value,
-    }));
-
-    return (
-        <Animated.View
-            style={[
-                {
-                    position: 'absolute',
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                    backgroundColor: color,
-                    left: initialX,
-                    top: initialY,
-                },
-                animatedStyle,
-            ]}
-        />
-    );
-};
-
 export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
-    const { currentColors, isDarkMode } = useTheme();
+    const { tokens, isDarkMode } = useTheme();
     const { themedStyles } = useThemedStyles();
     const { showToast } = useToast();
-    const { width } = useWindowDimensions();
-    const isDesktop = width >= 768;
-
-    const brandGradient = (currentColors as any).brandGradient || ['#00C853', '#00BFA5'];
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
+    const [resetLoading, setResetLoading] = useState(false);
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+    const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
-    // IMPORTANT: All hooks must be called before any conditional returns
-    const insets = useSafeAreaInsets();
-
-    // Set body background to match login screen on web
+    // Match the page background on web while unauthenticated.
     useEffect(() => {
         if (Platform.OS === 'web' && !user) {
-            const loginBgColor = currentColors.background;
-            document.body.style.backgroundColor = loginBgColor;
-            // Also update the theme-color meta tag
+            document.body.style.backgroundColor = tokens.colors.bg;
             const metaThemeColor = document.querySelector('meta[name="theme-color"]');
             if (metaThemeColor) {
-                metaThemeColor.setAttribute('content', loginBgColor);
+                metaThemeColor.setAttribute('content', tokens.colors.bg);
             }
         }
-    }, [user, isDarkMode]);
+    }, [user, isDarkMode, tokens]);
 
     if (loading) {
         return (
             <View style={[themedStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={currentColors.primary} />
-                <Text style={[themedStyles.textSecondary, { marginTop: 16 }]}>Loading your session...</Text>
+                <ActivityIndicator size="large" color={tokens.colors.brand} />
+                <Text style={[themedStyles.textSecondary, { marginTop: space.s4 }]}>Loading your session…</Text>
             </View>
         );
     }
 
     if (user) {
-        return (
-            <View style={{
-                flex: 1,
-                paddingTop: (!isDesktop && Platform.OS !== 'web') ? insets.top : 0,
-                paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0
-            }}>
-                {children}
-            </View>
-        );
+        return <View style={{ flex: 1 }}>{children}</View>;
     }
 
-    const handleAuth = async () => {
-        if (!email || !password) {
-            showToast('Please fill in all fields', 'error');
-            return;
+    const validate = (): boolean => {
+        const errors: { email?: string; password?: string } = {};
+        if (!email.trim()) {
+            errors.email = 'Enter your email address.';
+        } else if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+            errors.email = 'That doesn’t look like a valid email address.';
         }
+        if (!password) {
+            errors.password = 'Enter your password.';
+        } else if (authMode === 'register' && password.length < 8) {
+            errors.password = 'Use at least 8 characters.';
+        }
+        setFieldErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    const handleAuth = async () => {
+        if (!validate()) return;
 
         setAuthLoading(true);
         try {
             const { error } = authMode === 'login'
-                ? await supabase.auth.signInWithPassword({ email, password })
-                : await supabase.auth.signUp({ email, password });
+                ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
+                : await supabase.auth.signUp({ email: email.trim(), password });
 
             if (error) throw error;
 
             if (authMode === 'register') {
-                showToast('Account created! Please check your email for verification.', 'success');
+                showToast('Account created! Check your email to verify.', 'success');
             } else {
                 showToast('Welcome back!', 'success');
             }
         } catch (err: any) {
-            showToast(err.message, 'error');
+            showToast(err.message || 'Something went wrong. Please try again.', 'error');
         } finally {
             setAuthLoading(false);
         }
     };
 
-    return (
-        <View style={{ flex: 1, backgroundColor: currentColors.background, overflow: 'hidden' }}>
-            {/* Animated Background Layers */}
-            <View style={{
-                ...StyleSheet.absoluteFillObject,
-                // @ts-ignore - web only fix for address bar bleed. Aggressive overscan for Safari iOS.
-                ...(Platform.OS === 'web' ? { position: 'fixed', top: -300, left: -300, right: -300, bottom: -300, zIndex: 0 } : {})
-            } as any}>
-                <AnimatedCircle size={400} color={brandGradient[0] + '20'} delay={0} duration={10000} initialX="-10%" initialY="-10%" />
-                <AnimatedCircle size={300} color={brandGradient[1] + '20'} delay={1000} duration={12000} initialX="70%" initialY="60%" />
-                <AnimatedCircle size={250} color={currentColors.secondary + '20'} delay={2000} duration={8000} initialX="10%" initialY="70%" />
-            </View>
+    const handleResetPassword = async () => {
+        if (!email.trim() || !/^\S+@\S+\.\S+$/.test(email.trim())) {
+            setFieldErrors({ email: 'Enter your email above first, then tap reset.' });
+            return;
+        }
+        setResetLoading(true);
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+                redirectTo: AUTH_REDIRECT_HTTPS,
+            });
+            if (error) throw error;
+            showToast('Password reset email sent. Check your inbox.', 'success');
+        } catch (err: any) {
+            showToast(err.message || 'Could not send reset email.', 'error');
+        } finally {
+            setResetLoading(false);
+        }
+    };
 
+    return (
+        <View style={{ flex: 1, backgroundColor: tokens.colors.bg }}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -191,136 +135,115 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                         flexGrow: 1,
                         justifyContent: 'center',
                         alignItems: 'center',
-                        padding: 24,
+                        padding: space.s6,
                     }}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <View style={{
-                        width: '100%',
-                        maxWidth: isDesktop ? 450 : '100%',
-                        backgroundColor: isDarkMode ? 'rgba(30, 41, 59, 0.8)' : 'rgba(255, 255, 255, 0.9)',
-                        borderRadius: 24,
-                        padding: isDesktop ? 48 : 32,
-                        borderWidth: 1,
-                        borderColor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-                        boxShadow: '0px 20px 40px rgba(0, 0, 0, 0.1)',
-                        // @ts-ignore
-                        backdropFilter: Platform.OS === 'web' ? 'blur(20px)' : 'none',
-                    }}>
-                        <View style={{ alignItems: 'center', marginBottom: 32 }}>
-                            <View style={{
-                                width: 80,
-                                height: 80,
-                                borderRadius: 18,
-                                overflow: 'visible',
-                                marginBottom: 20,
-                                shadowColor: brandGradient[0],
-                                shadowOffset: { width: 0, height: 6 },
-                                shadowOpacity: 0.4,
-                                shadowRadius: 15,
-                                // Multi-layer drop shadow for gradient glow effect
-                                // @ts-ignore
-                                ...(Platform.OS === 'web' ? {
-                                    filter: `drop-shadow(0 6px 10px ${brandGradient[0]}60) drop-shadow(0 6px 15px ${brandGradient[1]}40) drop-shadow(0 6px 20px ${brandGradient[2]}20)`
-                                } : {}),
-                            }}>
-                                <View style={{
-                                    width: '100%',
-                                    height: '100%',
-                                    borderRadius: 18,
-                                    overflow: 'hidden',
-                                    backgroundColor: isDarkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.8)',
-                                }}>
-                                    <Image
-                                        source={require('../assets/images/icon.png')}
-                                        style={{ width: '100%', height: '100%' }}
-                                        resizeMode="cover"
-                                    />
-                                </View>
-                            </View>
-                            <Text style={{
-                                fontSize: 32,
-                                fontWeight: '800',
-                                color: currentColors.text,
-                                marginBottom: 8,
-                                letterSpacing: -1
-                            }}>Budget Flow</Text>
-                            <Text style={{
-                                fontSize: 15,
-                                color: currentColors.textSecondary,
-                                textAlign: 'center',
-                                lineHeight: 22
-                            }}>
-                                Master your money with{'\n'}secure cloud-native sync.
-                            </Text>
-                        </View>
-
-                        <View>
-                            <Text style={{
-                                fontSize: 18,
-                                fontWeight: '700',
-                                color: currentColors.text,
-                                marginBottom: 24
-                            }}>
-                                {authMode === 'login' ? 'Sign In' : 'Create Account'}
-                            </Text>
-
-                            <View style={{ marginBottom: 16 }}>
-                                <Text style={{ fontSize: 13, fontWeight: '600', color: currentColors.textSecondary, marginBottom: 8, marginLeft: 4 }}>Email Address</Text>
-                                <TextInput
-                                    style={[themedStyles.input, { marginBottom: 0, height: 54, borderRadius: 14 }]}
-                                    placeholder="name@example.com"
-                                    placeholderTextColor={currentColors.textSecondary}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    autoCapitalize="none"
-                                    keyboardType="email-address"
-                                    autoComplete="email"
-                                />
-                            </View>
-
-                            <View style={{ marginBottom: 24 }}>
-                                <Text style={{ fontSize: 13, fontWeight: '600', color: currentColors.textSecondary, marginBottom: 8, marginLeft: 4 }}>Password</Text>
-                                <TextInput
-                                    style={[themedStyles.input, { marginBottom: 0, height: 54, borderRadius: 14 }]}
-                                    placeholder="••••••••"
-                                    placeholderTextColor={currentColors.textSecondary}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry
-                                    autoComplete="password"
-                                />
-                            </View>
-
-                            <Button
-                                text={authMode === 'login' ? 'Sign In' : 'Get Started'}
-                                onPress={handleAuth}
-                                loading={authLoading}
-                                variant="primary"
+                    <View
+                        style={{
+                            width: '100%',
+                            maxWidth: 420,
+                            backgroundColor: tokens.colors.surface,
+                            borderRadius: radius.xl,
+                            borderWidth: 1,
+                            borderColor: tokens.colors.border,
+                            padding: space.s7,
+                            ...elevation.e2,
+                        }}
+                    >
+                        {/* Brand */}
+                        <View style={{ alignItems: 'center', marginBottom: space.s6 }}>
+                            <Image
+                                source={require('../assets/images/icon.png')}
+                                style={{ width: 64, height: 64, borderRadius: radius.lg, marginBottom: space.s4 }}
+                                resizeMode="cover"
+                                accessibilityIgnoresInvertColors
                             />
-
-                            <TouchableOpacity
-                                onPress={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-                                style={{ marginTop: 24, alignItems: 'center' }}
-                                disabled={authLoading}
+                            <Text
+                                accessibilityRole="header"
+                                style={[type.h1, { color: tokens.colors.text, marginBottom: space.s1 }]}
                             >
-                                <Text style={{ fontSize: 14, color: currentColors.textSecondary }}>
-                                    {authMode === 'login' ? "New here? " : "Already have an account? "}
-                                    <Text style={{ color: brandGradient[0], fontWeight: '700' }}>
-                                        {authMode === 'login' ? "Sign Up" : "Sign In"}
-                                    </Text>
-                                </Text>
-                            </TouchableOpacity>
+                                Budget Flow
+                            </Text>
+                            <Text style={[type.caption, { color: tokens.colors.textMuted, textAlign: 'center' }]}>
+                                Calm, clear control of your household money.
+                            </Text>
                         </View>
+
+                        <SegmentedControl
+                            label="Sign in or create account"
+                            options={[
+                                { value: 'login', label: 'Sign in' },
+                                { value: 'register', label: 'Create account' },
+                            ]}
+                            value={authMode}
+                            onChange={(mode) => {
+                                setAuthMode(mode);
+                                setFieldErrors({});
+                            }}
+                            style={{ marginBottom: space.s6 }}
+                        />
+
+                        <Input
+                            label="Email address"
+                            value={email}
+                            onChangeText={(v) => {
+                                setEmail(v);
+                                if (fieldErrors.email) setFieldErrors((e) => ({ ...e, email: undefined }));
+                            }}
+                            error={fieldErrors.email}
+                            placeholder="name@example.com"
+                            autoCapitalize="none"
+                            keyboardType="email-address"
+                            autoComplete="email"
+                            textContentType="emailAddress"
+                            containerStyle={{ marginBottom: space.s4 }}
+                        />
+
+                        <Input
+                            label="Password"
+                            value={password}
+                            onChangeText={(v) => {
+                                setPassword(v);
+                                if (fieldErrors.password) setFieldErrors((e) => ({ ...e, password: undefined }));
+                            }}
+                            error={fieldErrors.password}
+                            helperText={authMode === 'register' ? 'At least 8 characters.' : undefined}
+                            placeholder="••••••••"
+                            password
+                            autoComplete={authMode === 'register' ? 'new-password' : 'password'}
+                            textContentType={authMode === 'register' ? 'newPassword' : 'password'}
+                            containerStyle={{ marginBottom: space.s6 }}
+                        />
+
+                        <Button
+                            text={authMode === 'login' ? 'Sign in' : 'Create account'}
+                            onPress={handleAuth}
+                            loading={authLoading}
+                            variant="primary"
+                            size="lg"
+                        />
+
+                        {authMode === 'login' && (
+                            <Pressable
+                                onPress={handleResetPassword}
+                                disabled={resetLoading}
+                                accessibilityRole="button"
+                                accessibilityLabel="Send password reset email"
+                                style={{ marginTop: space.s4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
+                            >
+                                <Text style={[type.caption, { color: tokens.colors.brand }]}>
+                                    {resetLoading ? 'Sending reset email…' : 'Forgot password?'}
+                                </Text>
+                            </Pressable>
+                        )}
                     </View>
 
-                    <View style={{ marginTop: 32, alignItems: 'center' }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, opacity: 0.6 }}>
-                            <Icon name="shield-checkmark" size={14} style={{ color: currentColors.textSecondary }} />
-                            <Text style={{ fontSize: 12, color: currentColors.textSecondary }}>
-                                Secure, encrypted cloud storage
-                            </Text>
-                        </View>
+                    <View style={{ marginTop: space.s6, flexDirection: 'row', alignItems: 'center', gap: space.s2, opacity: 0.8 }}>
+                        <Icon name="lock-closed-outline" size={14} color={tokens.colors.textMuted} />
+                        <Text style={[type.caption, { color: tokens.colors.textMuted }]}>
+                            Your data is protected with row-level security
+                        </Text>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>

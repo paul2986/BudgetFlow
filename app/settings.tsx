@@ -21,6 +21,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import StandardHeader from '../components/StandardHeader';
+import { ConfirmDialog } from '../components/ui';
 import { DEFAULT_CATEGORIES, Budget } from '../types/budget';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName, renameCustomExpenseCategory } from '../utils/storage';
 import { supabase } from '../utils/supabase';
@@ -63,6 +64,10 @@ export default function SettingsScreen() {
   // Currency selection state
   const [currencySearchQuery, setCurrencySearchQuery] = useState('');
   const [showCurrencyModal, setShowCurrencyModal] = useState(false);
+
+  // Themed sign-out confirmation (replaces window.confirm / Alert.alert)
+  const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   // Manage categories state
   const [customs, setCustoms] = useState<string[]>([]);
@@ -815,26 +820,7 @@ export default function SettingsScreen() {
                 <Button
                   text="Sign Out"
                   variant="outline"
-                  onPress={async () => {
-                    if (Platform.OS === 'web') {
-                      const confirmed = (window as any).confirm('Are you sure you want to sign out?');
-                      if (confirmed) {
-                        await signOut();
-                      }
-                    } else {
-                      Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Sign Out',
-                          style: 'destructive',
-                          onPress: async () => {
-                            await signOut();
-                            showToast('Signed out successfully', 'success');
-                          },
-                        },
-                      ]);
-                    }
-                  }}
+                  onPress={() => setConfirmSignOutVisible(true)}
                   style={{ borderColor: currentColors.error }}
                   // @ts-ignore
                   textStyle={{ color: currentColors.error }}
@@ -1867,27 +1853,7 @@ export default function SettingsScreen() {
                 justifyContent: 'space-between',
                 minHeight: 44,
               }}
-              onPress={async () => {
-                if (Platform.OS === 'web') {
-                  const confirmed = (window as any).confirm('Are you sure you want to sign out?');
-                  if (confirmed) {
-                    await signOut();
-                    showToast('Signed out successfully', 'success');
-                  }
-                } else {
-                  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Sign Out',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await signOut();
-                        showToast('Signed out successfully', 'success');
-                      },
-                    },
-                  ]);
-                }
-              }}
+              onPress={() => setConfirmSignOutVisible(true)}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                 <Icon name="log-out-outline" size={20} style={{ color: currentColors.error, marginRight: 12 }} />
@@ -2100,6 +2066,26 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+
+      <ConfirmDialog
+        visible={confirmSignOutVisible}
+        title="Sign out?"
+        message="Local data on this device will be cleared. Your budgets stay safely synced to your account."
+        confirmLabel="Sign out"
+        destructive
+        loading={signingOut}
+        onConfirm={async () => {
+          setSigningOut(true);
+          try {
+            await signOut();
+            showToast('Signed out successfully', 'success');
+          } finally {
+            setSigningOut(false);
+            setConfirmSignOutVisible(false);
+          }
+        }}
+        onCancel={() => setConfirmSignOutVisible(false)}
+      />
     </View>
   );
 }

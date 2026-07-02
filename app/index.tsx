@@ -301,31 +301,15 @@ export default function HomeScreen() {
               width: 100,
               height: 100,
               borderRadius: 22,
-              overflow: 'visible',
+              overflow: 'hidden',
               marginBottom: 24,
-              shadowColor: (currentColors as any).brandGradient?.[0] || currentColors.primary,
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.4,
-              shadowRadius: 20,
-              // Multi-layer drop shadow for gradient glow effect
-              // @ts-ignore
-              ...(Platform.OS === 'web' ? {
-                filter: `drop-shadow(0 8px 12px ${(currentColors as any).brandGradient?.[0]}60) drop-shadow(0 8px 20px ${(currentColors as any).brandGradient?.[1]}40) drop-shadow(0 8px 25px ${(currentColors as any).brandGradient?.[2]}20)`
-              } : {}),
+              backgroundColor: 'rgba(0,0,0,0.05)',
             }}>
-              <View style={{
-                width: '100%',
-                height: '100%',
-                borderRadius: 22,
-                overflow: 'hidden',
-                backgroundColor: 'rgba(0,0,0,0.05)',
-              }}>
-                <Image
-                  source={require('../assets/images/icon.png')}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                />
-              </View>
+              <Image
+                source={require('../assets/images/icon.png')}
+                style={{ width: '100%', height: '100%' }}
+                resizeMode="cover"
+              />
             </View>
             <Text style={[themedStyles.title, { textAlign: 'center', marginBottom: 12 }]}>
               Welcome to Budget Flow!
@@ -1021,20 +1005,13 @@ export default function HomeScreen() {
                       <Icon name="information-circle-outline" size={22} style={{ color: currentColors.info }} />
                     </TouchableOpacity>
                   </View>
-                  <View style={[
-                    themedStyles.card,
-                    {
-                      marginBottom: 0,
-                    }
-                  ]}>
-                    <OverviewSection
-                      calculations={calculations}
-                      people={people}
-                      expenses={expenses}
-                      householdSettings={data.householdSettings}
-                      onViewModeChange={handleViewModeChange}
-                    />
-                  </View>
+                  <OverviewSection
+                    calculations={calculations}
+                    people={people}
+                    expenses={expenses}
+                    householdSettings={data.householdSettings}
+                    onViewModeChange={handleViewModeChange}
+                  />
                 </View>
 
                 {/* 2. Individual Breakdowns - Full Width */}
@@ -1266,20 +1243,13 @@ export default function HomeScreen() {
                       <Icon name="information-circle-outline" size={20} style={{ color: currentColors.info }} />
                     </TouchableOpacity>
                   </View>
-                  <View style={[
-                    themedStyles.card,
-                    {
-                      marginBottom: 0,
-                    }
-                  ]}>
-                    <OverviewSection
-                      calculations={calculations}
-                      people={people}
-                      expenses={expenses}
-                      householdSettings={data.householdSettings}
-                      onViewModeChange={handleViewModeChange}
-                    />
-                  </View>
+                  <OverviewSection
+                    calculations={calculations}
+                    people={people}
+                    expenses={expenses}
+                    householdSettings={data.householdSettings}
+                    onViewModeChange={handleViewModeChange}
+                  />
                 </View>
 
                 {/* 2. Individual Breakdowns Section */}

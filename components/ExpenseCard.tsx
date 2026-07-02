@@ -1,12 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Platform, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, Pressable, Platform, ViewStyle } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useCurrency } from '../hooks/useCurrency';
 import Icon from './Icon';
+import { Chip, AmountText } from './ui';
 import { normalizeCategoryName } from '../utils/storage';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import { Person, Expense } from '../types/budget';
+import { type, radius, space, elevation } from '../styles/tokens';
+
+/**
+ * Expense row card (DESIGN.md §2.7 Expenses).
+ * - No text below 12px (fixes the old 10–11px metadata).
+ * - Household/personal and debt carry icon + label chips, never color alone.
+ * - Delete is a 44pt labeled target, visually separated from the row press.
+ */
 
 interface ExpenseCardProps {
     expense: Expense;
@@ -17,252 +25,175 @@ interface ExpenseCardProps {
     style?: ViewStyle;
 }
 
+const getExpirationInfo = (endDate: string) => {
+    const date = new Date(endDate);
+    const now = new Date();
+    const diffDays = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    const options: Intl.DateTimeFormatOptions = {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+    };
+    const formattedDate = date.toLocaleDateString('en-US', options);
+
+    if (diffDays < 0) return { text: `Expired ${formattedDate}`, isExpired: true, isExpiringSoon: false };
+    if (diffDays === 0) return { text: 'Expires today', isExpired: false, isExpiringSoon: true };
+    if (diffDays === 1) return { text: 'Expires tomorrow', isExpired: false, isExpiringSoon: true };
+    if (diffDays <= 7) return { text: `Expires in ${diffDays} days`, isExpired: false, isExpiringSoon: true };
+    return { text: `Expires ${formattedDate}`, isExpired: false, isExpiringSoon: false };
+};
+
 export default function ExpenseCard({
     expense,
     person,
     isDeleting = false,
     onPress,
     onDelete,
-    style
+    style,
 }: ExpenseCardProps) {
-    const { currentColors } = useTheme();
-    const { themedStyles } = useThemedStyles();
+    const { tokens } = useTheme();
     const { formatCurrency } = useCurrency();
     const [hovered, setHovered] = useState(false);
 
-    // Derived values
     const monthlyAmount = calculateMonthlyAmount(expense.amount, expense.frequency);
     const tag = normalizeCategoryName((expense as any).categoryTag || 'Misc');
     const isHousehold = expense.category === 'household';
     const shouldShowMonthlyValue = expense.frequency !== 'monthly';
 
-    // Expiration logic
     const hasExpirationDate = expense.endDate && expense.frequency !== 'one-time';
-
-    const getExpirationInfo = (endDate: string) => {
-        const date = new Date(endDate);
-        const now = new Date();
-        const diffTime = date.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        const options: Intl.DateTimeFormatOptions = {
-            month: 'short',
-            day: 'numeric',
-            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-        };
-        const formattedDate = date.toLocaleDateString('en-US', options);
-
-        if (diffDays < 0) {
-            return { text: `Expired ${formattedDate}`, isExpired: true, isExpiringSoon: false };
-        } else if (diffDays === 0) {
-            return { text: `Expires today`, isExpired: false, isExpiringSoon: true };
-        } else if (diffDays === 1) {
-            return { text: `Expires tomorrow`, isExpired: false, isExpiringSoon: true };
-        } else if (diffDays <= 7) {
-            return { text: `Expires in ${diffDays} days`, isExpired: false, isExpiringSoon: true };
-        } else if (diffDays <= 30) {
-            return { text: `Expires ${formattedDate}`, isExpired: false, isExpiringSoon: false };
-        } else {
-            return { text: `Expires ${formattedDate}`, isExpired: false, isExpiringSoon: false };
-        }
-    };
-
     const expirationInfo = hasExpirationDate && expense.endDate ? getExpirationInfo(expense.endDate) : null;
+
+    const debtMeta = expense.debtRepayment
+        ? expense.debtRepayment === 'mortgage'
+            ? { label: 'Mortgage', icon: 'business-outline' }
+            : expense.debtRepayment === 'credit_card'
+                ? { label: 'Credit card', icon: 'card-outline' }
+                : { label: 'Loan', icon: 'cash-outline' }
+        : null;
+
+    const metaLine = [
+        expense.frequency,
+        isHousehold ? (person ? person.name : 'Shared') : person?.name,
+    ]
+        .filter(Boolean)
+        .join(' · ');
+
+    const a11ySummary = `${expense.description}, ${formatCurrency(expense.amount)} ${expense.frequency}, ${
+        isHousehold ? 'household' : 'personal'
+    }${debtMeta ? `, ${debtMeta.label}` : ''}${expirationInfo ? `, ${expirationInfo.text}` : ''}`;
 
     return (
         <Pressable
             onPress={onPress}
             disabled={isDeleting}
-            // @ts-ignore - web props
             onHoverIn={() => setHovered(true)}
             onHoverOut={() => setHovered(false)}
+            accessibilityRole="button"
+            accessibilityLabel={a11ySummary}
+            accessibilityHint="Opens this expense for editing"
             style={({ pressed }) => [
-                themedStyles.card,
                 {
-                    padding: 12,
-                    opacity: isDeleting ? 0.6 : 1,
-                    borderLeftWidth: 4,
-                    borderLeftColor: isHousehold ? currentColors.household : currentColors.personal,
-                    marginBottom: 0, // Handled by parent container gap
-                    transform: (Platform.OS === 'web' && hovered && !pressed) ? [{ translateY: -2 }] : [],
-                    shadowOpacity: (Platform.OS === 'web' && hovered) ? 0.15 : 0.08,
-                    shadowRadius: (Platform.OS === 'web' && hovered) ? 6 : 3,
-                    transitionDuration: '0.2s',
-                    // Border logic for expiration
+                    backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : tokens.colors.surface,
+                    borderRadius: radius.lg,
                     borderWidth: 1,
-                    borderColor: currentColors.border,
-                    ...(expirationInfo?.isExpired && {
-                        borderColor: currentColors.error + '40',
-                        backgroundColor: currentColors.error + '05',
-                    }),
-                    ...(expirationInfo?.isExpiringSoon && !expirationInfo?.isExpired && {
-                        borderColor: '#FF9500' + '40',
-                        backgroundColor: '#FF9500' + '05',
-                    }),
+                    borderColor: tokens.colors.border,
+                    padding: space.s4,
+                    opacity: isDeleting ? 0.5 : 1,
+                    // @ts-ignore web transition
+                    transitionDuration: '150ms',
+                    ...elevation.e1,
                 },
-                style
+                expirationInfo?.isExpired
+                    ? { borderLeftWidth: 3, borderLeftColor: tokens.colors.danger }
+                    : expirationInfo?.isExpiringSoon
+                        ? { borderLeftWidth: 3, borderLeftColor: tokens.colors.warning }
+                        : null,
+                style,
             ]}
         >
-            {/* Main Content */}
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-
-                {/* Left Side: Info */}
-                <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={[themedStyles.text, { fontWeight: '700', fontSize: 15, marginBottom: 4, lineHeight: 20 }]} numberOfLines={1}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                {/* Info */}
+                <View style={{ flex: 1, marginRight: space.s3 }}>
+                    <Text style={[type.h3, { color: tokens.colors.text, marginBottom: space.s1 }]} numberOfLines={1}>
                         {expense.description}
                     </Text>
 
-                    {/* Tags Row */}
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: 4 }}>
-                        <View style={{
-                            backgroundColor: isHousehold ? currentColors.household + '15' : currentColors.personal + '15',
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            borderRadius: 4,
-                        }}>
-                            <Text style={{
-                                color: isHousehold ? currentColors.household : currentColors.personal,
-                                fontSize: 10,
-                                fontWeight: '700',
-                                textTransform: 'uppercase',
-                            }}>
-                                {expense.category}
-                            </Text>
-                        </View>
+                    <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s2 }]} numberOfLines={1}>
+                        {metaLine} · {tag}
+                    </Text>
 
-                        <View style={{
-                            backgroundColor: currentColors.background,
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            borderRadius: 4,
-                            borderWidth: 1,
-                            borderColor: currentColors.border,
-                        }}>
-                            <Text style={[themedStyles.textSecondary, { fontSize: 10, fontWeight: '500' }]}>
-                                {tag}
-                            </Text>
-                        </View>
-
-                        {expense.debtRepayment && (
-                            <View style={{
-                                backgroundColor: (expense.debtRepayment === 'mortgage' ? '#FF9500' : expense.debtRepayment === 'credit_card' ? '#5856D6' : '#34C759') + '15',
-                                paddingHorizontal: 6,
-                                paddingVertical: 2,
-                                borderRadius: 4,
-                                borderWidth: 1,
-                                borderColor: (expense.debtRepayment === 'mortgage' ? '#FF9500' : expense.debtRepayment === 'credit_card' ? '#5856D6' : '#34C759') + '30',
-                            }}>
-                                <Text style={{
-                                    color: expense.debtRepayment === 'mortgage' ? '#FF9500' : expense.debtRepayment === 'credit_card' ? '#5856D6' : '#34C759',
-                                    fontSize: 10,
-                                    fontWeight: '700',
-                                    textTransform: 'uppercase',
-                                }}>
-                                    {expense.debtRepayment === 'mortgage' ? 'Mortgage' : expense.debtRepayment === 'credit_card' ? 'Credit Card' : 'Loan'}
-                                </Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {/* Person & Frequency */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: expirationInfo ? 4 : 0 }}>
-                        <Icon name="repeat" size={10} style={{ color: currentColors.textSecondary, marginRight: 3 }} />
-                        <Text style={[themedStyles.textSecondary, { fontSize: 11 }]}>
-                            {expense.frequency}
-                            {isHousehold && (
-                                <> • {person ? person.name : 'Unassigned'}</>
-                            )}
-                        </Text>
-                    </View>
-
-                    {/* Expiration Badge */}
-                    {hasExpirationDate && expirationInfo && (
-                        <View style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            paddingHorizontal: 6,
-                            paddingVertical: 2,
-                            backgroundColor: expirationInfo.isExpired
-                                ? currentColors.error + '15'
-                                : expirationInfo.isExpiringSoon
-                                    ? '#FF9500' + '15'
-                                    : currentColors.textSecondary + '10',
-                            borderRadius: 4,
-                            alignSelf: 'flex-start',
-                            marginTop: 2
-                        }}>
-                            <Icon
-                                name={expirationInfo.isExpired ? "time" : "timer-outline"}
-                                size={10}
-                                style={{
-                                    color: expirationInfo.isExpired
-                                        ? currentColors.error
-                                        : expirationInfo.isExpiringSoon
-                                            ? '#FF9500'
-                                            : currentColors.textSecondary,
-                                    marginRight: 4
-                                }}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s1 }}>
+                        <Chip
+                            label={isHousehold ? 'Household' : 'Personal'}
+                            icon={isHousehold ? 'home-outline' : 'person-outline'}
+                            color={isHousehold ? tokens.colors.household : tokens.colors.personal}
+                            backgroundColor={tokens.colors.surfaceSunken}
+                        />
+                        {debtMeta ? (
+                            <Chip
+                                label={debtMeta.label}
+                                icon={debtMeta.icon}
+                                color={tokens.colors.textMuted}
+                                backgroundColor={tokens.colors.surfaceSunken}
                             />
-                            <Text style={{
-                                fontSize: 10,
-                                fontWeight: '600',
-                                color: expirationInfo.isExpired
-                                    ? currentColors.error
-                                    : expirationInfo.isExpiringSoon
-                                        ? '#FF9500'
-                                        : currentColors.textSecondary,
-                            }}>
-                                {expirationInfo.text}
-                            </Text>
-                        </View>
-                    )}
+                        ) : null}
+                        {expirationInfo ? (
+                            <Chip
+                                label={expirationInfo.text}
+                                icon={expirationInfo.isExpired ? 'time-outline' : 'timer-outline'}
+                                color={
+                                    expirationInfo.isExpired
+                                        ? tokens.colors.danger
+                                        : expirationInfo.isExpiringSoon
+                                            ? tokens.colors.warning
+                                            : tokens.colors.textMuted
+                                }
+                                backgroundColor={
+                                    expirationInfo.isExpired
+                                        ? tokens.colors.dangerSubtle
+                                        : expirationInfo.isExpiringSoon
+                                            ? tokens.colors.warningSubtle
+                                            : tokens.colors.surfaceSunken
+                                }
+                            />
+                        ) : null}
+                    </View>
                 </View>
 
-                {/* Right Side: Amount & Actions */}
+                {/* Amount + delete */}
                 <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch' }}>
                     <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={[
-                            themedStyles.text,
-                            {
-                                fontWeight: '700',
-                                fontSize: 16,
-                                color: isHousehold ? currentColors.household : currentColors.personal,
-                                marginBottom: 1,
-                            },
-                        ]}>
-                            {formatCurrency(expense.amount)}
-                        </Text>
+                        <AmountText value={expense.amount} role="bodyMed" />
                         {shouldShowMonthlyValue && (
-                            <Text style={[themedStyles.textSecondary, { fontSize: 10 }]}>
+                            <Text style={[type.caption, { color: tokens.colors.textMuted }]}>
                                 {formatCurrency(monthlyAmount)}/mo
                             </Text>
                         )}
                     </View>
 
-                    {/* Action Buttons Row */}
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                        <Pressable
-                            onPress={(e) => {
-                                e.stopPropagation();
-                                onDelete(expense.id, expense.description);
-                            }}
-                            style={({ pressed }) => ({
-                                padding: 6,
-                                borderRadius: 6,
-                                backgroundColor: pressed ? currentColors.error + '25' : currentColors.error + '10',
-                                borderWidth: 1,
-                                borderColor: currentColors.error + '30',
-                            })}
-                        >
-                            <Icon name="trash-outline" size={14} style={{ color: currentColors.error }} />
-                        </Pressable>
-                    </View>
+                    <Pressable
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            onDelete(expense.id, expense.description);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${expense.description}`}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={({ pressed }) => ({
+                            width: 36,
+                            height: 36,
+                            borderRadius: radius.md,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginTop: space.s2,
+                            backgroundColor: pressed ? tokens.colors.dangerSubtle : 'transparent',
+                        })}
+                    >
+                        <Icon name="trash-outline" size={18} color={tokens.colors.danger} />
+                    </Pressable>
                 </View>
             </View>
         </Pressable>
     );
 }
-
-const styles = StyleSheet.create({
-    // Add any specific styles if needed
-});
