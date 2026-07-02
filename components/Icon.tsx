@@ -1,7 +1,6 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { View, StyleSheet } from 'react-native';
-import { colors } from '../styles/commonStyles';
 import { useTheme } from '../hooks/useTheme';
 
 interface IconProps {

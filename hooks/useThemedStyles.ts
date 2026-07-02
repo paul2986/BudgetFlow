@@ -1,91 +1,76 @@
-
 import { useMemo } from 'react';
-import { StyleSheet, Platform, useWindowDimensions } from 'react-native';
+import { StyleSheet, Platform } from 'react-native';
 import { useTheme } from './useTheme';
+import { useBreakpoint, LAYOUT } from './useBreakpoint';
+import { type, space, radius, elevation, font } from '../styles/tokens';
 
+/**
+ * Shared themed styles, aligned to design/DESIGN.md tokens.
+ * New/redesigned components should prefer `tokens` from useTheme() directly;
+ * this hook keeps the legacy style names working during migration.
+ */
 export const useThemedStyles = () => {
-  const { currentColors } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const { currentColors, tokens } = useTheme();
+  const bp = useBreakpoint();
 
-  const isPad = useMemo(() => {
-    if (Platform.OS === 'web') {
-      return width >= 768;
-    }
-
-    const aspectRatio = height / width;
-    // iPad detection: larger screen + typical iPad aspect ratios
-    return Platform.OS === 'ios' && Math.min(width, height) >= 768 && (
-      (aspectRatio > 1.2 && aspectRatio < 1.4) || // Portrait iPad
-      (aspectRatio > 0.7 && aspectRatio < 0.85)   // Landscape iPad
-    );
-  }, [width, height]);
+  // Legacy flag consumed across screens: "not a phone-width layout".
+  const isPad = !bp.isCompact;
 
   const themedStyles = useMemo(() => StyleSheet.create({
     wrapper: {
-      backgroundColor: currentColors.background,
+      backgroundColor: tokens.colors.bg,
       width: '100%',
       height: '100%',
     },
     container: {
       flex: 1,
-      backgroundColor: currentColors.background,
+      backgroundColor: tokens.colors.bg,
       width: '100%',
       height: '100%',
-      position: 'relative', // Ensure proper positioning context
+      position: 'relative',
     },
     content: {
       flex: 1,
-      padding: isPad ? 32 : 16,
+      padding: bp.gutter,
       paddingBottom: 0,
       width: '100%',
     },
     scrollContent: {
-      paddingBottom: 140, // Increased padding to ensure content is visible above nav bar
-      minHeight: '100%', // Ensure content takes full height to prevent clipping
-      paddingHorizontal: isPad ? 32 : 0,
+      // Clearance for the fixed bottom tab bar derives from real chrome sizes.
+      paddingBottom: LAYOUT.tabBarHeight + space.s10,
+      minHeight: '100%',
+      paddingHorizontal: bp.isCompact ? 0 : bp.gutter,
     },
     title: {
-      fontSize: isPad ? 36 : 28,
-      fontWeight: '800',
-      textAlign: 'center',
-      color: currentColors.text,
-      marginBottom: isPad ? 28 : 20,
-      letterSpacing: -1,
-      fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-bold', web: 'Inter, system-ui, -apple-system, sans-serif' }),
+      ...type.h1,
+      color: tokens.colors.text,
+      marginBottom: space.s5,
     },
     subtitle: {
-      fontSize: isPad ? 24 : 20,
-      fontWeight: '600',
-      color: currentColors.text,
-      marginBottom: isPad ? 20 : 16,
-      letterSpacing: -0.3,
-      fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-medium', web: 'Inter, system-ui, -apple-system, sans-serif' }),
+      ...type.h2,
+      color: tokens.colors.text,
+      marginBottom: space.s4,
     },
     text: {
-      fontSize: isPad ? 18 : 16,
-      fontWeight: '400',
-      color: currentColors.text,
-      lineHeight: isPad ? 28 : 24,
+      ...type.body,
+      color: tokens.colors.text,
     },
     textSecondary: {
-      fontSize: isPad ? 16 : 14,
-      fontWeight: '400',
-      color: currentColors.textSecondary,
-      lineHeight: isPad ? 24 : 20,
+      ...type.caption,
+      color: tokens.colors.textMuted,
     },
     section: {
-      marginBottom: 16,
+      marginBottom: space.s4,
     },
     card: {
-      backgroundColor: currentColors.backgroundAlt,
-      borderRadius: isPad ? 20 : 16,
-      padding: isPad ? 24 : 15,
-      marginBottom: isPad ? 20 : 16,
-      boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.08)',
-      elevation: 4,
+      backgroundColor: tokens.colors.surface,
+      borderRadius: radius.lg,
+      padding: bp.isExpanded ? space.s6 : bp.isMedium ? space.s5 : space.s4,
+      marginBottom: space.s4,
       borderWidth: 1,
-      borderColor: currentColors.border,
-      width: '100%', // Standardized full width for all cards
+      borderColor: tokens.colors.border,
+      width: '100%',
+      ...elevation.e1,
     },
     row: {
       flexDirection: 'row',
@@ -107,75 +92,67 @@ export const useThemedStyles = () => {
       justifyContent: 'center',
     },
     input: {
-      borderWidth: 2,
-      borderColor: currentColors.border,
-      borderRadius: 12,
-      padding: 16,
-      fontSize: 16,
-      backgroundColor: currentColors.backgroundAlt,
-      color: currentColors.text,
-      marginBottom: 8,
-      fontWeight: '500',
+      minHeight: 48,
+      borderWidth: 1,
+      borderColor: tokens.colors.borderStrong,
+      borderRadius: radius.sm,
+      paddingHorizontal: space.s4,
+      paddingVertical: space.s3,
+      fontSize: type.body.fontSize,
+      backgroundColor: tokens.colors.surfaceSunken,
+      color: tokens.colors.text,
+      marginBottom: space.s2,
+      ...font(400),
     },
     picker: {
-      borderWidth: 2,
-      borderColor: currentColors.border,
-      borderRadius: 12,
-      backgroundColor: currentColors.backgroundAlt,
-      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: tokens.colors.borderStrong,
+      borderRadius: radius.sm,
+      backgroundColor: tokens.colors.surfaceSunken,
+      marginBottom: space.s4,
     },
     header: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: isPad ? 32 : 20,
-      paddingVertical: isPad ? 20 : 16,
+      paddingHorizontal: bp.gutter,
+      paddingVertical: space.s3,
       backgroundColor: 'transparent',
       borderBottomWidth: 0,
-      borderBottomColor: 'transparent',
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.1,
-      shadowRadius: 2,
-      // @ts-ignore
+      // @ts-ignore web-only sticky positioning
       ...(Platform.OS === 'web' ? {
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        backgroundColor: currentColors.backgroundAlt, // Ensure background is opaque when sticky
+        backgroundColor: tokens.colors.bg,
       } : {}),
     },
     headerTitle: {
-      fontSize: isPad ? 24 : 20,
-      fontWeight: '700',
-      color: currentColors.text,
-      letterSpacing: -0.3,
+      ...type.h2,
+      color: tokens.colors.text,
     },
     badge: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingHorizontal: space.s3,
+      paddingVertical: space.s2,
+      borderRadius: radius.full,
       alignSelf: 'flex-start',
     },
     badgeText: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: currentColors.backgroundAlt,
+      ...type.caption,
+      color: tokens.colors.surface,
     },
     emptyState: {
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 40,
+      padding: space.s8,
     },
     emptyStateText: {
-      fontSize: 16,
-      color: currentColors.textSecondary,
+      ...type.body,
+      color: tokens.colors.textMuted,
       textAlign: 'center',
-      marginTop: 16,
-      lineHeight: 24,
+      marginTop: space.s4,
     },
-    // Native Style Tab Bars
+    // Legacy tab-bar styles retained until every consumer migrates to components/nav/*.
     nativeTabContainer: {
       position: Platform.OS === 'web' ? 'fixed' as any : 'absolute',
       bottom: 0,
@@ -183,131 +160,118 @@ export const useThemedStyles = () => {
       right: 0,
       zIndex: 1000,
       backgroundColor: 'transparent',
-      paddingBottom: Platform.OS === 'web' ? 0 : 100,
     },
     iosTabBar: {
       flexDirection: 'row',
       borderTopWidth: StyleSheet.hairlineWidth,
-      paddingTop: 8,
-      paddingHorizontal: 12,
-      minHeight: 60,
-      // @ts-ignore
-      backdropFilter: Platform.OS === 'web' ? 'blur(20px)' : undefined,
+      paddingTop: space.s2,
+      paddingHorizontal: space.s3,
+      minHeight: LAYOUT.tabBarHeight,
     },
     androidTabBar: {
       flexDirection: 'row',
       borderTopWidth: 1,
-      elevation: 12,
-      paddingTop: 6,
-      paddingHorizontal: 8,
-      minHeight: 68,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: -4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
+      paddingTop: space.s1,
+      paddingHorizontal: space.s2,
+      minHeight: LAYOUT.tabBarHeight,
     },
     nativeTabItem: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 10,
-      borderRadius: 16,
-      marginHorizontal: 4,
+      paddingVertical: space.s2,
+      borderRadius: radius.md,
+      marginHorizontal: space.s1,
     },
-    // iOS 26 Style Floating Tab Bar (kept as fallback or for specific views)
     floatingTabContainer: {
       position: 'absolute',
       bottom: 0,
       left: 0,
       right: 0,
       alignItems: 'center',
-      paddingHorizontal: 20,
-      zIndex: 1000, // Ensure tab bar stays on top
-      pointerEvents: 'box-none', // Allow touches to pass through container but not the tab bar itself
+      paddingHorizontal: space.s5,
+      zIndex: 1000,
+      pointerEvents: 'box-none',
     },
     floatingTabBar: {
       flexDirection: 'row',
-      borderRadius: 28,
-      paddingHorizontal: 8,
-      paddingVertical: 8,
+      borderRadius: radius.xl,
+      paddingHorizontal: space.s2,
+      paddingVertical: space.s2,
       borderWidth: 1,
-      boxShadow: '0px 8px 32px rgba(0, 0, 0, 0.12)',
-      elevation: 12,
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.12,
-      shadowRadius: 16,
-      backdropFilter: 'blur(20px)',
       minHeight: 64,
-      marginBottom: 20, // Set margin to match left/right padding (20px)
-      pointerEvents: 'auto', // Ensure tab bar receives touches
+      marginBottom: space.s5,
+      pointerEvents: 'auto',
+      ...elevation.e2,
     },
     floatingTabItem: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderRadius: 20,
+      paddingVertical: space.s3,
+      paddingHorizontal: space.s4,
+      borderRadius: radius.md,
       marginHorizontal: 2,
       minHeight: 48,
     },
-  }), [currentColors, isPad]);
+  }), [tokens, bp.gutter, bp.isCompact, bp.isMedium, bp.isExpanded]);
 
   const themedButtonStyles = useMemo(() => StyleSheet.create({
     primary: {
-      backgroundColor: currentColors.primary,
-      borderColor: currentColors.primary,
+      backgroundColor: tokens.colors.brand,
+      borderColor: tokens.colors.brand,
       alignSelf: 'center',
       width: '100%',
     },
     secondary: {
-      backgroundColor: currentColors.secondary,
-      borderColor: currentColors.secondary,
+      backgroundColor: tokens.colors.surfaceSunken,
+      borderColor: tokens.colors.surfaceSunken,
       alignSelf: 'center',
       width: '100%',
     },
     danger: {
-      backgroundColor: currentColors.error,
-      borderColor: currentColors.error,
+      backgroundColor: tokens.colors.danger,
+      borderColor: tokens.colors.danger,
       alignSelf: 'center',
       width: '100%',
     },
     outline: {
       backgroundColor: 'transparent',
-      borderWidth: 2,
-      borderColor: currentColors.primary,
+      borderWidth: 1.5,
+      borderColor: tokens.colors.borderStrong,
       alignSelf: 'center',
       width: '100%',
     },
     outlineSecondary: {
       backgroundColor: 'transparent',
-      borderWidth: 2,
-      borderColor: currentColors.secondary,
+      borderWidth: 1.5,
+      borderColor: tokens.colors.borderStrong,
       alignSelf: 'center',
       width: '100%',
     },
     outlineDanger: {
       backgroundColor: 'transparent',
-      borderWidth: 2,
-      borderColor: currentColors.error,
+      borderWidth: 1.5,
+      borderColor: tokens.colors.danger,
       alignSelf: 'center',
       width: '100%',
     },
     small: {
-      paddingVertical: 8,
-      paddingHorizontal: 16,
+      paddingVertical: space.s2,
+      paddingHorizontal: space.s4,
       width: 'auto',
     },
     disabled: {
-      backgroundColor: currentColors.textSecondary + '40',
-      borderColor: currentColors.textSecondary + '40',
-      opacity: 0.6,
+      opacity: 0.4,
     },
-  }), [currentColors]);
+  }), [tokens]);
 
   return {
     themedStyles,
     themedButtonStyles,
-    isPad, // Export isPad flag for components to use
+    isPad,
+    breakpoint: bp,
+    /** Deprecated alias — use `useTheme().currentColors` or tokens. */
+    currentColors,
   };
 };

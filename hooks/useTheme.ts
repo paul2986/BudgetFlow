@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, darkColors } from '../styles/commonStyles';
+import { getTokens, Tokens } from '../styles/tokens';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -12,7 +13,10 @@ interface ThemeContextType {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   isDarkMode: boolean;
+  /** Legacy palette — do not use in new/redesigned code; use `tokens` instead. */
   currentColors: typeof colors;
+  /** Design tokens per design/DESIGN.md — the source of truth for redesigned UI. */
+  tokens: Tokens;
   loading: boolean;
 }
 
@@ -21,6 +25,7 @@ const ThemeContext = createContext<ThemeContextType>({
   setThemeMode: async () => {},
   isDarkMode: false,
   currentColors: colors,
+  tokens: getTokens(false),
   loading: true,
 });
 
@@ -88,6 +93,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
   const currentColors = isDarkMode ? darkColors : colors;
+  const tokens = useMemo(() => getTokens(isDarkMode), [isDarkMode]);
 
   useEffect(() => {
     console.log('ThemeProvider: Computed values updated', {
@@ -103,6 +109,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setThemeMode,
     isDarkMode,
     currentColors,
+    tokens,
     loading,
   };
 
