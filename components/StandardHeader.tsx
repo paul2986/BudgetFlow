@@ -1,22 +1,25 @@
-
-
 import React from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Dimensions, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, Pressable, ActivityIndicator, Platform } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import { useThemedStyles } from '../hooks/useThemedStyles';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 import Icon from './Icon';
+import { type, radius, space } from '../styles/tokens';
 
-// Export header height for use in other components
-export const HEADER_HEIGHT = 64;
-export const HEADER_HEIGHT_IPAD = 72;
+/**
+ * Slim screen header (DESIGN.md §2.6): flat bg, left-aligned title, 44px
+ * labeled icon buttons. No gradients, no floating circles.
+ * Keeps the legacy slot API so existing screens work unchanged.
+ */
 
+export const HEADER_HEIGHT = 56;
+export const HEADER_HEIGHT_IPAD = 64;
 
 interface HeaderButton {
   icon: string;
   onPress: () => void;
   backgroundColor?: string;
   iconColor?: string;
+  accessibilityLabel?: string;
 }
 
 interface StandardHeaderProps {
@@ -31,10 +34,26 @@ interface StandardHeaderProps {
   leftIconColor?: string;
   showRightIcon?: boolean;
   showLeftIcon?: boolean;
-  rightButtons?: HeaderButton[]; // Optional multiple right buttons
-  leftButtons?: HeaderButton[]; // Optional multiple left buttons
-  backgroundColor?: string; // Optional custom background color
+  rightButtons?: HeaderButton[];
+  leftButtons?: HeaderButton[];
+  backgroundColor?: string;
 }
+
+// Fallback spoken labels for common icon-only header buttons.
+const ICON_LABELS: Record<string, string> = {
+  'arrow-back': 'Go back',
+  add: 'Add',
+  'add-circle-outline': 'Add',
+  close: 'Close',
+  'create-outline': 'Edit',
+  'trash-outline': 'Delete',
+  'filter-outline': 'Filter',
+  'search-outline': 'Search',
+  'settings-outline': 'Settings',
+  'wallet-outline': 'Budgets',
+  'lock-closed-outline': 'Lock',
+  'checkmark': 'Confirm',
+};
 
 export default function StandardHeader({
   title,
@@ -52,150 +71,91 @@ export default function StandardHeader({
   leftButtons,
   backgroundColor,
 }: StandardHeaderProps) {
-  const { currentColors } = useTheme();
-  const { themedStyles, isPad } = useThemedStyles();
+  const { tokens } = useTheme();
+  const bp = useBreakpoint();
 
-  // Standardized button styling
-  const buttonSize = isPad ? 52 : 44;
-  const buttonGap = isPad ? 12 : 8;
-  const iconSize = isPad ? 26 : 22;
+  const buttonSize = 44;
+  const iconSize = 22;
 
-  const getButtonStyle = (type: 'left' | 'right', isActive?: boolean, customBg?: string) => {
-    let backgroundColor = customBg;
-
-    if (!backgroundColor) {
-      if (type === 'left') {
-        backgroundColor = currentColors.backgroundAlt;
-      } else {
-        backgroundColor = currentColors.primary;
-      }
-    }
-
-    return {
-      width: buttonSize,
-      height: buttonSize,
-      borderRadius: buttonSize / 2,
-      backgroundColor,
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-      boxShadow: '0px 2px 4px rgba(0,0,0,0.15)',
-      borderWidth: 1,
-      borderColor: type === 'left' ? currentColors.border : 'transparent',
-    };
-  };
-
-  const getIconColor = (type: 'left' | 'right', customColor?: string) => {
-    if (customColor) return customColor;
-    return type === 'left' ? currentColors.text : '#FFFFFF';
-  };
-
-  const renderHeaderButton = (btn: { icon: string, onPress: () => void, backgroundColor?: string, iconColor?: string }, type: 'left' | 'right', idx: number) => {
-    const isPrimary = type === 'right';
-    const brandGradient = (currentColors as any).brandGradient || ['#7C3AED', '#2563EB', '#0891B2'];
-
-    const containerStyle = {
-      width: buttonSize,
-      height: buttonSize,
-      borderRadius: buttonSize / 2,
-      backgroundColor: btn.backgroundColor || (type === 'left' ? currentColors.backgroundAlt : (isPrimary ? 'transparent' : currentColors.primary)),
-      justifyContent: 'center' as const,
-      alignItems: 'center' as const,
-      boxShadow: '0px 2px 8px rgba(0,0,0,0.15)',
-      borderWidth: 1,
-      borderColor: type === 'left' ? currentColors.border : 'transparent',
-      marginLeft: type === 'right' && idx > 0 ? buttonGap : 0,
-      marginRight: type === 'left' && idx < ((leftButtons?.length || 0) - 1) ? buttonGap : 0,
-      overflow: 'hidden' as const,
-    };
-
-    const content = (
-      <>
-        {loading ? (
-          <ActivityIndicator size="small" color={getIconColor(type, btn.iconColor)} />
-        ) : (
-          <Icon
-            name={btn.icon as any}
-            size={iconSize}
-            style={{ color: getIconColor(type, btn.iconColor) }}
-          />
-        )}
-      </>
-    );
+  const renderButton = (btn: HeaderButton, kind: 'left' | 'right', idx: number) => {
+    const isPrimary = kind === 'right' && !btn.backgroundColor;
+    const bg = btn.backgroundColor || (isPrimary ? tokens.colors.brandSubtle : 'transparent');
+    const fg = btn.iconColor || (isPrimary ? tokens.colors.brand : tokens.colors.text);
+    const label = btn.accessibilityLabel || ICON_LABELS[btn.icon] || btn.icon.replace(/-outline$|-circle$/, '').replace(/-/g, ' ');
 
     return (
-      <TouchableOpacity
-        key={`${type}_btn_${idx}`}
+      <Pressable
+        key={`${kind}_btn_${idx}`}
         onPress={btn.onPress}
         disabled={loading}
-        style={containerStyle}
-        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={({ pressed, hovered }: any) => ({
+          width: buttonSize,
+          height: buttonSize,
+          borderRadius: radius.md,
+          backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : bg,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginLeft: kind === 'right' && idx > 0 ? space.s2 : 0,
+          marginRight: kind === 'left' ? space.s2 : 0,
+          // @ts-ignore web transition
+          transitionDuration: '150ms',
+        })}
       >
-        {isPrimary && !btn.backgroundColor ? (
-          <LinearGradient
-            colors={brandGradient as any}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
-          >
-            {content}
-          </LinearGradient>
+        {loading && kind === 'right' ? (
+          <ActivityIndicator size="small" color={fg} />
         ) : (
-          content
+          <Icon name={btn.icon as any} size={iconSize} color={fg} />
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
-  // Calculate the width needed for left and right button areas to ensure title centering
-  const leftButtonsCount = leftButtons?.length || (showLeftIcon && onLeftPress ? 1 : 0);
-  const rightButtonsCount = rightButtons?.length || (showRightIcon && onRightPress ? 1 : 0);
-
-  // Each button is buttonSize wide with buttonGap margin between them
-  const leftButtonsWidth = leftButtonsCount > 0 ? (leftButtonsCount * buttonSize) + ((leftButtonsCount - 1) * buttonGap) : buttonSize;
-  const rightButtonsWidth = rightButtonsCount > 0 ? (rightButtonsCount * buttonSize) + ((rightButtonsCount - 1) * buttonGap) : buttonSize;
-
-  // Use the larger of the two widths to ensure symmetry
-  const sideWidth = Math.max(leftButtonsWidth, rightButtonsWidth);
+  const left = leftButtons && leftButtons.length > 0
+    ? leftButtons
+    : showLeftIcon && onLeftPress
+      ? [{ icon: leftIcon, onPress: onLeftPress, iconColor: leftIconColor }]
+      : [];
+  const right = rightButtons && rightButtons.length > 0
+    ? rightButtons
+    : showRightIcon && onRightPress
+      ? [{ icon: rightIcon, onPress: onRightPress, iconColor: rightIconColor }]
+      : [];
 
   return (
-    <View style={[
-      themedStyles.header,
-      {
-        height: subtitle ? (isPad ? 88 : 76) : (isPad ? 72 : 64),
-        backgroundColor: backgroundColor || currentColors.backgroundAlt,
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: subtitle ? HEADER_HEIGHT + 12 : HEADER_HEIGHT,
+        paddingHorizontal: bp.gutter,
+        paddingVertical: space.s2,
+        backgroundColor: backgroundColor || tokens.colors.bg,
         borderBottomWidth: 1,
-        borderBottomColor: currentColors.border,
-      }
-    ]}>
-      {/* Left side - supports multiple left buttons */}
-      <View style={{ width: sideWidth, height: buttonSize, justifyContent: 'center', alignItems: 'flex-start', flexDirection: 'row' }}>
-        {leftButtons && leftButtons.length > 0 ? (
-          leftButtons.map((btn, idx) => renderHeaderButton(btn, 'left', idx))
-        ) : showLeftIcon && onLeftPress ? (
-          renderHeaderButton({ icon: leftIcon, onPress: onLeftPress, iconColor: leftIconColor }, 'left', 0)
-        ) : null}
-      </View>
+        borderBottomColor: tokens.colors.border,
+        // @ts-ignore web-only sticky header
+        ...(Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 100 } : {}),
+      }}
+    >
+      {left.map((btn, idx) => renderButton(btn, 'left', idx))}
 
-      {/* Center title + optional subtitle - now properly centered */}
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={[themedStyles.headerTitle, { textAlign: 'center', lineHeight: isPad ? 28 : 22 }]}>
+      <View style={{ flex: 1, marginLeft: left.length ? 0 : 0 }}>
+        <Text
+          accessibilityRole="header"
+          style={[type.h2, { color: tokens.colors.text }]}
+          numberOfLines={1}
+        >
           {title}
         </Text>
         {subtitle ? (
-          <Text style={[themedStyles.textSecondary, { marginTop: 2, fontSize: isPad ? 14 : 12 }]}>
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: 1 }]} numberOfLines={1}>
             {subtitle}
           </Text>
         ) : null}
       </View>
 
-      {/* Right side - supports multiple header buttons */}
-      <View style={{ width: sideWidth, height: buttonSize, justifyContent: 'center', alignItems: 'flex-end', flexDirection: 'row' }}>
-        {rightButtons && rightButtons.length > 0 ? (
-          rightButtons.map((btn, idx) => renderHeaderButton(btn, 'right', idx))
-        ) : showRightIcon && onRightPress ? (
-          renderHeaderButton({ icon: rightIcon, onPress: onRightPress, iconColor: rightIconColor }, 'right', 0)
-        ) : null}
-      </View>
+      {right.map((btn, idx) => renderButton(btn, 'right', idx))}
     </View>
   );
 }

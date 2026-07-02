@@ -1,149 +1,49 @@
+import { useEffect, useState } from 'react';
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
+import * as SplashScreen from 'expo-splash-screen';
+import { View, Platform } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Tabs } from 'expo-router';
+import Head from 'expo-router/head';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useEffect, useCallback, useMemo, useState } from 'react';
 import { useTheme, ThemeProvider } from '../hooks/useTheme';
 import { useToast, ToastProvider } from '../hooks/useToast';
-import { useBudgetData } from '../hooks/useBudgetData';
-import { StatusBar } from 'expo-status-bar';
-import { Tabs, router, usePathname } from 'expo-router';
-import { setupErrorLogging } from '../utils/errorLogger';
-import { View, TouchableOpacity, useWindowDimensions, Platform, Text } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useThemedStyles } from '../hooks/useThemedStyles';
-import Icon from '../components/Icon';
-import ToastContainer from '../components/ToastContainer';
-import SideNavBar from '../components/SideNavBar';
-import * as Linking from 'expo-linking';
+import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
 import { useAuth } from '../hooks/useAuth';
+import { useBreakpoint } from '../hooks/useBreakpoint';
+import { DesktopModalsProvider } from '../hooks/useDesktopModals';
+import { setupErrorLogging } from '../utils/errorLogger';
+
 import AuthGuard from '../components/AuthGuard';
-import { BlurView } from 'expo-blur';
+import ToastContainer from '../components/ToastContainer';
+import BottomTabBar from '../components/nav/BottomTabBar';
+import NavRail from '../components/nav/NavRail';
+import Sidebar from '../components/nav/Sidebar';
 
-import Head from 'expo-router/head';
-
-function CustomTabBar() {
-  const { currentColors, isDarkMode } = useTheme();
-  const { themedStyles } = useThemedStyles();
-  const { appData, activeBudget } = useBudgetData();
-  const pathname = usePathname();
-  const insets = useSafeAreaInsets();
-
-  const navigateToTab = useCallback((route: string) => {
-    router.replace(route as any);
-  }, []);
-
-  const tabs = useMemo(() => [
-    { route: '/', icon: 'home-outline', activeIcon: 'home', label: 'Home' },
-    { route: '/people', icon: 'people-outline', activeIcon: 'people', label: 'People' },
-    { route: '/expenses', icon: 'receipt-outline', activeIcon: 'receipt', label: 'Expenses' },
-    { route: '/tools', icon: 'calculator-outline', activeIcon: 'calculator', label: 'Tools' },
-    { route: '/settings', icon: 'settings-outline', activeIcon: 'settings', label: 'Settings' },
-  ], []);
-
-  const isIOS = useMemo(() => {
-    if (Platform.OS === 'ios') return true;
-    if (Platform.OS === 'web') {
-      return /iPhone|iPad|iPod/.test(navigator.userAgent);
-    }
-    return false;
-  }, []);
-
-  const shouldHideTabBar = useMemo(() => {
-    const alwaysShowPaths = ['/expenses', '/people', '/settings', '/tools', '/budgets'];
-    if (alwaysShowPaths.includes(pathname)) return false;
-    if (pathname === '/') {
-      return !appData?.budgets?.length || !activeBudget;
-    }
-    return true; // Hide on subpages like add-expense
-  }, [appData, activeBudget, pathname]);
-
-  if (shouldHideTabBar) return null;
-
-  const renderTabContent = () => (
-    <View style={[
-      isIOS ? themedStyles.iosTabBar : themedStyles.androidTabBar,
-      {
-        backgroundColor: Platform.OS === 'web'
-          ? (isDarkMode ? 'rgba(15, 23, 42, 0)' : 'rgba(255, 255, 255, 0)')
-          : (isIOS
-            ? (isDarkMode ? 'rgba(26, 35, 50, 0.6)' : 'rgba(255, 255, 255, 0.7)')
-            : currentColors.backgroundAlt),
-        borderColor: currentColors.border,
-        // Extend padding to cover the entire bottom safe area
-        paddingBottom: Platform.OS === 'web'
-          ? 0
-          : Math.max(insets.bottom, 12),
-      }
-    ]}>
-      {tabs.map((tab) => {
-        const isActive = pathname === tab.route;
-        const iconColor = isActive ? currentColors.primary : currentColors.textSecondary;
-
-        return (
-          <TouchableOpacity
-            key={tab.route}
-            style={[
-              themedStyles.nativeTabItem,
-              isActive && !isIOS && Platform.OS !== 'web' && { backgroundColor: `${currentColors.primary}10` },
-            ]}
-            onPress={() => navigateToTab(tab.route)}
-            activeOpacity={0.7}
-          >
-            <Icon
-              name={isActive ? (tab.activeIcon as any) : (tab.icon as any)}
-              size={isIOS ? 26 : 24}
-              style={{ color: iconColor }}
-            />
-            {!isIOS && Platform.OS !== 'web' && (
-              <Text style={{
-                fontSize: 11,
-                marginTop: 4,
-                color: iconColor,
-                fontWeight: isActive ? '700' : '500'
-              }}>
-                {tab.label}
-              </Text>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-
-  return (
-    <View style={[
-      themedStyles.nativeTabContainer,
-      Platform.OS === 'web' && {
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        // Use min-height to ensure it extends to bottom
-        minHeight: 'calc(70px + env(safe-area-inset-bottom))',
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      } as any
-    ]}>
-      {(isIOS && Platform.OS !== 'web') ? (
-        <BlurView
-          intensity={80}
-          tint={isDarkMode ? 'dark' : 'light'}
-          style={{ width: '100%' }}
-        >
-          {renderTabContent()}
-        </BlurView>
-      ) : (
-        renderTabContent()
-      )}
-    </View>
-  );
-}
+/**
+ * Root shell (DESIGN.md §2.5–2.6):
+ * - compact  (<640): bottom tab bar, always visible
+ * - medium   (640–1023): left navigation rail (84px)
+ * - expanded (>=1024): full sidebar (264px)
+ * One layout tree; the breakpoint only changes which chrome renders.
+ */
 
 function RootLayoutContent() {
-  const { currentColors, isDarkMode } = useTheme();
+  const { tokens, isDarkMode } = useTheme();
   const insets = useSafeAreaInsets();
   const { toasts, hideToast } = useToast();
   const { user, loading: authLoading } = useAuth();
-  const { appData, activeBudget, data, loading: budgetLoading } = useBudgetData();
-  const pathname = usePathname();
+  const { loading: budgetLoading } = useBudgetData();
+  const bp = useBreakpoint();
 
   const loading = authLoading || (user && budgetLoading);
-
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   useEffect(() => {
@@ -157,93 +57,37 @@ function RootLayoutContent() {
     setupErrorLogging();
   }, []);
 
-  const pageState = useMemo(() => {
-    if (isInitialLoad || loading) return 'loading';
-    if (!user) return 'auth';
-    if (pathname !== '/') return 'normal';
-
-    const hasNoBudgets = !appData?.budgets?.length;
-    const hasNoActiveBudget = !activeBudget;
-
-    if (hasNoBudgets || hasNoActiveBudget) return 'welcome';
-
-    if (activeBudget && data) {
-      const people = data?.people || [];
-      const expenses = data?.expenses || [];
-
-      if (people.length === 0 || expenses.length === 0) return 'guidance';
-    }
-
-    return 'normal';
-  }, [isInitialLoad, loading, pathname, appData, activeBudget, data]);
-
-  const safeZoneBackgroundColor = useMemo(() => {
-    switch (pageState) {
-      case 'loading':
-      case 'guidance':
-      case 'normal':
-        return currentColors.backgroundAlt; // Match top bar to header
-      case 'welcome':
-      case 'auth':
-        return currentColors.background; // Match top bar to background
-      default:
-        return currentColors.backgroundAlt;
-    }
-  }, [pageState, currentColors]);
-
-  const bottomSafeZoneColor = useMemo(() => {
-    return currentColors.backgroundAlt; // Match bottom bar to nav bar
-  }, [currentColors]);
-
-  // Inject global styles to fix Safari scroll and background issues
+  // Web: page-level background + scrollbar + date-picker theming.
   useEffect(() => {
     if (Platform.OS === 'web') {
       const style = document.createElement('style');
-      style.id = 'safari-fix-styles';
+      style.id = 'app-global-styles';
       style.textContent = `
-        html {
+        html, body {
           margin: 0;
           padding: 0;
           width: 100%;
-          min-height: 100vh;
-          height: 100%;
-          background-color: ${safeZoneBackgroundColor} !important;
+          min-height: 100dvh;
+          background-color: ${tokens.colors.bg} !important;
         }
-        body { 
-          margin: 0;
-          padding: 0;
-          width: 100%;
-          min-height: 100vh;
-          height: 100vh;
-          background-color: ${safeZoneBackgroundColor} !important;
-        }
+        body { height: 100dvh; }
         #root {
-          min-height: 100vh;
+          min-height: 100dvh;
           height: 100%;
           width: 100%;
           display: flex;
           flex-direction: column;
-          background-color: ${safeZoneBackgroundColor} !important;
+          background-color: ${tokens.colors.bg} !important;
         }
-        /* Fancy Scrollbar */
-        ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-          background: transparent;
-        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
-          background: ${currentColors.primary}60;
+          background: ${tokens.colors.borderStrong};
           border-radius: 10px;
           border: 2px solid transparent;
           background-clip: content-box;
         }
-        ::-webkit-scrollbar-thumb:hover {
-          background: ${currentColors.primary};
-          background-clip: content-box;
-        }
-        /* Global Date Picker Icon Fix */
+        ::-webkit-scrollbar-thumb:hover { background: ${tokens.colors.textFaint}; background-clip: content-box; }
         input[type="date"]::-webkit-calendar-picker-indicator {
           filter: ${isDarkMode ? 'invert(1) brightness(2)' : 'none'} !important;
           cursor: pointer;
@@ -251,50 +95,40 @@ function RootLayoutContent() {
       `;
       document.head.appendChild(style);
 
-      // Update theme-color meta tag dynamically
       const metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', safeZoneBackgroundColor);
+        metaThemeColor.setAttribute('content', tokens.colors.bg);
       }
 
       return () => {
-        const existing = document.getElementById('safari-fix-styles');
-        if (existing) existing.remove();
+        document.getElementById('app-global-styles')?.remove();
       };
     }
-  }, [safeZoneBackgroundColor, bottomSafeZoneColor, currentColors.background, currentColors.primary, isDarkMode]);
+  }, [tokens, isDarkMode]);
 
-  const { width } = useWindowDimensions();
-  const isDesktop = width >= 768;
+  const showRail = user && bp.isMedium;
+  const showSidebar = user && bp.isExpanded;
+  const showTabBar = bp.isCompact;
 
   return (
-    <View style={{
-      flex: 1,
-      minHeight: '100%',
-      backgroundColor: safeZoneBackgroundColor, // Always use safe zone color which matches header
-      flexDirection: isDesktop ? 'row' : 'column',
-      paddingTop: Platform.OS === 'web'
-        ? (isDesktop ? 0 : 'env(safe-area-inset-top)') as any
-        : (!isDesktop ? insets.top : 0),
-      paddingBottom: (!isDesktop && Platform.OS !== 'web') ? insets.bottom : 0,
-    }}>
+    <View
+      style={{
+        flex: 1,
+        minHeight: '100%',
+        backgroundColor: tokens.colors.bg,
+        flexDirection: bp.isCompact ? 'column' : 'row',
+        paddingTop: Platform.OS === 'web'
+          ? (bp.isCompact ? ('env(safe-area-inset-top)' as any) : 0)
+          : (bp.isCompact ? insets.top : 0),
+      }}
+    >
       <Head>
         <title>Budget Flow</title>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
-        <meta name="theme-color" content={safeZoneBackgroundColor} />
-        <meta
-          name="theme-color"
-          content={safeZoneBackgroundColor}
-          media="(prefers-color-scheme: light)"
-        />
-        <meta
-          name="theme-color"
-          content={safeZoneBackgroundColor}
-          media="(prefers-color-scheme: dark)"
-        />
+        <meta name="theme-color" content={tokens.colors.bg} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -306,20 +140,17 @@ function RootLayoutContent() {
         translucent
       />
 
-      {isDesktop && user && <SideNavBar />}
+      {showSidebar && <Sidebar />}
+      {showRail && <NavRail />}
 
-      <View style={{
-        flex: 1,
-        backgroundColor: Platform.OS === 'web' ? 'transparent' : currentColors.background,
-        paddingBottom: 0,
-      }}>
-        <AuthGuard user={user} loading={authLoading}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <AuthGuard user={user} loading={authLoading || isInitialLoad}>
           <Tabs
             screenOptions={{
               headerShown: false,
               tabBarStyle: { display: 'none' },
             }}
-            tabBar={() => isDesktop ? null : <CustomTabBar />}
+            tabBar={() => (showTabBar ? <BottomTabBar /> : null)}
           >
             <Tabs.Screen name="index" />
             <Tabs.Screen name="people" />
@@ -347,10 +178,6 @@ function RootLayoutContent() {
   );
 }
 
-
-import { DesktopModalsProvider } from '../hooks/useDesktopModals';
-import { BudgetDataProvider } from '../hooks/useBudgetData';
-
 function AppContent() {
   return (
     <ThemeProvider>
@@ -365,7 +192,29 @@ function AppContent() {
   );
 }
 
+// Keep the native splash visible until the Inter fonts are ready so text
+// doesn't flash in the system font. Web already loads Inter via index.html.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [fontsLoaded, fontError]);
+
+  // On font error, proceed with the system font rather than blocking the app.
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
+
   return (
     <SafeAreaProvider>
       <AppContent />
