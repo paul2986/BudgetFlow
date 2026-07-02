@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Text, Pressable, StyleSheet, ViewStyle, TextStyle, View, ActivityIndicator, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../hooks/useTheme';
+import { type, radius, space } from '../styles/tokens';
+
+/**
+ * Button per design/DESIGN.md §2.8.
+ * Flat fills only — no gradients, no glow. One primary per screen.
+ */
 
 interface ButtonProps {
   text?: string;
@@ -12,7 +17,9 @@ interface ButtonProps {
   disabled?: boolean;
   loading?: boolean;
   icon?: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'outline' | 'danger';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  /** md = 44px (default), lg = 52px */
+  size?: 'md' | 'lg';
 }
 
 export default function Button({
@@ -24,196 +31,140 @@ export default function Button({
   disabled,
   loading,
   icon,
-  variant = 'primary'
+  variant = 'primary',
+  size = 'md',
 }: ButtonProps) {
-  const { currentColors } = useTheme();
+  const { tokens } = useTheme();
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const buttonText = text || title || '';
+  const isDisabled = disabled || loading;
 
-  const getButtonColors = () => {
-    if (disabled || loading) {
-      return {
-        backgroundColor: currentColors.textSecondary + '40',
-        borderColor: currentColors.textSecondary + '40',
-        textColor: currentColors.textSecondary,
-        gradient: null,
-      };
-    }
-
-    const brandGradient = (currentColors as any).brandGradient || ['#7C3AED', '#2563EB', '#0891B2'];
-
+  const palette = (() => {
     switch (variant) {
-      case 'primary':
-        return {
-          backgroundColor: 'transparent',
-          borderColor: 'transparent',
-          textColor: '#FFFFFF',
-          gradient: brandGradient,
-        };
       case 'secondary':
         return {
-          backgroundColor: 'transparent',
+          bg: tokens.colors.surfaceSunken,
+          label: tokens.colors.text,
           borderColor: 'transparent',
-          textColor: '#FFFFFF',
-          // Subtler blue-focused gradient for secondary
-          gradient: [brandGradient[1], brandGradient[2]],
+          borderWidth: 0,
         };
       case 'outline':
         return {
-          backgroundColor: hovered ? currentColors.primary + '15' : 'transparent',
-          borderColor: currentColors.primary,
-          textColor: currentColors.primary,
-          gradient: null,
+          bg: hovered ? tokens.colors.surfaceSunken : 'transparent',
+          label: tokens.colors.text,
+          borderColor: tokens.colors.borderStrong,
+          borderWidth: 1.5,
+        };
+      case 'ghost':
+        return {
+          bg: hovered ? tokens.colors.surfaceSunken : 'transparent',
+          label: tokens.colors.brand,
+          borderColor: 'transparent',
+          borderWidth: 0,
         };
       case 'danger':
         return {
-          backgroundColor: hovered ? currentColors.error + 'E6' : currentColors.error,
-          borderColor: hovered ? currentColors.error + 'E6' : currentColors.error,
-          textColor: '#FFFFFF',
-          gradient: null,
+          bg: tokens.colors.danger,
+          label: '#FFFFFF',
+          borderColor: 'transparent',
+          borderWidth: 0,
         };
+      case 'primary':
       default:
         return {
-          backgroundColor: currentColors.primary,
-          borderColor: currentColors.primary,
-          textColor: '#FFFFFF',
-          gradient: null,
+          bg: tokens.colors.brand,
+          label: tokens.colors.onBrand,
+          borderColor: 'transparent',
+          borderWidth: 0,
         };
     }
-  };
+  })();
 
-  const buttonColors = getButtonColors();
+  const minHeight = size === 'lg' ? 52 : 44;
 
-  const renderContent = () => (
-    <View style={styles.content}>
-      {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={buttonColors.textColor}
-          style={buttonText ? styles.loadingWithText : undefined}
-        />
-      ) : (
-        icon && (
-          <View style={styles.iconContainer}>
-            {icon}
-          </View>
-        )
-      )}
-      {buttonText ? (
-        <Text
-          style={[
-            styles.text,
-            { color: buttonColors.textColor },
-            textStyle
-          ]}
-        >
-          {buttonText}
-        </Text>
-      ) : null}
-    </View>
-  );
-
-  const isGradientVariant = variant === 'primary' || variant === 'secondary';
+  // Web keyboard focus ring (RN style types don't know outline props).
+  const focusRing =
+    Platform.OS === 'web' && focused
+      ? ({
+          outlineWidth: 2,
+          outlineColor: tokens.colors.brand,
+          outlineStyle: 'solid',
+          outlineOffset: 2,
+        } as any)
+      : null;
 
   return (
-    <View style={[
-      style,
-      {
-        borderRadius: 12,
-        overflow: 'visible',
-        // Multi-color drop-shadow for true gradient glow on web
-        ...(Platform.OS === 'web' && isGradientVariant && !disabled && !loading ? {
-          filter: `drop-shadow(0 4px 6px ${buttonColors.gradient?.[0]}40) drop-shadow(0 4px 10px ${buttonColors.gradient?.[buttonColors.gradient.length - 1]}30)`,
-        } : {}),
-      }
-    ]}>
-      <Pressable
-        style={({ pressed }) => [
-          styles.button,
-          {
-            backgroundColor: isGradientVariant ? 'transparent' : buttonColors.backgroundColor,
-            borderColor: isGradientVariant ? 'transparent' : buttonColors.borderColor,
-            borderWidth: isGradientVariant ? 0 : 2,
-            paddingVertical: isGradientVariant ? 0 : 16,
-            paddingHorizontal: isGradientVariant ? 0 : 24,
-            opacity: (disabled || loading) ? 0.6 : (pressed ? 0.9 : 1),
-            // Add scale and modern glow on hover for desktop
-            transform: Platform.OS === 'web' && hovered && !disabled && !loading ? [{ scale: 1.02 }, { translateY: -2 }] : [],
-            // Native shadow
-            shadowColor: (isGradientVariant && !disabled && !loading) ? (buttonColors.gradient?.[0] || currentColors.primary) : '#000',
-            shadowOpacity: (isGradientVariant && !disabled && !loading) ? 0.3 : 0.05,
-            shadowRadius: (isGradientVariant && !disabled && !loading) ? 12 : 4,
-            shadowOffset: { width: 0, height: 4 },
-          },
-        ]}
-        onPress={onPress}
-        disabled={disabled || loading}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
-        accessible={true}
-        accessibilityRole="button"
-        accessibilityLabel={buttonText}
-      >
-        {isGradientVariant && !disabled && !loading && buttonColors.gradient ? (
-          <LinearGradient
-            colors={buttonColors.gradient as any}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.gradient, styles.buttonPadding]}
-          >
-            {renderContent()}
-          </LinearGradient>
+    <Pressable
+      style={({ pressed }) => [
+        styles.button,
+        {
+          minHeight,
+          backgroundColor: palette.bg,
+          borderColor: palette.borderColor,
+          borderWidth: palette.borderWidth,
+          opacity: isDisabled ? 0.4 : pressed ? 0.85 : hovered ? 0.92 : 1,
+          transform: pressed && !isDisabled ? [{ scale: 0.98 }] : [],
+        },
+        focusRing,
+        style,
+      ]}
+      onPress={onPress}
+      disabled={isDisabled}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      accessible={true}
+      accessibilityRole="button"
+      accessibilityLabel={buttonText || undefined}
+      accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
+    >
+      <View style={styles.content}>
+        {loading ? (
+          <ActivityIndicator
+            size="small"
+            color={palette.label}
+            style={buttonText ? styles.loadingWithText : undefined}
+          />
         ) : (
-          renderContent()
+          icon && <View style={styles.iconContainer}>{icon}</View>
         )}
-      </Pressable>
-    </View>
+        {buttonText ? (
+          <Text style={[styles.text, { color: palette.label }, textStyle]}>
+            {buttonText}
+          </Text>
+        ) : null}
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingVertical: space.s3,
+    paddingHorizontal: space.s6,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
-    borderWidth: 2,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    /* transition for web */
-    transitionDuration: '0.2s',
-  } as ViewStyle,
-  gradient: {
-    borderRadius: 12,
+    marginTop: space.s2,
     width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonPadding: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-  },
+    // @ts-ignore web transition
+    transitionDuration: '150ms',
+  } as ViewStyle,
   content: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconContainer: {
-    marginRight: 8,
+    marginRight: space.s2,
   },
   loadingWithText: {
-    marginRight: 8,
+    marginRight: space.s2,
   },
   text: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    fontFamily: Platform.select({ ios: 'Inter', android: 'sans-serif-bold', web: 'Inter, system-ui, -apple-system, sans-serif' }),
+    ...type.bodyMed,
   },
 });

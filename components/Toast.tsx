@@ -12,21 +12,22 @@ interface ToastProps {
   duration?: number;
 }
 
-export default function Toast({ message, type, visible, onHide, duration = 3000 }: ToastProps) {
-  const { currentColors } = useTheme();
+export default function Toast({ message, type, visible, onHide, duration = 4000 }: ToastProps) {
+  const { currentColors, tokens } = useTheme();
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(-100));
+  // Toasts live at the bottom (above the tab bar) and slide up into place.
+  const [slideAnim] = useState(new Animated.Value(40));
 
   const hideToast = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 300,
+        duration: 150,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
-        toValue: -100,
-        duration: 300,
+        toValue: 40,
+        duration: 150,
         useNativeDriver: true,
       }),
     ]).start(() => {
@@ -40,12 +41,12 @@ export default function Toast({ message, type, visible, onHide, duration = 3000 
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 300,
+          duration: 220,
           useNativeDriver: true,
         }),
         Animated.timing(slideAnim, {
           toValue: 0,
-          duration: 300,
+          duration: 220,
           useNativeDriver: true,
         }),
       ]).start();
@@ -61,15 +62,17 @@ export default function Toast({ message, type, visible, onHide, duration = 3000 
 
   if (!visible) return null;
 
-  const getToastColor = () => {
+  // Calm Ledger toast (DESIGN.md §2.8): surface card, severity carried by the
+  // icon color + shape, not a colored background.
+  const getSeverityColor = () => {
     switch (type) {
       case 'success':
-        return currentColors.success;
+        return tokens.colors.income;
       case 'error':
-        return currentColors.error;
+        return tokens.colors.danger;
       case 'info':
       default:
-        return currentColors.primary;
+        return tokens.colors.brand;
     }
   };
 
@@ -78,7 +81,7 @@ export default function Toast({ message, type, visible, onHide, duration = 3000 
       case 'success':
         return 'checkmark-circle';
       case 'error':
-        return 'close-circle';
+        return 'alert-circle';
       case 'info':
       default:
         return 'information-circle';
@@ -87,17 +90,19 @@ export default function Toast({ message, type, visible, onHide, duration = 3000 
 
   return (
     <Animated.View
+      accessibilityLiveRegion="polite"
       style={[
         styles.container,
         {
           opacity: fadeAnim,
           transform: [{ translateY: slideAnim }],
-          backgroundColor: getToastColor(),
+          backgroundColor: tokens.colors.surfaceRaised,
+          borderColor: tokens.colors.border,
         },
       ]}
     >
-      <Icon name={getIconName()} size={20} style={{ color: 'white', marginRight: 8 }} />
-      <Text style={styles.message}>{message}</Text>
+      <Icon name={getIconName()} size={20} style={{ color: getSeverityColor(), marginRight: 8 }} />
+      <Text style={[styles.message, { color: tokens.colors.text }]}>{message}</Text>
     </Animated.View>
   );
 }
@@ -108,16 +113,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginHorizontal: 16,
-    borderRadius: 8,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    width: '100%',
+    maxWidth: 480,
+    borderRadius: 12,
+    borderWidth: 1,
+    elevation: 6,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   message: {
-    color: 'white',
     fontSize: 14,
     fontWeight: '600',
     flex: 1,
