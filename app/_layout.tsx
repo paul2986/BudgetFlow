@@ -77,24 +77,6 @@ function RootLayoutContent() {
           flex-direction: column;
           background-color: ${tokens.colors.bg} !important;
         }
-        /* iOS 27 home-screen apps draw a Liquid Glass blur that ramps well
-           below the status bar. WebKit swaps it for a flat fill when a
-           fixed element with a real height and background-color touches
-           the top edge; it samples background-color, not pixels, so
-           background-clip: text keeps the element itself invisible. */
-        html[data-ios-standalone] body::before {
-          content: '';
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          height: 11px;
-          background-color: ${user ? tokens.colors.surface : tokens.colors.bg};
-          -webkit-background-clip: text;
-          background-clip: text;
-          z-index: 2147483647;
-          pointer-events: none;
-        }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
@@ -151,6 +133,26 @@ function RootLayoutContent() {
           style={{
             height: 'env(safe-area-inset-top)' as any,
             backgroundColor: user ? tokens.colors.surface : 'transparent',
+          }}
+        />
+      ) : null}
+      {Platform.OS === 'web' ? (
+        // iOS 27 home-screen apps draw a Liquid Glass blur that ramps well
+        // below the status bar. WebKit swaps it for a flat fill when a fixed
+        // element with a real height and an opaque background-color touches
+        // the top edge. It has to be a real element (a ::before pseudo-element
+        // didn't take on device). Zero-height wherever there's no top inset.
+        <View
+          pointerEvents="none"
+          aria-hidden
+          style={{
+            position: 'fixed' as any,
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 'env(safe-area-inset-top)' as any,
+            backgroundColor: user ? tokens.colors.surface : tokens.colors.bg,
+            zIndex: 2147483647,
           }}
         />
       ) : null}
