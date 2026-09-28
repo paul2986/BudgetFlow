@@ -77,6 +77,23 @@ function RootLayoutContent() {
           flex-direction: column;
           background-color: ${tokens.colors.bg} !important;
         }
+        /* iOS 26 home-screen apps draw a Liquid Glass blur under the
+           status bar that ramps ~40pt down over the header. WebKit swaps
+           that blur for a flat fill when a fixed, opaque box touches the
+           top edge, so pin a bg-coloured strip over the status-bar inset. */
+        @media (display-mode: standalone) {
+          body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: env(safe-area-inset-top);
+            background-color: ${tokens.colors.bg};
+            z-index: 2000;
+            pointer-events: none;
+          }
+        }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
