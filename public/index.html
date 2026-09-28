@@ -181,18 +181,10 @@
           //   window.location.reload();
           // });
 
-          navigator.serviceWorker.addEventListener('activate', function (event) {
-            console.log('Service Worker activated');
-            event.waitUntil(
-              caches.keys().then((cacheNames) => {
-                return Promise.all(
-                  cacheNames.map((cacheName) => {
-                    return caches.delete(cacheName);
-                  })
-                );
-              })
-            );
-          });
+          // Earlier builds cached every request, including Supabase API
+          // responses, in Workbox's default runtime cache. Remove it; the
+          // same-origin runtime cache is now named 'app-runtime'.
+          caches.delete('workbox-runtime-' + registration.scope).catch(() => {});
         }
       }
     });
