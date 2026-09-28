@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
 import { clearLocalAppData } from '../utils/storage';
 import { Session, User } from '@supabase/supabase-js';
@@ -26,32 +27,46 @@ export const useAuth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Shared by sign-out and account deletion.
+  const endSession = async (scope: 'global' | 'local') => {
+    // 1. Clear local state immediately to update UI
+    setSession(null);
+    setUser(null);
+    console.log('useAuth: Local state cleared');
+    // 2. Wipe locally persisted/cached budget data so the next account on this
+    //    device can't see (or sync up) the previous user's data.
+    try {
+      await clearLocalAppData();
+      console.log('useAuth: Local app data cleared');
+    } catch (e) {
+      console.error('useAuth: Failed to clear local app data on sign out', e);
+    }
+    // 3. Perform actual sign out
+    await supabase.auth.signOut({ scope });
+    console.log('useAuth: Supabase signOut complete');
+    // 4. Reload page on web to ensure clean state. (Native also defines
+    //    `window`, but has no `location`; AuthGuard shows sign-in there.)
+    if (Platform.OS === 'web') {
+      console.log('useAuth: Reloading page...');
+      window.location.href = '/';
+    }
+  };
+
   return {
     session,
     user,
     loading,
     signOut: async () => {
       console.log('useAuth: signOut called');
-      // 1. Clear local state immediately to update UI
-      setSession(null);
-      setUser(null);
-      console.log('useAuth: Local state cleared');
-      // 2. Wipe locally persisted/cached budget data so the next account on this
-      //    device can't see (or sync up) the previous user's data.
-      try {
-        await clearLocalAppData();
-        console.log('useAuth: Local app data cleared');
-      } catch (e) {
-        console.error('useAuth: Failed to clear local app data on sign out', e);
-      }
-      // 3. Perform actual sign out
-      await supabase.auth.signOut();
-      console.log('useAuth: Supabase signOut complete');
-      // 4. Reload page on web to ensure clean state
-      if (typeof window !== 'undefined') {
-        console.log('useAuth: Reloading page...');
-        window.location.href = '/';
-      }
+      await endSession('global');
+    },
+    /** Permanently deletes the account and its synced data, then signs out. Throws on failure. */
+    deleteAccount: async () => {
+      console.log('useAuth: deleteAccount called');
+      const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
+      if (error) throw error;
+      // The server session no longer exists, so only clear this device's copy.
+      await endSession('local');
     },
   };
 };

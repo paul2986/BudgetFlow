@@ -41,3 +41,4 @@ netlify.toml
 
 pnpm-lock.yaml
 .vercel
+supabase/.temp/
