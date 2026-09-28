@@ -40,12 +40,14 @@ export default function SettingsScreen() {
   const { appData, activeBudget, clearAllData, user, isSyncing } = useBudgetData();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
-  const { signOut } = useAuth();
+  const { signOut, deleteAccount } = useAuth();
 
   const [showCurrencySheet, setShowCurrencySheet] = useState(false);
   const [currencyQuery, setCurrencyQuery] = useState('');
   const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const budgetCount = appData?.budgets?.length || 0;
 
@@ -222,6 +224,16 @@ export default function SettingsScreen() {
             />
           </ListGroup>
 
+          <ListGroup footer="Permanently deletes your account and everything in it, and signs you out.">
+            <ListRow
+              title="Delete account"
+              icon="person-remove-outline"
+              destructive
+              onPress={() => setConfirmDeleteVisible(true)}
+              showSeparator={false}
+            />
+          </ListGroup>
+
           <Text style={[type.caption, { color: tokens.colors.textMuted, textAlign: 'center', marginTop: space.s2 }]}>
             Budget Flow 1.0.0
           </Text>
@@ -288,6 +300,29 @@ export default function SettingsScreen() {
           }
         }}
         onCancel={() => setConfirmSignOutVisible(false)}
+      />
+
+      <ConfirmDialog
+        visible={confirmDeleteVisible}
+        title="Delete account?"
+        message={`This permanently deletes ${user?.email || 'your account'} and every budget, person and expense in it. It cannot be undone.`}
+        confirmLabel="Delete account"
+        destructive
+        loading={deletingAccount}
+        onConfirm={async () => {
+          setDeletingAccount(true);
+          try {
+            await deleteAccount();
+            showToast('Account deleted', 'success');
+            setConfirmDeleteVisible(false);
+          } catch (error) {
+            console.error('Settings: Delete account error:', error);
+            showToast('Couldn’t delete account. Please try again.', 'error');
+          } finally {
+            setDeletingAccount(false);
+          }
+        }}
+        onCancel={() => setConfirmDeleteVisible(false)}
       />
     </View>
   );

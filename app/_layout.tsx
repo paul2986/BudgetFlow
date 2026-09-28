@@ -202,7 +202,9 @@ function AppContent() {
       <ToastProvider>
         <BudgetDataProvider>
           <RootLayoutContent />
-          <Analytics />
+          {/* Web only: it injects a <script> via `document`, which native lacks
+              (its `typeof window` browser check passes on native too). */}
+          {Platform.OS === 'web' && <Analytics />}
         </BudgetDataProvider>
       </ToastProvider>
     </ThemeProvider>

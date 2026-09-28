@@ -7,7 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     version: '1.0.0',
     orientation: 'portrait',
     icon: './assets/images/icon.png',
-    userInterfaceStyle: 'dark',
+    userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     splash: {
         image: './assets/images/icon.png',
@@ -20,8 +20,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         infoPlist: {
             ITSAppUsesNonExemptEncryption: false,
             NSFaceIDUsageDescription:
-                'This app uses Face ID to securely unlock your budget data and protect your financial information.',
-            NSCameraUsageDescription:
                 'This app uses Face ID to securely unlock your budget data and protect your financial information.',
         },
     },
