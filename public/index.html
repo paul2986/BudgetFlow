@@ -9,11 +9,6 @@
   <meta http-Equiv="Pragma" Content="no-cache" />
   <meta http-Equiv="Expires" Content="0" />
   <link rel="manifest" href="/manifest.json" />
-  <!-- Opaque status bar, set statically because iOS reads it at install.
-       black-translucent draws the page under the status bar, which iOS 27
-       covers with a Liquid Glass blur that no CSS can switch off. -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -26,7 +21,7 @@
     /* These styles make the body full-height */
     html,
     body {
-      height: 100%;
+      height: var(--app-height, 100%);
       background-color: #0B1220;
       /* Prevent white bands on iOS */
     }
@@ -41,18 +36,38 @@
     /* These styles make the root element full-height */
     #root {
       display: flex;
-      height: 100%;
+      height: var(--app-height, 100%);
       flex: 1;
       background-color: #0B1220;
     }
   </style>
   <script>
-    // Flag iOS home-screen launches for CSS: `display-mode: standalone`
-    // reports false in iOS 27 home-screen apps, so it can't gate
-    // standalone-only styles.
-    if (window.navigator.standalone === true) {
+    // iOS home-screen web apps with a black-translucent status bar report a
+    // layout viewport that is short by the status-bar height, so 100dvh and
+    // `position: fixed; bottom: 0` stop well above the home indicator. Measure
+    // the real screen height and expose it as --app-height for the shell.
+    (function () {
+      if (window.navigator.standalone !== true) return; // iOS standalone only
+      // Flag for CSS: `display-mode: standalone` reports false in iOS 27
+      // home-screen apps, so it can't gate standalone-only styles.
       document.documentElement.setAttribute('data-ios-standalone', '');
-    }
+      function setAppHeight() {
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        var portrait = w <= h;
+        var long = Math.max(screen.width, screen.height);
+        var short = Math.min(screen.width, screen.height);
+        var fullW = portrait ? short : long;
+        var fullH = portrait ? long : short;
+        // Only correct the known small shortfall on a full-screen window;
+        // leave iPad windowing / split view alone.
+        if (w === fullW && fullH > h && fullH - h <= 100) h = fullH;
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      setAppHeight();
+      window.addEventListener('resize', setAppHeight);
+      window.addEventListener('orientationchange', function () { setTimeout(setAppHeight, 300); });
+    })();
   </script>
   <script>
     window.canInstall = false;
