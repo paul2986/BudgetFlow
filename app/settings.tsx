@@ -312,8 +312,8 @@ export default function SettingsScreen() {
         onConfirm={async () => {
           setDeletingAccount(true);
           try {
+            // Signs out; AuthGuard then shows the "Account deleted" screen.
             await deleteAccount();
-            showToast('Account deleted', 'success');
             setConfirmDeleteVisible(false);
           } catch (error) {
             console.error('Settings: Delete account error:', error);
