@@ -102,7 +102,7 @@ export const lightColors: ColorTokens = {
   loan: '#0E7490',
   loanSubtle: '#ECFEFF',
   overlay: 'rgba(15,23,42,0.5)',
-  chrome: 'rgba(255,255,255,0.82)',
+  chrome: 'rgba(255,255,255,0.72)',
 };
 
 export const darkColors: ColorTokens = {
@@ -142,7 +142,7 @@ export const darkColors: ColorTokens = {
   loan: '#67E8F9',
   loanSubtle: '#164E634D',
   overlay: 'rgba(2,6,23,0.65)',
-  chrome: 'rgba(21,30,46,0.82)',
+  chrome: 'rgba(21,30,46,0.72)',
 };
 
 /**

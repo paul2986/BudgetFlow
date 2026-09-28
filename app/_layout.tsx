@@ -67,11 +67,11 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          height: var(--app-height, 100dvh);
+          height: var(--app-height, 100lvh);
           background-color: ${tokens.colors.bg} !important;
         }
         #root {
-          height: var(--app-height, 100dvh);
+          height: var(--app-height, 100lvh);
           width: 100%;
           display: flex;
           flex-direction: column;
@@ -128,31 +128,13 @@ function RootLayoutContent() {
       {Platform.OS === 'web' && bp.isCompact ? (
         // Status-bar band, painted in the header's surface so status bar
         // and header read as one bar; the auth screens have no header, so
-        // they keep the page bg.
+        // they keep the page bg. In the iOS home-screen app it also holds a
+        // small --status-gap (index.html) so header text sits below the
+        // iOS 27 status-bar blur.
         <View
           style={{
-            height: 'env(safe-area-inset-top)' as any,
+            height: 'calc(env(safe-area-inset-top) + var(--status-gap, 0px))' as any,
             backgroundColor: user ? tokens.colors.surface : 'transparent',
-          }}
-        />
-      ) : null}
-      {Platform.OS === 'web' ? (
-        // iOS 27 home-screen apps draw a Liquid Glass blur that ramps well
-        // below the status bar. WebKit swaps it for a flat fill when a fixed
-        // element with a real height and an opaque background-color touches
-        // the top edge. It has to be a real element (a ::before pseudo-element
-        // didn't take on device). Zero-height wherever there's no top inset.
-        <View
-          pointerEvents="none"
-          aria-hidden
-          style={{
-            position: 'fixed' as any,
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 'env(safe-area-inset-top)' as any,
-            backgroundColor: user ? tokens.colors.surface : tokens.colors.bg,
-            zIndex: 2147483647,
           }}
         />
       ) : null}

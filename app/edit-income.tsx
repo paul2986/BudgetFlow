@@ -13,6 +13,7 @@ import CurrencyInput from '../components/CurrencyInput';
 import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
 import { type, space } from '../styles/tokens';
+import { bottomClearance } from '../hooks/useBreakpoint';
 
 export default function EditIncomeScreen() {
   const [income, setIncome] = useState<Income | null>(null);
@@ -230,7 +231,7 @@ export default function EditIncomeScreen() {
     return (
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.s5, paddingBottom: space.s10, gap: space.s5 }}
+        contentContainerStyle={{ padding: space.s5, paddingBottom: bottomClearance(space.s10), gap: space.s5 }}
         keyboardShouldPersistTaps="handled"
       >
         <Input

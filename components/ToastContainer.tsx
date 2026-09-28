@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from './Toast';
 import { ToastMessage } from '../hooks/useToast';
-import { LAYOUT } from '../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance } from '../hooks/useBreakpoint';
 import { space } from '../styles/tokens';
 
 interface ToastContainerProps {
@@ -25,7 +25,7 @@ export default function ToastContainer({ toasts, onHideToast }: ToastContainerPr
   return (
     <View style={styles.container}>
       {toasts.map((toast, index) => (
-        <View key={toast.id} style={[styles.toastWrapper, { bottom: baseOffset + index * 68 }]}>
+        <View key={toast.id} style={[styles.toastWrapper, { bottom: bottomClearance(baseOffset + index * 68) }]}>
           <Toast
             message={toast.message}
             type={toast.type}

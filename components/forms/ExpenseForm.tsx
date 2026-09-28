@@ -4,6 +4,7 @@ import { useBudgetData } from '../../hooks/useBudgetData';
 import { View, Text, ScrollView } from 'react-native';
 import { Alert } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
+import { bottomClearance } from '../../hooks/useBreakpoint';
 import Button from '../Button';
 import CurrencyInput from '../CurrencyInput';
 import { ChoicePills, DateField, Input, SegmentedControl, Sheet } from '../ui';
@@ -211,7 +212,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
         <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: space.s5, paddingBottom: space.s10, gap: space.s5 }}
+            contentContainerStyle={{ padding: space.s5, paddingBottom: bottomClearance(space.s10), gap: space.s5 }}
             keyboardShouldPersistTaps="handled"
         >
             <Input

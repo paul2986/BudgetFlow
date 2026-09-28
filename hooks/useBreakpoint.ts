@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 
 /**
  * Single source of truth for responsive layout classes.
@@ -20,6 +20,19 @@ export const BREAKPOINTS = {
   medium: 640,
   expanded: 1024,
 } as const;
+
+/**
+ * On web the app shell is sized to the large viewport (100lvh) so page
+ * content runs behind a browser's floating bottom toolbar (iOS 26+ Safari),
+ * like a normal scrolling page. Anything anchored to the shell's bottom edge
+ * must then clear that toolbar: this adds its height (100lvh - 100dvh, which
+ * is 0 in home-screen apps and desktop browsers) to a bottom offset/inset.
+ */
+export function bottomClearance(px: number): number {
+  return Platform.OS === 'web'
+    ? (`calc(${px}px + 100lvh - 100dvh)` as unknown as number)
+    : px;
+}
 
 /** Layout chrome dimensions — derive scroll insets from these, never magic numbers. */
 export const LAYOUT = {

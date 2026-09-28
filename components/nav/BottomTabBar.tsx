@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../hooks/useTheme';
-import { LAYOUT } from '../../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import { space, radius, elevation } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -91,7 +91,7 @@ export default function BottomTabBar() {
         // Absolute (not fixed) on web too: iOS standalone PWAs anchor fixed
         // elements to a viewport that is short by the status-bar height.
         position: 'absolute',
-        bottom,
+        bottom: bottomClearance(bottom),
         left: space.s4,
         right: space.s4,
         zIndex: 1000,
@@ -112,7 +112,7 @@ export default function BottomTabBar() {
                   : tokens.colors.chrome,
             // @ts-ignore web blur
             ...(Platform.OS === 'web'
-              ? { backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)' }
+              ? { backdropFilter: 'blur(12px) saturate(160%)', WebkitBackdropFilter: 'blur(12px) saturate(160%)' }
               : {}),
           },
           // Dark mode separates by surface + hairline, not shadow.
@@ -120,7 +120,7 @@ export default function BottomTabBar() {
         ]}
       >
         {Platform.OS === 'ios' ? (
-          <BlurView intensity={80} tint={isDarkMode ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}>
+          <BlurView intensity={60} tint={isDarkMode ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}>
             {tabs}
           </BlurView>
         ) : (

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Platform } from 'react-native';
 import { useTheme } from './useTheme';
-import { useBreakpoint, LAYOUT } from './useBreakpoint';
+import { useBreakpoint, LAYOUT, bottomClearance } from './useBreakpoint';
 import { type, space, radius, elevation, font } from '../styles/tokens';
 
 /**
@@ -37,7 +37,7 @@ export const useThemedStyles = () => {
     },
     scrollContent: {
       // Clearance for the fixed bottom tab bar derives from real chrome sizes.
-      paddingBottom: LAYOUT.tabBarHeight + space.s10,
+      paddingBottom: bottomClearance(LAYOUT.tabBarHeight + space.s10),
       minHeight: '100%',
       paddingHorizontal: bp.isCompact ? 0 : bp.gutter,
     },
