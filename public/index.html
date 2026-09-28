@@ -99,42 +99,6 @@
     })();
   </script>
   <script>
-    // Temporary on-device layout readout: open the app with ?vpdebug.
-    if (/[?&]vpdebug\b/.test(location.search)) {
-      window.addEventListener('load', function () {
-        var box = document.createElement('div');
-        box.style.cssText = 'position:fixed;top:30%;left:8px;right:8px;z-index:2147483647;' +
-          'background:rgba(0,0,0,.8);color:#fff;font:12px/1.35 -apple-system,sans-serif;' +
-          'white-space:pre;padding:8px;border-radius:8px;pointer-events:none';
-        var probe = document.createElement('div');
-        probe.style.cssText = 'position:absolute;visibility:hidden;top:0;width:1px;height:100dvh';
-        document.body.append(box, probe);
-        function r(el) {
-          if (!el) return '-';
-          var b = el.getBoundingClientRect();
-          return Math.round(b.top) + '..' + Math.round(b.bottom) + ' (h ' + Math.round(b.height) + ')';
-        }
-        setInterval(function () {
-          var vv = window.visualViewport;
-          var tabs = document.querySelectorAll('[role=tablist]');
-          var pill = tabs[tabs.length - 1];
-          while (pill && !/fixed|absolute/.test(getComputedStyle(pill).position)) pill = pill.parentElement;
-          box.textContent = [
-            'standalone: ' + navigator.standalone,
-            'screen h: ' + screen.height + '  innerHeight: ' + innerHeight,
-            'visualViewport: h=' + (vv && Math.round(vv.height)) + ' top=' + (vv && Math.round(vv.offsetTop)),
-            '100dvh: ' + Math.round(probe.getBoundingClientRect().height),
-            '--toolbar-overhang: ' + getComputedStyle(document.documentElement).getPropertyValue('--toolbar-overhang'),
-            'scrollY: ' + scrollY,
-            'html: ' + r(document.documentElement),
-            '#root: ' + r(document.getElementById('root')),
-            'pill: ' + r(pill) + ' ' + (pill ? getComputedStyle(pill).position : ''),
-          ].join('\n');
-        }, 500);
-      });
-    }
-  </script>
-  <script>
     window.canInstall = false;
     window.deferredPrompt = null;
 
