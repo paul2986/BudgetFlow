@@ -67,11 +67,11 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          height: var(--app-height, 100lvh);
+          height: var(--app-height, calc(100dvh + var(--toolbar-overhang, 0px)));
           background-color: ${tokens.colors.bg} !important;
         }
         #root {
-          height: var(--app-height, 100lvh);
+          height: var(--app-height, calc(100dvh + var(--toolbar-overhang, 0px)));
           width: 100%;
           display: flex;
           flex-direction: column;

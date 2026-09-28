@@ -22,15 +22,16 @@ export const BREAKPOINTS = {
 } as const;
 
 /**
- * On web the app shell is sized to the large viewport (100lvh) so page
- * content runs behind a browser's floating bottom toolbar (iOS 26+ Safari),
- * like a normal scrolling page. Anything anchored to the shell's bottom edge
- * must then clear that toolbar: this adds its height (100lvh - 100dvh, which
- * is 0 in home-screen apps and desktop browsers) to a bottom offset/inset.
+ * In an iOS 26+ Safari tab the web shell extends below the visible page by
+ * --toolbar-overhang (index.html) so content paints behind Safari's floating
+ * toolbar down to the screen edge. Anything anchored to the shell's bottom
+ * edge must lift back above that band: this adds it to a bottom
+ * offset/inset. The overhang is 0 everywhere else (home-screen apps,
+ * desktop, Android).
  */
 export function bottomClearance(px: number): number {
   return Platform.OS === 'web'
-    ? (`calc(${px}px + 100lvh - 100dvh)` as unknown as number)
+    ? (`calc(${px}px + var(--toolbar-overhang, 0px))` as unknown as number)
     : px;
 }
 

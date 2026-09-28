@@ -21,7 +21,7 @@
     /* These styles make the body full-height */
     html,
     body {
-      height: var(--app-height, 100lvh);
+      height: var(--app-height, calc(100dvh + var(--toolbar-overhang, 0px)));
       background-color: #0B1220;
       /* Prevent white bands on iOS */
     }
@@ -36,7 +36,7 @@
     /* These styles make the root element full-height */
     #root {
       display: flex;
-      height: var(--app-height, 100lvh);
+      height: var(--app-height, calc(100dvh + var(--toolbar-overhang, 0px)));
       flex: 1;
       background-color: #0B1220;
     }
@@ -47,6 +47,33 @@
     // `position: fixed; bottom: 0` stop well above the home indicator. Measure
     // the real screen height and expose it as --app-height for the shell.
     (function () {
+      // navigator.standalone only exists on iOS: false in a Safari tab.
+      if (window.navigator.standalone === false) {
+        // iOS 26+ Safari floats its toolbar over the page and paints
+        // whatever the page draws below its visible area (100dvh) down to
+        // the screen's bottom edge. The shell stops at 100dvh, so that band
+        // was a solid block. Extend the shell past 100dvh by the screen
+        // height the viewport doesn't cover (--toolbar-overhang); the extra
+        // is only visible behind the toolbar, and bottomClearance() lifts
+        // bottom-anchored UI (tab bar, toasts, scroll insets) back above it.
+        var setOverhang = function () {
+          var portrait = window.innerWidth <= window.innerHeight;
+          var fullH = portrait
+            ? Math.max(screen.width, screen.height)
+            : Math.min(screen.width, screen.height);
+          var over = Math.max(0, fullH - window.innerHeight);
+          document.documentElement.style.setProperty('--toolbar-overhang', over + 'px');
+        };
+        setOverhang();
+        window.addEventListener('resize', setOverhang);
+        // The taller shell makes the document scrollable by script (e.g.
+        // iOS scrolling a focused input into view) despite overflow: hidden;
+        // screens scroll inside their own containers, so pin the page at 0.
+        window.addEventListener('scroll', function () {
+          if (window.scrollY !== 0) window.scrollTo(0, 0);
+        }, { passive: true });
+        return;
+      }
       if (window.navigator.standalone !== true) return; // iOS standalone only
       function setAppHeight() {
         var w = window.innerWidth;
