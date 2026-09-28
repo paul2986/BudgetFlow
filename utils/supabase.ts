@@ -64,10 +64,11 @@ export const AUTH_REDIRECT = process.env.EXPO_PUBLIC_AUTH_REDIRECT || 'budgetflo
 export const AUTH_REDIRECT_HTTPS = process.env.EXPO_PUBLIC_AUTH_REDIRECT_HTTPS || 'https://budget-flow-eta.vercel.app/';
 
 /**
- * Where password-reset links return to. On web, the root of the site the
- * request came from (production, a preview or localhost), so no URL needs
- * configuring per environment; it must be in Supabase's redirect allow list.
+ * Where email links (sign-up confirmation, password reset) return to. On web,
+ * the root of the site the request came from (production, a preview or
+ * localhost), so no URL needs configuring per environment; it must be in
+ * Supabase's redirect allow list.
  * The root rather than /auth/callback, whose redirect could drop the URL hash
  * before supabase-js reads the session from it. Native opens the web app.
  */
-export const passwordResetRedirect = () => (isWeb ? `${window.location.origin}/` : AUTH_REDIRECT_HTTPS);
+export const emailLinkRedirect = () => (isWeb ? `${window.location.origin}/` : AUTH_REDIRECT_HTTPS);

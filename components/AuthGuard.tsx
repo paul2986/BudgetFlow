@@ -10,7 +10,8 @@ import {
     Pressable,
     TextInput,
 } from 'react-native';
-import { supabase, passwordResetRedirect, openedFromRecoveryLink, authLinkError } from '../utils/supabase';
+import { supabase, emailLinkRedirect, openedFromRecoveryLink, authLinkError } from '../utils/supabase';
+import { consumeAuthNotice, type AuthNotice } from '../utils/authNotice';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
@@ -24,7 +25,8 @@ import { type, radius, space, elevation } from '../styles/tokens';
  * background animation — with labeled inputs, password visibility toggle,
  * correct autocomplete hints, and a reset-password path. Arriving from a
  * reset email signs the user in; they then choose a new password before
- * reaching the app.
+ * reaching the app. Outcomes that need more than a toast (account created,
+ * account deleted) get their own confirmation screen.
  */
 
 interface AuthGuardProps {
@@ -49,6 +51,16 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     const [newPassword, setNewPassword] = useState('');
     const [newPasswordError, setNewPasswordError] = useState<string>();
     const [savingPassword, setSavingPassword] = useState(false);
+    const [notice, setNotice] = useState<AuthNotice | null>(null);
+    const [confirmationEmail, setConfirmationEmail] = useState<string | null>(null);
+    const [resendingConfirmation, setResendingConfirmation] = useState(false);
+
+    // Pick up a notice left by the sign-out that brought us here.
+    useEffect(() => {
+        if (loading || user) return;
+        const pending = consumeAuthNotice();
+        if (pending) setNotice(pending);
+    }, [loading, user]);
 
     // An email link that failed (e.g. expired) lands back on sign-in; say why.
     useEffect(() => {
@@ -174,16 +186,23 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
 
         setAuthLoading(true);
         try {
-            const { error } = authMode === 'login'
-                ? await supabase.auth.signInWithPassword({ email: email.trim(), password })
-                : await supabase.auth.signUp({ email: email.trim(), password });
-
-            if (error) throw error;
-
-            if (authMode === 'register') {
-                showToast('Account created! Check your email to verify.', 'success');
-            } else {
+            if (authMode === 'login') {
+                const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+                if (error) throw error;
                 showToast('Welcome back!', 'success');
+            } else {
+                const { data, error } = await supabase.auth.signUp({
+                    email: email.trim(),
+                    password,
+                    options: { emailRedirectTo: emailLinkRedirect() },
+                });
+                if (error) throw error;
+                // With email confirmation on there's no session yet: explain the
+                // next step. (If it's off, the new session opens the app.)
+                if (!data.session) {
+                    setConfirmationEmail(email.trim());
+                    setPassword('');
+                }
             }
         } catch (err: any) {
             showToast(err.message || 'Something went wrong. Please try again.', 'error');
@@ -200,7 +219,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
         setResetLoading(true);
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                redirectTo: passwordResetRedirect(),
+                redirectTo: emailLinkRedirect(),
             });
             if (error) throw error;
             showToast('Password reset email sent. Check your inbox.', 'success');
@@ -210,6 +229,74 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
             setResetLoading(false);
         }
     };
+
+    const handleResendConfirmation = async () => {
+        if (!confirmationEmail) return;
+        setResendingConfirmation(true);
+        try {
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email: confirmationEmail,
+                options: { emailRedirectTo: emailLinkRedirect() },
+            });
+            if (error) throw error;
+            showToast('Confirmation email sent again.', 'success');
+        } catch (err: any) {
+            showToast(err.message || 'Couldn’t resend the email. Please try again.', 'error');
+        } finally {
+            setResendingConfirmation(false);
+        }
+    };
+
+    if (notice === 'account-deleted') {
+        return (
+            <AuthShell>
+                <AuthMessage
+                    icon="checkmark"
+                    iconColor={tokens.colors.income}
+                    iconBackground={tokens.colors.incomeSubtle}
+                    title="Account deleted"
+                    body="Your account and every budget, person and expense in it have been permanently deleted."
+                />
+                <Button text="Done" onPress={() => setNotice(null)} variant="primary" size="lg" />
+            </AuthShell>
+        );
+    }
+
+    if (confirmationEmail) {
+        return (
+            <AuthShell>
+                <AuthMessage
+                    icon="mail-unread-outline"
+                    iconColor={tokens.colors.brand}
+                    iconBackground={tokens.colors.brandSubtle}
+                    title="Check your email"
+                    body={`We sent a confirmation link to ${confirmationEmail}. Open it to finish creating your account.`}
+                    caption="Can’t find it? Check your spam or junk folder."
+                />
+                <Button
+                    text="Back to sign in"
+                    onPress={() => {
+                        setConfirmationEmail(null);
+                        setAuthMode('login');
+                    }}
+                    variant="primary"
+                    size="lg"
+                />
+                <Pressable
+                    onPress={handleResendConfirmation}
+                    disabled={resendingConfirmation}
+                    accessibilityRole="button"
+                    accessibilityLabel="Resend confirmation email"
+                    style={{ marginTop: space.s4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
+                >
+                    <Text style={[type.caption, { color: tokens.colors.brand }]}>
+                        {resendingConfirmation ? 'Sending…' : 'Resend email'}
+                    </Text>
+                </Pressable>
+            </AuthShell>
+        );
+    }
 
     return (
         <AuthShell>
@@ -353,6 +440,52 @@ function AuthShell({ children }: { children: React.ReactNode }) {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+        </View>
+    );
+}
+
+interface AuthMessageProps {
+    icon: React.ComponentProps<typeof Icon>['name'];
+    iconColor: string;
+    iconBackground: string;
+    title: string;
+    body: string;
+    caption?: string;
+}
+
+/** A centered icon, heading and explanation for auth confirmation screens. */
+function AuthMessage({ icon, iconColor, iconBackground, title, body, caption }: AuthMessageProps) {
+    const { tokens } = useTheme();
+
+    return (
+        <View style={{ alignItems: 'center', marginBottom: space.s6 }}>
+            <View
+                style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: radius.full,
+                    backgroundColor: iconBackground,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: space.s4,
+                }}
+            >
+                <Icon name={icon} size={28} color={iconColor} />
+            </View>
+            <Text
+                accessibilityRole="header"
+                style={[type.h3, { color: tokens.colors.text, marginBottom: space.s2, textAlign: 'center' }]}
+            >
+                {title}
+            </Text>
+            <Text style={[type.body, { color: tokens.colors.textMuted, textAlign: 'center' }]}>
+                {body}
+            </Text>
+            {caption && (
+                <Text style={[type.caption, { color: tokens.colors.textMuted, textAlign: 'center', marginTop: space.s3 }]}>
+                    {caption}
+                </Text>
+            )}
         </View>
     );
 }
