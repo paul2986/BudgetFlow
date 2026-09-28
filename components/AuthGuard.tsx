@@ -10,7 +10,7 @@ import {
     Pressable,
     TextInput,
 } from 'react-native';
-import { supabase, AUTH_REDIRECT_HTTPS } from '../utils/supabase';
+import { supabase, passwordResetRedirect, openedFromRecoveryLink, authLinkError } from '../utils/supabase';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
@@ -22,7 +22,9 @@ import { type, radius, space, elevation } from '../styles/tokens';
 /**
  * Auth screen (DESIGN.md §2.7 Auth): static calm layout — no infinite
  * background animation — with labeled inputs, password visibility toggle,
- * correct autocomplete hints, and a reset-password path.
+ * correct autocomplete hints, and a reset-password path. Arriving from a
+ * reset email signs the user in; they then choose a new password before
+ * reaching the app.
  */
 
 interface AuthGuardProps {
@@ -43,6 +45,15 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
     const passwordRef = useRef<TextInput>(null);
+    const [recoveryPending, setRecoveryPending] = useState(openedFromRecoveryLink);
+    const [newPassword, setNewPassword] = useState('');
+    const [newPasswordError, setNewPasswordError] = useState<string>();
+    const [savingPassword, setSavingPassword] = useState(false);
+
+    // An email link that failed (e.g. expired) lands back on sign-in; say why.
+    useEffect(() => {
+        if (authLinkError) showToast(authLinkError, 'error', 8000);
+    }, [showToast]);
 
     // Match the page background on web while unauthenticated.
     useEffect(() => {
@@ -61,6 +72,80 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                 <ActivityIndicator size="large" color={tokens.colors.brand} />
                 <Text style={[themedStyles.textSecondary, { marginTop: space.s4 }]}>Loading your session…</Text>
             </View>
+        );
+    }
+
+    const handleSaveNewPassword = async () => {
+        if (newPassword.length < 8) {
+            setNewPasswordError('Use at least 8 characters.');
+            return;
+        }
+        setSavingPassword(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+            setRecoveryPending(false);
+            setNewPassword('');
+            showToast('Password updated', 'success');
+        } catch (err: any) {
+            setNewPasswordError(err.message || 'Couldn’t update your password. Please try again.');
+        } finally {
+            setSavingPassword(false);
+        }
+    };
+
+    if (user && recoveryPending) {
+        return (
+            <AuthShell>
+                <Text
+                    accessibilityRole="header"
+                    style={[type.h3, { color: tokens.colors.text, marginBottom: space.s2 }]}
+                >
+                    Choose a new password
+                </Text>
+                <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s6 }]}>
+                    {user.email ? `For ${user.email}. ` : ''}You’ll use it the next time you sign in.
+                </Text>
+
+                <Input
+                    label="New password"
+                    value={newPassword}
+                    onChangeText={(v) => {
+                        setNewPassword(v);
+                        if (newPasswordError) setNewPasswordError(undefined);
+                    }}
+                    error={newPasswordError}
+                    helperText="At least 8 characters."
+                    placeholder="••••••••"
+                    password
+                    autoFocus
+                    autoComplete="new-password"
+                    textContentType="newPassword"
+                    returnKeyType="go"
+                    onSubmitEditing={() => {
+                        if (!savingPassword) handleSaveNewPassword();
+                    }}
+                    containerStyle={{ marginBottom: space.s6 }}
+                />
+
+                <Button
+                    text="Save password"
+                    onPress={handleSaveNewPassword}
+                    loading={savingPassword}
+                    variant="primary"
+                    size="lg"
+                />
+
+                <Pressable
+                    onPress={() => setRecoveryPending(false)}
+                    disabled={savingPassword}
+                    accessibilityRole="button"
+                    accessibilityLabel="Keep your current password and continue"
+                    style={{ marginTop: space.s4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
+                >
+                    <Text style={[type.caption, { color: tokens.colors.brand }]}>Not now</Text>
+                </Pressable>
+            </AuthShell>
         );
     }
 
@@ -115,7 +200,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
         setResetLoading(true);
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-                redirectTo: AUTH_REDIRECT_HTTPS,
+                redirectTo: passwordResetRedirect(),
             });
             if (error) throw error;
             showToast('Password reset email sent. Check your inbox.', 'success');
@@ -125,6 +210,91 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
             setResetLoading(false);
         }
     };
+
+    return (
+        <AuthShell>
+            <SegmentedControl
+                label="Sign in or create account"
+                options={[
+                    { value: 'login', label: 'Sign in' },
+                    { value: 'register', label: 'Create account' },
+                ]}
+                value={authMode}
+                onChange={(mode) => {
+                    setAuthMode(mode);
+                    setFieldErrors({});
+                }}
+                style={{ marginBottom: space.s6 }}
+            />
+
+            <Input
+                label="Email address"
+                value={email}
+                onChangeText={(v) => {
+                    setEmail(v);
+                    if (fieldErrors.email) setFieldErrors((e) => ({ ...e, email: undefined }));
+                }}
+                error={fieldErrors.email}
+                placeholder="name@example.com"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                textContentType="emailAddress"
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                containerStyle={{ marginBottom: space.s4 }}
+            />
+
+            <Input
+                label="Password"
+                value={password}
+                onChangeText={(v) => {
+                    setPassword(v);
+                    if (fieldErrors.password) setFieldErrors((e) => ({ ...e, password: undefined }));
+                }}
+                error={fieldErrors.password}
+                helperText={authMode === 'register' ? 'At least 8 characters.' : undefined}
+                placeholder="••••••••"
+                password
+                autoComplete={authMode === 'register' ? 'new-password' : 'password'}
+                textContentType={authMode === 'register' ? 'newPassword' : 'password'}
+                ref={passwordRef}
+                returnKeyType="go"
+                onSubmitEditing={() => {
+                    if (!authLoading) handleAuth();
+                }}
+                containerStyle={{ marginBottom: space.s6 }}
+            />
+
+            <Button
+                text={authMode === 'login' ? 'Sign in' : 'Create account'}
+                onPress={handleAuth}
+                loading={authLoading}
+                variant="primary"
+                size="lg"
+            />
+
+            {authMode === 'login' && (
+                <Pressable
+                    onPress={handleResetPassword}
+                    disabled={resetLoading}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send password reset email"
+                    style={{ marginTop: space.s4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
+                >
+                    <Text style={[type.caption, { color: tokens.colors.brand }]}>
+                        {resetLoading ? 'Sending reset email…' : 'Forgot password?'}
+                    </Text>
+                </Pressable>
+            )}
+        </AuthShell>
+    );
+}
+
+/** The centered card, brand header and security note shared by the auth forms. */
+function AuthShell({ children }: { children: React.ReactNode }) {
+    const { tokens } = useTheme();
 
     return (
         <View style={{ flex: 1, backgroundColor: tokens.colors.bg }}>
@@ -172,81 +342,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                             </Text>
                         </View>
 
-                        <SegmentedControl
-                            label="Sign in or create account"
-                            options={[
-                                { value: 'login', label: 'Sign in' },
-                                { value: 'register', label: 'Create account' },
-                            ]}
-                            value={authMode}
-                            onChange={(mode) => {
-                                setAuthMode(mode);
-                                setFieldErrors({});
-                            }}
-                            style={{ marginBottom: space.s6 }}
-                        />
-
-                        <Input
-                            label="Email address"
-                            value={email}
-                            onChangeText={(v) => {
-                                setEmail(v);
-                                if (fieldErrors.email) setFieldErrors((e) => ({ ...e, email: undefined }));
-                            }}
-                            error={fieldErrors.email}
-                            placeholder="name@example.com"
-                            autoCapitalize="none"
-                            keyboardType="email-address"
-                            autoComplete="email"
-                            textContentType="emailAddress"
-                            returnKeyType="next"
-                            submitBehavior="submit"
-                            onSubmitEditing={() => passwordRef.current?.focus()}
-                            containerStyle={{ marginBottom: space.s4 }}
-                        />
-
-                        <Input
-                            label="Password"
-                            value={password}
-                            onChangeText={(v) => {
-                                setPassword(v);
-                                if (fieldErrors.password) setFieldErrors((e) => ({ ...e, password: undefined }));
-                            }}
-                            error={fieldErrors.password}
-                            helperText={authMode === 'register' ? 'At least 8 characters.' : undefined}
-                            placeholder="••••••••"
-                            password
-                            autoComplete={authMode === 'register' ? 'new-password' : 'password'}
-                            textContentType={authMode === 'register' ? 'newPassword' : 'password'}
-                            ref={passwordRef}
-                            returnKeyType="go"
-                            onSubmitEditing={() => {
-                                if (!authLoading) handleAuth();
-                            }}
-                            containerStyle={{ marginBottom: space.s6 }}
-                        />
-
-                        <Button
-                            text={authMode === 'login' ? 'Sign in' : 'Create account'}
-                            onPress={handleAuth}
-                            loading={authLoading}
-                            variant="primary"
-                            size="lg"
-                        />
-
-                        {authMode === 'login' && (
-                            <Pressable
-                                onPress={handleResetPassword}
-                                disabled={resetLoading}
-                                accessibilityRole="button"
-                                accessibilityLabel="Send password reset email"
-                                style={{ marginTop: space.s4, alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
-                            >
-                                <Text style={[type.caption, { color: tokens.colors.brand }]}>
-                                    {resetLoading ? 'Sending reset email…' : 'Forgot password?'}
-                                </Text>
-                            </Pressable>
-                        )}
+                        {children}
                     </View>
 
                     <View style={{ marginTop: space.s6, flexDirection: 'row', alignItems: 'center', gap: space.s2, opacity: 0.8 }}>
