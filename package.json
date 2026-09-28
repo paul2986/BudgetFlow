@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "check:native": "expo install --check && expo export -p ios --output-dir .expo/check-native"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.3",
@@ -18,10 +19,9 @@
     "@expo/config-plugins": "~54.0.1",
     "@expo/metro-runtime": "~6.1.2",
     "@expo/ngrok": "^4.1.3",
-    "@expo/prebuild-config": "latest",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "@react-native-community/datetimepicker": "^8.4.4",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-masked-view/masked-view": "^0.3.2",
     "@react-navigation/drawer": "^7.5.7",
     "@react-navigation/native": "^7.1.17",
@@ -32,19 +32,19 @@
     "difflib": "^0.2.4",
     "eas": "^0.1.0",
     "eas-cli": "^16.17.4",
-    "expo": "~54.0.10",
+    "expo": "~54.0.37",
     "expo-barcode-scanner": "^14.0.1",
     "expo-blur": "^15.0.7",
     "expo-clipboard": "^8.0.7",
-    "expo-constants": "~18.0.9",
+    "expo-constants": "~18.0.14",
     "expo-document-picker": "^14.0.7",
-    "expo-file-system": "^19.0.15",
+    "expo-file-system": "~19.0.24",
     "expo-font": "^14.0.8",
     "expo-haptics": "^15.0.7",
     "expo-image-picker": "^17.0.8",
     "expo-linear-gradient": "^15.0.7",
     "expo-linking": "^8.0.8",
-    "expo-local-authentication": "^17.0.7",
+    "expo-local-authentication": "~17.0.9",
     "expo-router": "^6.0.8",
     "expo-secure-store": "^15.0.7",
     "expo-splash-screen": "^31.0.10",
@@ -55,15 +55,15 @@
     "pako": "^2.1.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-native": "0.81.4",
+    "react-native": "0.81.5",
     "react-native-css-interop": "^0.1.22",
-    "react-native-gesture-handler": "^2.28.0",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "~4.1.2",
-    "react-native-safe-area-context": "^5.6.1",
+    "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "~0.21.1",
-    "react-native-webview": "^13.15.0",
+    "react-native-webview": "13.15.0",
     "react-router-dom": "^7.8.2",
     "workbox-cli": "^7.3.0",
     "workbox-precaching": "^7.3.0",
@@ -74,15 +74,21 @@
     "@types/react": "~19.1.13",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-plugin-transform-remove-console": "^6.9.4",
-    "babel-preset-expo": "^56.0.15",
+    "babel-preset-expo": "~54.0.10",
     "eslint": "^9.39.4",
-    "eslint-config-expo": "^56.0.4",
+    "eslint-config-expo": "~10.0.0",
     "playwright": "^1.60.0",
     "typescript": "^5.8.3",
     "webpack-cli": "^6.0.1"
   },
-  "resolutions": {
-    "@expo/prebuild-config": "latest"
+  "expo": {
+    "install": {
+      "exclude": [
+        "@react-navigation/native",
+        "@react-navigation/native-stack",
+        "@react-navigation/drawer"
+      ]
+    }
   },
   "private": true
 }
