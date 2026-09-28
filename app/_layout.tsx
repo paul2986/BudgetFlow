@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Tabs } from 'expo-router';
 import Head from 'expo-router/head';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Analytics } from '@vercel/analytics/react';
 
 import { useTheme, ThemeProvider } from '../hooks/useTheme';
 import { useToast, ToastProvider } from '../hooks/useToast';
@@ -201,6 +202,7 @@ function AppContent() {
       <ToastProvider>
         <BudgetDataProvider>
           <RootLayoutContent />
+          <Analytics />
         </BudgetDataProvider>
       </ToastProvider>
     </ThemeProvider>
