@@ -67,11 +67,11 @@ function RootLayoutContent() {
           margin: 0;
           padding: 0;
           width: 100%;
-          height: var(--app-height, 100dvh);
+          height: 100dvh;
           background-color: ${tokens.colors.bg} !important;
         }
         #root {
-          height: var(--app-height, 100dvh);
+          height: 100dvh;
           width: 100%;
           display: flex;
           flex-direction: column;
@@ -161,9 +161,7 @@ function RootLayoutContent() {
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
         <meta name="theme-color" content={user ? tokens.colors.surface : tokens.colors.bg} />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </Head>
 
       <StatusBar

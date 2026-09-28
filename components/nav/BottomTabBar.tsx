@@ -88,8 +88,8 @@ export default function BottomTabBar() {
     <View
       pointerEvents="box-none"
       style={{
-        // Absolute (not fixed) on web too: iOS standalone PWAs anchor fixed
-        // elements to a viewport that is short by the status-bar height.
+        // Absolute (not fixed) on web too, so it tracks the app shell's
+        // bottom edge rather than the browser's layout viewport.
         position: 'absolute',
         bottom,
         left: space.s4,
