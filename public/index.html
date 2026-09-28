@@ -160,7 +160,7 @@
             } catch (error) {
               console.error('Error checking for updates:', error);
             }
-          }, 200);
+          }, 30000);
 
           // Listen for updates
           registration.addEventListener('updatefound', () => {
