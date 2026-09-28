@@ -22,6 +22,18 @@ export const BREAKPOINTS = {
 } as const;
 
 /**
+ * True in an iOS Safari tab (navigator.standalone exists only on iOS and is
+ * false outside the home-screen app). There, position: fixed; bottom
+ * resolves to the visible page bottom just above Safari's floating toolbar,
+ * so bottom UI (tab bar, toasts) is pinned with fixed rather than offset
+ * from the taller shell.
+ */
+export const IS_IOS_SAFARI_TAB =
+  Platform.OS === 'web' &&
+  typeof navigator !== 'undefined' &&
+  (navigator as any).standalone === false;
+
+/**
  * In an iOS 26+ Safari tab the web shell extends below the visible page by
  * --toolbar-overhang (index.html) so content paints behind Safari's floating
  * toolbar down to the screen edge. Anything anchored to the shell's bottom

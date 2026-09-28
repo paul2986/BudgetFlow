@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../hooks/useTheme';
-import { LAYOUT, bottomClearance } from '../../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import { space, radius, elevation } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -88,10 +88,11 @@ export default function BottomTabBar() {
     <View
       pointerEvents="box-none"
       style={{
-        // Absolute (not fixed) on web too: iOS standalone PWAs anchor fixed
-        // elements to a viewport that is short by the status-bar height.
-        position: 'absolute',
-        bottom: bottomClearance(bottom),
+        // Safari tab: fixed to the visible page bottom, above the floating
+        // toolbar. Elsewhere absolute to the shell (iOS home-screen apps
+        // once anchored fixed elements to a short viewport).
+        position: IS_IOS_SAFARI_TAB ? ('fixed' as any) : 'absolute',
+        bottom: IS_IOS_SAFARI_TAB ? bottom : bottomClearance(bottom),
         left: space.s4,
         right: space.s4,
         zIndex: 1000,
