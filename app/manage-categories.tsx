@@ -1,19 +1,20 @@
 
 import { useEffect, useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ScrollView } from 'react-native';
+import { Alert } from '../utils/alert';
 import StandardHeader from '../components/StandardHeader';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
-import Icon from '../components/Icon';
 import { DEFAULT_CATEGORIES } from '../types/budget';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName, renameCustomExpenseCategory } from '../utils/storage';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router } from 'expo-router';
-import Button from '../components/Button';
+import { Chip, EmptyState, IconButton, Input, ListGroup, ListRow, Sheet, Skeleton } from '../components/ui';
+import { space } from '../styles/tokens';
 
 export default function ManageCategoriesScreen() {
-  const { themedStyles } = useThemedStyles();
-  const { currentColors } = useTheme();
+  const { themedStyles, breakpoint } = useThemedStyles();
+  const { tokens } = useTheme();
   const { data, refreshData } = useBudgetData();
 
   const [customs, setCustoms] = useState<string[]>([]);
@@ -167,373 +168,133 @@ export default function ManageCategoriesScreen() {
     setNewCategoryInput('');
   };
 
+  const usageCount = (category: string) => {
+    const normalized = normalizeCategoryName(category);
+    return (data?.expenses || []).filter((e) => normalizeCategoryName((e as any).categoryTag || 'Misc') === normalized).length;
+  };
+
   return (
     <View style={themedStyles.container}>
-      <StandardHeader 
-        title="Manage Categories" 
-        onLeftPress={() => router.back()} 
-        showRightIcon={false} 
+      <StandardHeader
+        title="Categories"
+        onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/settings'))}
+        rightButtons={[{ icon: 'add', onPress: handleCreateCategory, accessibilityLabel: 'New category' }]}
       />
 
-      <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 0, paddingTop: 16 }]}>
-        <View style={themedStyles.section}>
-          <Text style={themedStyles.subtitle}>Default Categories</Text>
-          <View style={themedStyles.card}>
-            <Text style={[themedStyles.textSecondary, { marginBottom: 12 }]}>Defaults cannot be deleted.</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+      >
+        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+          {loading ? (
+            <ListGroup header="Your categories">
+              <View style={{ padding: space.s4, gap: space.s3 }}>
+                <Skeleton width="60%" />
+                <Skeleton width="40%" />
+              </View>
+            </ListGroup>
+          ) : customs.length === 0 ? (
+            <ListGroup header="Your categories">
+              <EmptyState
+                icon="pricetags-outline"
+                title="No custom categories"
+                caption="Add your own to tag expenses beyond the built-in set."
+                actionLabel="New category"
+                onAction={handleCreateCategory}
+              />
+            </ListGroup>
+          ) : (
+            <ListGroup header="Your categories" footer="Tap a category to rename it. Categories in use can't be deleted.">
+              {customs.map((c, i) => {
+                const count = usageCount(c);
+                return (
+                  <ListRow
+                    key={c}
+                    title={c}
+                    caption={count > 0 ? `Used by ${count} ${count === 1 ? 'expense' : 'expenses'}` : 'Not used yet'}
+                    icon="pricetag-outline"
+                    onPress={() => handleRename(c)}
+                    accessibilityLabel={`${c}, rename`}
+                    accessory={
+                      <IconButton
+                        icon="trash-outline"
+                        accessibilityLabel={count > 0 ? `${c} is in use and can't be deleted` : `Delete ${c}`}
+                        onPress={() => handleDelete(c)}
+                        disabled={count > 0}
+                        color={count > 0 ? tokens.colors.textFaint : tokens.colors.danger}
+                      />
+                    }
+                    showSeparator={i < customs.length - 1}
+                  />
+                );
+              })}
+            </ListGroup>
+          )}
+
+          <ListGroup header="Built in" footer="Built-in categories are always available and can't be changed.">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s2, padding: space.s4 }}>
               {DEFAULT_CATEGORIES.map((c) => (
-                <View
-                  key={c}
-                  style={[
-                    themedStyles.badge,
-                    {
-                      backgroundColor: currentColors.border,
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 16,
-                      marginRight: 8,
-                      marginBottom: 8,
-                    },
-                  ]}
-                >
-                  <Text style={[themedStyles.badgeText, { color: currentColors.text, fontSize: 12 }]}>{c}</Text>
-                </View>
+                <Chip key={c} label={c} />
               ))}
             </View>
-          </View>
-        </View>
-
-        <View style={themedStyles.section}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <Text style={themedStyles.subtitle}>Custom Categories</Text>
-            <TouchableOpacity
-              onPress={handleCreateCategory}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                backgroundColor: currentColors.primary,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 20,
-              }}
-              accessibilityLabel="Add new category"
-              accessibilityRole="button"
-            >
-              <Icon name="add" size={16} style={{ color: 'white', marginRight: 4 }} />
-              <Text style={{ color: 'white', fontSize: 12, fontWeight: '600' }}>Add New</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={themedStyles.card}>
-            {loading ? (
-              <Text style={themedStyles.textSecondary}>Loading...</Text>
-            ) : customs.length === 0 ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <Text style={[themedStyles.textSecondary, { textAlign: 'center', marginBottom: 16 }]}>
-                  No custom categories yet.
-                </Text>
-                <TouchableOpacity
-                  onPress={handleCreateCategory}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: currentColors.primary + '15',
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: currentColors.primary + '30',
-                  }}
-                >
-                  <Icon name="add" size={20} style={{ color: currentColors.primary, marginRight: 8 }} />
-                  <Text style={{ color: currentColors.primary, fontSize: 14, fontWeight: '600' }}>Create Your First Category</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              customs.map((c) => {
-                const used = isInUse(c);
-                return (
-                  <View
-                    key={c}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 12,
-                      borderBottomWidth: customs.indexOf(c) === customs.length - 1 ? 0 : 1,
-                      borderBottomColor: currentColors.border,
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <View
-                        style={[
-                          themedStyles.badge,
-                          {
-                            backgroundColor: currentColors.secondary + '20',
-                            paddingHorizontal: 10,
-                            paddingVertical: 6,
-                            borderRadius: 16,
-                            marginRight: 12,
-                            borderWidth: 1,
-                            borderColor: currentColors.secondary,
-                          },
-                        ]}
-                      >
-                        <Text style={[themedStyles.text, { color: currentColors.secondary, fontSize: 12, fontWeight: '700' }]}>{c}</Text>
-                      </View>
-                      {used && <Text style={[themedStyles.textSecondary, { color: currentColors.warning }]}>In use</Text>}
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <TouchableOpacity
-                        onPress={() => handleRename(c)}
-                        style={{
-                          padding: 10,
-                          borderRadius: 8,
-                          backgroundColor: currentColors.primary + '15',
-                          marginRight: 8,
-                        }}
-                        accessibilityLabel={`Rename ${c}`}
-                        accessibilityRole="button"
-                      >
-                        <Icon name="pencil-outline" size={20} style={{ color: currentColors.primary }} />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleDelete(c)}
-                        disabled={used}
-                        style={{
-                          padding: 10,
-                          borderRadius: 8,
-                          backgroundColor: used ? currentColors.border : currentColors.error + '15',
-                        }}
-                        accessibilityLabel={`Delete ${c}`}
-                        accessibilityRole="button"
-                      >
-                        <Icon 
-                          name="trash-outline" 
-                          size={20} 
-                          style={{ color: used ? currentColors.textSecondary : currentColors.error }} 
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                );
-              })
-            )}
-          </View>
+          </ListGroup>
         </View>
       </ScrollView>
 
-      {/* Rename Category Modal */}
-      <Modal
-        visible={renameModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleRenameCancel}
-      >
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={{
-            flex: 1,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingHorizontal: 20,
-          }}>
-            <View style={[
-              themedStyles.card,
-              {
-                width: '100%',
-                maxWidth: 400,
-                padding: 24,
-                borderRadius: 16,
-                backgroundColor: currentColors.background,
-              }
-            ]}>
-              <Text style={[
-                themedStyles.title, 
-                { 
-                  marginBottom: 8, 
-                  textAlign: 'center',
-                  color: currentColors.text,
-                  fontSize: 20,
-                  fontWeight: '700'
-                }
-              ]}>
-                Rename Category
-              </Text>
-              <Text style={[
-                themedStyles.textSecondary, 
-                { 
-                  marginBottom: 20, 
-                  textAlign: 'center',
-                  color: currentColors.textSecondary,
-                  fontSize: 14
-                }
-              ]}>
-                Enter a new name for "{categoryToRename}"
-              </Text>
-
-              <View style={{ marginBottom: 24 }}>
-                <Text style={[
-                  themedStyles.label, 
-                  { 
-                    marginBottom: 8,
-                    color: currentColors.text,
-                    fontSize: 16,
-                    fontWeight: '600'
-                  }
-                ]}>
-                  Category Name
-                </Text>
-                <TextInput
-                  style={[
-                    themedStyles.input,
-                    {
-                      borderColor: currentColors.border,
-                      borderWidth: 1,
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 12,
-                      fontSize: 16,
-                      color: currentColors.text,
-                      backgroundColor: currentColors.background,
-                    }
-                  ]}
-                  value={newCategoryName}
-                  onChangeText={setNewCategoryName}
-                  placeholder="Enter category name"
-                  placeholderTextColor={currentColors.textSecondary}
-                  maxLength={20}
-                  autoFocus={true}
-                  selectTextOnFocus={true}
-                />
-              </View>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-                <Button
-                  text="Cancel"
-                  onPress={handleRenameCancel}
-                  variant="outline"
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  text={renaming ? "Renaming..." : "Rename"}
-                  onPress={handleRenameSubmit}
-                  disabled={!newCategoryName.trim() || newCategoryName.trim() === categoryToRename || renaming}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Create Category Modal */}
-      <Modal
+      <Sheet
         visible={createModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={handleCreateCancel}
+        onClose={handleCreateCancel}
+        title="New category"
+        leadingAction={{ label: 'Cancel', onPress: handleCreateCancel, disabled: creating }}
+        trailingAction={{ label: 'Add', onPress: handleCreateSubmit, disabled: !newCategoryInput.trim() || creating }}
+        width={420}
       >
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={{
-            flex: 1,
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            paddingHorizontal: 20,
-          }}>
-            <View style={[
-              themedStyles.card,
-              {
-                width: '100%',
-                maxWidth: 400,
-                padding: 24,
-                borderRadius: 16,
-                backgroundColor: currentColors.background,
-              }
-            ]}>
-              <Text style={[
-                themedStyles.title, 
-                { 
-                  marginBottom: 8, 
-                  textAlign: 'center',
-                  color: currentColors.text,
-                  fontSize: 20,
-                  fontWeight: '700'
-                }
-              ]}>
-                Create New Category
-              </Text>
-              <Text style={[
-                themedStyles.textSecondary, 
-                { 
-                  marginBottom: 20, 
-                  textAlign: 'center',
-                  color: currentColors.textSecondary,
-                  fontSize: 14
-                }
-              ]}>
-                Enter a name for your new custom category
-              </Text>
+        <View style={{ padding: space.s5 }}>
+          <Input
+            label="Name"
+            value={newCategoryInput}
+            onChangeText={setNewCategoryInput}
+            placeholder="e.g. Pets"
+            autoFocus
+            maxLength={30}
+            editable={!creating}
+            returnKeyType="done"
+            onSubmitEditing={handleCreateSubmit}
+          />
+        </View>
+      </Sheet>
 
-              <View style={{ marginBottom: 24 }}>
-                <Text style={[
-                  themedStyles.label, 
-                  { 
-                    marginBottom: 8,
-                    color: currentColors.text,
-                    fontSize: 16,
-                    fontWeight: '600'
-                  }
-                ]}>
-                  Category Name
-                </Text>
-                <TextInput
-                  style={[
-                    themedStyles.input,
-                    {
-                      borderColor: currentColors.border,
-                      borderWidth: 1,
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      paddingVertical: 12,
-                      fontSize: 16,
-                      color: currentColors.text,
-                      backgroundColor: currentColors.background,
-                    }
-                  ]}
-                  value={newCategoryInput}
-                  onChangeText={setNewCategoryInput}
-                  placeholder="Enter category name"
-                  placeholderTextColor={currentColors.textSecondary}
-                  maxLength={20}
-                  autoFocus={true}
-                />
-              </View>
-
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-                <Button
-                  text="Cancel"
-                  onPress={handleCreateCancel}
-                  variant="outline"
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  text={creating ? "Creating..." : "Create"}
-                  onPress={handleCreateSubmit}
-                  disabled={!newCategoryInput.trim() || creating}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+      <Sheet
+        visible={renameModalVisible}
+        onClose={handleRenameCancel}
+        title="Rename category"
+        leadingAction={{ label: 'Cancel', onPress: handleRenameCancel, disabled: renaming }}
+        trailingAction={{
+          label: 'Save',
+          onPress: handleRenameSubmit,
+          disabled: !newCategoryName.trim() || newCategoryName.trim() === categoryToRename || renaming,
+        }}
+        width={420}
+      >
+        <View style={{ padding: space.s5 }}>
+          <Input
+            label="Name"
+            value={newCategoryName}
+            onChangeText={setNewCategoryName}
+            autoFocus
+            selectTextOnFocus
+            maxLength={30}
+            editable={!renaming}
+            returnKeyType="done"
+            onSubmitEditing={handleRenameSubmit}
+            helperText={
+              usageCount(categoryToRename) > 0
+                ? `Renaming updates ${usageCount(categoryToRename)} ${usageCount(categoryToRename) === 1 ? 'expense' : 'expenses'}.`
+                : undefined
+            }
+          />
+        </View>
+      </Sheet>
     </View>
   );
 }

@@ -67,10 +67,13 @@ export const useThemedStyles = () => {
       borderRadius: radius.lg,
       padding: bp.isExpanded ? space.s6 : bp.isMedium ? space.s5 : space.s4,
       marginBottom: space.s4,
+      // Fill, not stroke (matches ui/Card). The transparent 1px border keeps
+      // legacy layouts stable and lets screens that set a borderColor for
+      // selection state keep working.
       borderWidth: 1,
-      borderColor: tokens.colors.border,
+      borderColor: 'transparent',
       width: '100%',
-      ...elevation.e1,
+      ...(tokens.isDark ? null : elevation.e1),
     },
     row: {
       flexDirection: 'row',

@@ -1,11 +1,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from './Icon';
 import Button from './Button';
-import StandardHeader from './StandardHeader';
+import { HEADER_HEIGHT } from './StandardHeader';
+import { Sheet } from './ui';
+import { type, space, radius, tabularNums } from '../styles/tokens';
+import { haptics } from '../utils/haptics';
 import { DEFAULT_CATEGORIES } from '../types/budget';
 import { normalizeCategoryName } from '../utils/storage';
 
@@ -59,8 +61,7 @@ export default function ExpenseFilterModal({
   onClearFilters,
   announceFilter,
 }: ExpenseFilterModalProps) {
-  const { currentColors, isDarkMode } = useTheme();
-  const { themedStyles, isPad } = useThemedStyles();
+  const { tokens } = useTheme();
 
   // FIXED: Local state for temporary filter values (applied when "Apply Filters" is pressed)
   const [tempFilter, setTempFilter] = useState<'all' | 'household' | 'personal'>('all');
@@ -406,7 +407,8 @@ export default function ExpenseFilterModal({
     setTempFilter('all');
     setTempPersonFilter(null);
     setTempCategoryFilters([]);
-    setTempSearchQuery('');
+    // Search lives on the Expenses screen now; resetting the sheet keeps it.
+    setTempSearchQuery(searchQuery);
     setTempHasEndDateFilter(false);
     setTempDebtFilter('all');
   };
@@ -421,746 +423,192 @@ export default function ExpenseFilterModal({
     });
   };
 
-  // FIXED: Common styles for all tappable filter options (compact and blue) - removed flex and width constraints
-  const getFilterButtonStyle = (isSelected: boolean) => ({
-    backgroundColor: isSelected ? currentColors.secondary : currentColors.backgroundAlt,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    borderWidth: isSelected ? 2 : 1,
-    borderColor: isSelected ? currentColors.secondary : currentColors.border,
-    boxShadow: isSelected ? '0px 2px 4px rgba(0,0,0,0.1)' : 'none',
-    minHeight: 40,
-    flexDirection: 'row' as const,
-    marginRight: 8,
-    marginBottom: 8,
-  });
+  // Result count with every pending choice applied (debt counts already
+  // include the other temp filters), shown live on the primary button.
+  const previewCount = expenseCounts.debt[tempDebtFilter];
+  const sheetFiltersActive =
+    tempCategoryFilters.length > 0 || tempFilter !== 'all' || !!tempPersonFilter || tempHasEndDateFilter || tempDebtFilter !== 'all';
 
-  const getFilterTextStyle = (isSelected: boolean) => ({
-    color: isSelected ? '#FFFFFF' : currentColors.text,
-    fontWeight: '600' as const,
-    fontSize: 13,
-    textAlign: 'center' as const,
-  });
+  const content = (
+    <ScrollView
+      style={{ flexShrink: 1 }}
+      contentContainerStyle={{ padding: space.s5, paddingBottom: space.s3 }}
+      showsVerticalScrollIndicator={false}
+    >
+      <Section title="Type">
+        {(['all', 'household', 'personal'] as const).map((t) => (
+          <OptionChip
+            key={t}
+            label={t === 'all' ? 'All' : t === 'household' ? 'Household' : 'Personal'}
+            icon={t === 'household' ? 'home-outline' : t === 'personal' ? 'person-outline' : undefined}
+            count={expenseCounts.expenseTypes[t]}
+            selected={tempFilter === t}
+            onPress={() => {
+              setTempFilter(t);
+              if (t !== 'personal') setTempPersonFilter(null);
+            }}
+          />
+        ))}
+      </Section>
 
-  const getCountBubbleStyle = (isSelected: boolean) => ({
-    backgroundColor: isSelected ? '#FFFFFF' + '20' : currentColors.textSecondary + '20',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-    marginLeft: 6,
-  });
+      {people.length > 0 ? (
+        <Section title="Person">
+          <OptionChip
+            label="Everyone"
+            count={expenseCounts.allPeople}
+            selected={tempPersonFilter === null}
+            onPress={() => setTempPersonFilter(null)}
+          />
+          {people.map((person) => (
+            <OptionChip
+              key={person.id}
+              label={person.name}
+              count={expenseCounts.people[person.id] || 0}
+              selected={tempPersonFilter === person.id}
+              onPress={() => setTempPersonFilter(person.id)}
+            />
+          ))}
+        </Section>
+      ) : null}
 
-  const getCountTextStyle = (isSelected: boolean) => ({
-    color: isSelected ? '#FFFFFF' : currentColors.textSecondary,
-    fontSize: 11,
-    fontWeight: '600' as const,
-    textAlign: 'center' as const,
-  });
+      <Section title="Debt repayments">
+        {(
+          [
+            ['all', 'All'],
+            ['any', 'Any debt'],
+            ['loan', 'Loans'],
+            ['mortgage', 'Mortgages'],
+            ['credit_card', 'Credit cards'],
+          ] as const
+        ).map(([value, label]) => (
+          <OptionChip
+            key={value}
+            label={label}
+            count={expenseCounts.debt[value]}
+            selected={tempDebtFilter === value}
+            onPress={() => setTempDebtFilter(value)}
+          />
+        ))}
+      </Section>
 
-  // Count bubble component
-  const CountBubble = ({ count, isSelected }: { count: number; isSelected: boolean }) => (
-    <View style={getCountBubbleStyle(isSelected)}>
-      <Text style={getCountTextStyle(isSelected)}>
-        {count}
-      </Text>
-    </View>
+      <Section title="End date">
+        <OptionChip
+          label="Only with an end date"
+          icon="timer-outline"
+          count={expenseCounts.endDate.with}
+          selected={tempHasEndDateFilter}
+          onPress={() => setTempHasEndDateFilter(!tempHasEndDateFilter)}
+        />
+      </Section>
+
+      <Section
+        title="Categories"
+        note={tempCategoryFilters.length > 0 ? `${tempCategoryFilters.length} selected` : 'Pick one or more'}
+      >
+        <OptionChip
+          label="All categories"
+          count={expenseCounts.allCategories}
+          selected={tempCategoryFilters.length === 0}
+          onPress={() => setTempCategoryFilters([])}
+        />
+        {availableCategories.map((cat) => (
+          <OptionChip
+            key={cat}
+            label={cat}
+            count={expenseCounts.categories[cat] || 0}
+            selected={tempCategoryFilters.includes(cat)}
+            onPress={() => handleCategoryToggle(cat)}
+          />
+        ))}
+      </Section>
+    </ScrollView>
   );
 
-  // FIXED: FilterButton component with content-based width
-  const FilterButton = ({ filterType, label }: { filterType: 'all' | 'household' | 'personal'; label: string }) => {
-    const isSelected = tempFilter === filterType;
-    const count = expenseCounts.expenseTypes[filterType];
-
-    return (
-      <TouchableOpacity
-        style={getFilterButtonStyle(isSelected)}
-        onPress={() => {
-          console.log('ExpenseFilterModal: FilterButton pressed:', filterType, 'current tempFilter:', tempFilter);
-          setTempFilter(filterType);
-          // FIXED: Clear person filter when switching to 'all' or 'household'
-          if (filterType !== 'personal') {
-            setTempPersonFilter(null);
-          }
-        }}
-        activeOpacity={0.7}
-      >
-        <Text style={getFilterTextStyle(isSelected)}>
-          {label}
-        </Text>
-        <CountBubble count={count} isSelected={isSelected} />
-      </TouchableOpacity>
-    );
-  };
-
-  const DebtFilterButton = ({ debtFilterType, label }: { debtFilterType: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'; label: string }) => {
-    const isSelected = tempDebtFilter === debtFilterType;
-    const count = expenseCounts.debt[debtFilterType];
-
-    return (
-      <TouchableOpacity
-        style={getFilterButtonStyle(isSelected)}
-        onPress={() => {
-          console.log('ExpenseFilterModal: DebtFilterButton pressed:', debtFilterType);
-          setTempDebtFilter(debtFilterType);
-        }}
-        activeOpacity={0.7}
-      >
-        <Text style={getFilterTextStyle(isSelected)}>
-          {label}
-        </Text>
-        <CountBubble count={count} isSelected={isSelected} />
-      </TouchableOpacity>
-    );
-  };
-
-  // FIXED: PersonButton component with content-based width
-  const PersonButton = ({ personId, label, count }: { personId: string | null; label: string; count: number }) => {
-    const isSelected = tempPersonFilter === personId;
-
-    return (
-      <TouchableOpacity
-        style={getFilterButtonStyle(isSelected)}
-        onPress={() => {
-          console.log('ExpenseFilterModal: Person selected:', label);
-          setTempPersonFilter(personId);
-        }}
-      >
-        <Text style={getFilterTextStyle(isSelected)}>
-          {label}
-        </Text>
-        <CountBubble count={count} isSelected={isSelected} />
-      </TouchableOpacity>
-    );
-  };
-
-  // FIXED: CategoryButton component with content-based width
-  const CategoryButton = ({ category, count }: { category: string; count: number }) => {
-    const isSelected = tempCategoryFilters.includes(category);
-
-    return (
-      <TouchableOpacity
-        style={getFilterButtonStyle(isSelected)}
-        onPress={() => {
-          console.log('ExpenseFilterModal: Category toggled:', category);
-          handleCategoryToggle(category);
-        }}
-        accessibilityLabel={`Toggle category ${category}${isSelected ? ', selected' : ''}`}
-      >
-        {isSelected && (
-          <Icon name="checkmark" size={12} style={{ color: '#FFFFFF', marginRight: 4 }} />
-        )}
-        <Text style={getFilterTextStyle(isSelected)}>
-          {category}
-        </Text>
-        <CountBubble count={count} isSelected={isSelected} />
-      </TouchableOpacity>
-    );
-  };
-
-  if (isPad) {
-    if (!visible) return null;
-    return (
-      <>
-        {/* Backdrop for click outside to close */}
-        <Pressable
-          onPress={handleCancel}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 999,
-            backgroundColor: 'transparent',
-          }}
-        />
-        {/* Floating Popover Container */}
-        <View style={{
-          position: 'absolute',
-          top: 84, // Anchored below the Filters button with a clean 8px gap
-          right: 32, // Aligned with the right margin of the header toolbar and card table
-          width: 380,
-          maxHeight: 640,
-          backgroundColor: isDarkMode ? currentColors.backgroundAlt : '#FFFFFF',
-          borderRadius: 16,
-          borderWidth: 1,
-          borderColor: currentColors.border,
-          zIndex: 1000,
-          shadowColor: '#000000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.12,
-          shadowRadius: 24,
-          elevation: 8,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          {/* Popover Header */}
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 16,
-            paddingVertical: 14,
-            borderBottomWidth: 1,
-            borderBottomColor: currentColors.border,
-            backgroundColor: currentColors.backgroundAlt,
-          }}>
-            <Text style={[themedStyles.text, { fontSize: 16, fontWeight: '700' }]}>Filters</Text>
-            <TouchableOpacity onPress={handleCancel}>
-              <Icon name="close" size={18} style={{ color: currentColors.textSecondary }} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Scrollable Popover Content */}
-          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 16 }}>
-            {/* Search */}
-            <View>
-              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Search</Text>
-              <TextInput
-                style={[themedStyles.input, { marginBottom: 0 }]}
-                placeholder="Search by description"
-                placeholderTextColor={currentColors.textSecondary}
-                value={tempSearchQuery}
-                onChangeText={setTempSearchQuery}
-              />
-            </View>
-
-            {/* Expense Type */}
-            <View>
-              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Expense Type</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-                <FilterButton filterType="all" label="All" />
-                <FilterButton filterType="household" label="Household" />
-                <FilterButton filterType="personal" label="Personal" />
-              </View>
-            </View>
-
-            {/* Expiration */}
-            <View>
-              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Expiration</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-                <TouchableOpacity
-                  style={getFilterButtonStyle(tempHasEndDateFilter)}
-                  onPress={() => setTempHasEndDateFilter(!tempHasEndDateFilter)}
-                >
-                  <Icon
-                    name="timer-outline"
-                    size={14}
-                    style={{
-                      color: tempHasEndDateFilter ? '#FFFFFF' : currentColors.text,
-                      marginRight: 6
-                    }}
-                  />
-                  <Text style={getFilterTextStyle(tempHasEndDateFilter)}>
-                    Only expenses with end dates
-                  </Text>
-                  <CountBubble count={expenseCounts.endDate.with} isSelected={tempHasEndDateFilter} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Debt Repayments */}
-            <View>
-              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Debt Repayments</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-                <DebtFilterButton debtFilterType="all" label="All" />
-                <DebtFilterButton debtFilterType="any" label="Any Debt" />
-                <DebtFilterButton debtFilterType="loan" label="Loans" />
-                <DebtFilterButton debtFilterType="mortgage" label="Mortgages" />
-                <DebtFilterButton debtFilterType="credit_card" label="Cards" />
-              </View>
-            </View>
-
-            {/* Person Assignee */}
-            {people.length > 0 && (
-              <View>
-                <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Person</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ paddingHorizontal: 4, flexDirection: 'row' }}>
-                    <PersonButton
-                      personId={null}
-                      label="All People"
-                      count={expenseCounts.allPeople}
-                    />
-                    {people.map((person) => (
-                      <PersonButton
-                        key={person.id}
-                        personId={person.id}
-                        label={person.name}
-                        count={expenseCounts.people[person.id] || 0}
-                      />
-                    ))}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
-
-            {/* Category Tags */}
-            <View>
-              <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>
-                Categories {tempCategoryFilters.length > 0 && `(${tempCategoryFilters.length} selected)`}
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 8 }}>
-                <TouchableOpacity
-                  style={getFilterButtonStyle(tempCategoryFilters.length === 0)}
-                  onPress={() => setTempCategoryFilters([])}
-                >
-                  <Text style={getFilterTextStyle(tempCategoryFilters.length === 0)}>
-                    All Categories
-                  </Text>
-                  <CountBubble count={expenseCounts.allCategories} isSelected={tempCategoryFilters.length === 0} />
-                </TouchableOpacity>
-              </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-                {availableCategories.map((cat) => (
-                  <View key={cat} style={{ margin: 4 }}>
-                    <CategoryButton
-                      category={cat}
-                      count={expenseCounts.categories[cat] || 0}
-                    />
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            {/* Active filter summary preview */}
-            {hasActiveFilters && (
-              <View>
-                <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 14 }]}>Preview Filters</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {tempCategoryFilters.length > 0 && (
-                      <View style={[themedStyles.badge, { backgroundColor: currentColors.secondary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.secondary }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Icon name="pricetag-outline" size={14} style={{ color: currentColors.secondary, marginRight: 6 }} />
-                          <Text style={[themedStyles.text, { color: currentColors.secondary, fontSize: 12 }]}>
-                            {tempCategoryFilters.length === 1 ? tempCategoryFilters[0] : `${tempCategoryFilters.length} categories`}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                    {!!tempSearchQuery.trim() && (
-                      <View style={[themedStyles.badge, { backgroundColor: currentColors.primary + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.primary }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Icon name="search-outline" size={14} style={{ color: currentColors.primary, marginRight: 6 }} />
-                          <Text style={[themedStyles.text, { color: currentColors.primary, fontSize: 12 }]}>Search: "{tempSearchQuery.trim()}"</Text>
-                        </View>
-                      </View>
-                    )}
-                    {tempFilter !== 'all' && (
-                      <View style={[themedStyles.badge, { backgroundColor: currentColors.household + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.household }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Icon name="people-outline" size={14} style={{ color: currentColors.household, marginRight: 6 }} />
-                          <Text style={[themedStyles.text, { color: currentColors.household, fontSize: 12 }]}>
-                            Type: {tempFilter === 'household' ? 'Household' : 'Personal'}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                    {tempPersonFilter && (
-                      <View style={[themedStyles.badge, { backgroundColor: currentColors.personal + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: currentColors.personal }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Icon name="person-outline" size={14} style={{ color: currentColors.personal, marginRight: 6 }} />
-                          <Text style={[themedStyles.text, { color: currentColors.personal, fontSize: 12 }]}>
-                            Person: {people.find(p => p.id === tempPersonFilter)?.name || 'Unknown'}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                    {tempHasEndDateFilter && (
-                      <View style={[themedStyles.badge, { backgroundColor: '#FF9500' + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: '#FF9500' }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Icon name="timer-outline" size={14} style={{ color: '#FF9500', marginRight: 6 }} />
-                          <Text style={[themedStyles.text, { color: '#FF9500', fontSize: 12 }]}>Has end date</Text>
-                        </View>
-                      </View>
-                    )}
-                    {tempDebtFilter !== 'all' && (
-                      <View style={[themedStyles.badge, { backgroundColor: '#5856D6' + '20', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6, marginRight: 8, borderWidth: 1, borderColor: '#5856D6' }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Icon name="cash-outline" size={14} style={{ color: '#5856D6', marginRight: 6 }} />
-                          <Text style={[themedStyles.text, { color: '#5856D6', fontSize: 12 }]}>
-                            Debt: {tempDebtFilter === 'any' ? 'Any Debt' : tempDebtFilter === 'loan' ? 'Loan' : tempDebtFilter === 'mortgage' ? 'Mortgage' : 'Credit Card'}
-                          </Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                </ScrollView>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* Popover Action Footer */}
-          <View style={{
-            flexDirection: 'row',
-            gap: 12,
-            padding: 16,
-            borderTopWidth: 1,
-            borderTopColor: currentColors.border,
-            backgroundColor: currentColors.backgroundAlt,
-          }}>
-            {hasActiveFilters && (
-              <TouchableOpacity
-                onPress={handleClearFilters}
-                style={{
-                  flex: 1,
-                  height: 40,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: currentColors.error,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'row',
-                  gap: 6,
-                }}
-              >
-                <Icon name="refresh-outline" size={16} style={{ color: currentColors.error }} />
-                <Text style={{ color: currentColors.error, fontWeight: '600', fontSize: 13 }}>Clear</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              onPress={handleApplyFilters}
-              style={{
-                flex: 2,
-                height: 40,
-                backgroundColor: currentColors.primary,
-                borderRadius: 8,
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row',
-                gap: 6,
-              }}
-            >
-              <Icon name="search-outline" size={16} style={{ color: '#FFFFFF' }} />
-              <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 13 }}>
-                {hasActiveFilters ? 'Apply Filters' : 'Show All'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </>
-    );
-  }
-
   return (
-    <Modal
+    <Sheet
       visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={handleCancel}
-    >
-      <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        {/* Header */}
-        <StandardHeader
-          title="Filter & Search"
-          showLeftIcon={true}
-          leftIcon="close"
-          onLeftPress={handleCancel}
-          backgroundColor={currentColors.background}
-          showRightIcon={false}
+      onClose={handleCancel}
+      title="Filters"
+      leadingAction={{ label: 'Cancel', onPress: handleCancel }}
+      trailingAction={{ label: 'Reset', onPress: handleClearFilters, disabled: !sheetFiltersActive }}
+      anchor="headerTrailing"
+      anchorTop={HEADER_HEIGHT + space.s3}
+      width={420}
+      footer={
+        <Button
+          text={previewCount === 1 ? 'Show 1 expense' : `Show ${previewCount} expenses`}
+          onPress={handleApplyFilters}
+          size="lg"
+          style={{ marginTop: 0 }}
         />
+      }
+    >
+      {content}
+    </Sheet>
+  );
+}
 
-        <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 16 }]}>
-          {/* Search input */}
-          <View style={[themedStyles.section, { paddingBottom: 0 }]}>
-            <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600', fontSize: 16 }]}>Search</Text>
-            <TextInput
-              style={[themedStyles.input, { marginBottom: 0 }]}
-              placeholder="Search by description"
-              placeholderTextColor={currentColors.textSecondary}
-              value={tempSearchQuery}
-              onChangeText={setTempSearchQuery}
-              accessibilityLabel="Search expenses"
-            />
-          </View>
-
-          {/* FIXED: Expense type filter buttons with content-based width */}
-          <View style={[themedStyles.section, { paddingBottom: 0 }]}>
-            <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Expense Type</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-              <FilterButton filterType="all" label="All" />
-              <FilterButton filterType="household" label="Household" />
-              <FilterButton filterType="personal" label="Personal" />
-            </View>
-          </View>
-
-          {/* FIXED: End Date Filter with content-based width and timer icon always */}
-          <View style={[themedStyles.section, { paddingBottom: 0 }]}>
-            <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Expiration</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-              <TouchableOpacity
-                style={getFilterButtonStyle(tempHasEndDateFilter)}
-                onPress={() => {
-                  console.log('ExpenseFilterModal: End date filter toggled from', tempHasEndDateFilter, 'to', !tempHasEndDateFilter);
-                  setTempHasEndDateFilter(!tempHasEndDateFilter);
-                }}
-              >
-                <Icon
-                  name="timer-outline"
-                  size={14}
-                  style={{
-                    color: tempHasEndDateFilter ? '#FFFFFF' : currentColors.text,
-                    marginRight: 6
-                  }}
-                />
-                <Text style={getFilterTextStyle(tempHasEndDateFilter)}>
-                  Only expenses with end dates
-                </Text>
-                <CountBubble count={expenseCounts.endDate.with} isSelected={tempHasEndDateFilter} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Debt Repayments filter */}
-          <View style={[themedStyles.section, { paddingBottom: 0 }]}>
-            <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Debt Repayments</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-              <DebtFilterButton debtFilterType="all" label="All" />
-              <DebtFilterButton debtFilterType="any" label="Any Debt" />
-              <DebtFilterButton debtFilterType="loan" label="Loans" />
-              <DebtFilterButton debtFilterType="mortgage" label="Mortgages" />
-              <DebtFilterButton debtFilterType="credit_card" label="Cards" />
-            </View>
-          </View>
-
-          {/* FIXED: Person filter with content-based width */}
-          {people.length > 0 && (
-            <View style={[themedStyles.section, { paddingBottom: 0 }]}>
-              <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Person</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ paddingHorizontal: 4, flexDirection: 'row' }}>
-                  <PersonButton
-                    personId={null}
-                    label="All People"
-                    count={expenseCounts.allPeople}
-                  />
-
-                  {people.map((person) => (
-                    <PersonButton
-                      key={person.id}
-                      personId={person.id}
-                      label={person.name}
-                      count={expenseCounts.people[person.id] || 0}
-                    />
-                  ))}
-                </View>
-              </ScrollView>
-            </View>
-          )}
-
-          {/* FIXED: Category selection with content-based width */}
-          <View style={[themedStyles.section, { paddingBottom: 0 }]}>
-            <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>
-              Categories {tempCategoryFilters.length > 0 && `(${tempCategoryFilters.length} selected)`}
-            </Text>
-
-            {/* FIXED: All Categories button with content-based width */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, marginBottom: 12 }}>
-              <TouchableOpacity
-                style={getFilterButtonStyle(tempCategoryFilters.length === 0)}
-                onPress={() => {
-                  console.log('ExpenseFilterModal: All Categories selected');
-                  setTempCategoryFilters([]);
-                }}
-              >
-                <Text style={getFilterTextStyle(tempCategoryFilters.length === 0)}>
-                  All Categories
-                </Text>
-                <CountBubble count={expenseCounts.allCategories} isSelected={tempCategoryFilters.length === 0} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Category grid */}
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>
-              {availableCategories.map((cat) => (
-                <View key={cat} style={{ margin: 4 }}>
-                  <CategoryButton
-                    category={cat}
-                    count={expenseCounts.categories[cat] || 0}
-                  />
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Active filter summary */}
-          {hasActiveFilters && (
-            <View style={[themedStyles.section]}>
-              <Text style={[themedStyles.text, { marginBottom: 12, fontWeight: '600', fontSize: 16 }]}>Preview Filters</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  {tempCategoryFilters.length > 0 && (
-                    <View
-                      style={[
-                        themedStyles.badge,
-                        {
-                          backgroundColor: currentColors.secondary + '20',
-                          borderRadius: 16,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          marginRight: 8,
-                          borderWidth: 1,
-                          borderColor: currentColors.secondary,
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="pricetag-outline" size={14} style={{ color: currentColors.secondary, marginRight: 6 }} />
-                        <Text style={[themedStyles.text, { color: currentColors.secondary, fontSize: 12 }]}>
-                          {tempCategoryFilters.length === 1 ? tempCategoryFilters[0] : `${tempCategoryFilters.length} categories`}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                  {!!tempSearchQuery.trim() && (
-                    <View
-                      style={[
-                        themedStyles.badge,
-                        {
-                          backgroundColor: currentColors.primary + '20',
-                          borderRadius: 16,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          marginRight: 8,
-                          borderWidth: 1,
-                          borderColor: currentColors.primary,
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="search-outline" size={14} style={{ color: currentColors.primary, marginRight: 6 }} />
-                        <Text style={[themedStyles.text, { color: currentColors.primary, fontSize: 12 }]}>Search: "{tempSearchQuery.trim()}"</Text>
-                      </View>
-                    </View>
-                  )}
-                  {tempFilter !== 'all' && (
-                    <View
-                      style={[
-                        themedStyles.badge,
-                        {
-                          backgroundColor: currentColors.household + '20',
-                          borderRadius: 16,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          marginRight: 8,
-                          borderWidth: 1,
-                          borderColor: currentColors.household,
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="people-outline" size={14} style={{ color: currentColors.household, marginRight: 6 }} />
-                        <Text style={[themedStyles.text, { color: currentColors.household, fontSize: 12 }]}>
-                          Type: {tempFilter === 'household' ? 'Household' : 'Personal'}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                  {tempPersonFilter && (
-                    <View
-                      style={[
-                        themedStyles.badge,
-                        {
-                          backgroundColor: currentColors.personal + '20',
-                          borderRadius: 16,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          marginRight: 8,
-                          borderWidth: 1,
-                          borderColor: currentColors.personal,
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="person-outline" size={14} style={{ color: currentColors.personal, marginRight: 6 }} />
-                        <Text style={[themedStyles.text, { color: currentColors.personal, fontSize: 12 }]}>
-                          Person: {people.find(p => p.id === tempPersonFilter)?.name || 'Unknown'}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                  {tempHasEndDateFilter && (
-                    <View
-                      style={[
-                        themedStyles.badge,
-                        {
-                          backgroundColor: '#FF9500' + '20',
-                          borderRadius: 16,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          marginRight: 8,
-                          borderWidth: 1,
-                          borderColor: '#FF9500',
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="timer-outline" size={14} style={{ color: '#FF9500', marginRight: 6 }} />
-                        <Text style={[themedStyles.text, { color: '#FF9500', fontSize: 12 }]}>
-                          Has end date
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                  {tempDebtFilter !== 'all' && (
-                    <View
-                      style={[
-                        themedStyles.badge,
-                        {
-                          backgroundColor: '#5856D6' + '20',
-                          borderRadius: 16,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          marginRight: 8,
-                          borderWidth: 1,
-                          borderColor: '#5856D6',
-                        },
-                      ]}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Icon name="cash-outline" size={14} style={{ color: '#5856D6', marginRight: 6 }} />
-                        <Text style={[themedStyles.text, { color: '#5856D6', fontSize: 12 }]}>
-                          Debt: {tempDebtFilter === 'any' ? 'Any Debt' : tempDebtFilter === 'loan' ? 'Loan' : tempDebtFilter === 'mortgage' ? 'Mortgage' : 'Credit Card'}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-              </ScrollView>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Bottom action buttons */}
-        <View style={[themedStyles.section, { paddingTop: 16, paddingBottom: 32, paddingHorizontal: 16, gap: 12 }]}>
-          {hasActiveFilters && (
-            <Button
-              text="Clear Filters"
-              onPress={handleClearFilters}
-              variant="outline"
-              icon={<Icon name="refresh-outline" size={20} color={currentColors.error} />}
-              style={{ borderColor: currentColors.error }}
-              textStyle={{ color: currentColors.error }}
-            />
-          )}
-
-          <Button
-            text={hasActiveFilters ? 'Apply Filters' : 'Show All Expenses'}
-            onPress={handleApplyFilters}
-            variant="primary"
-            icon={<Icon name="search-outline" size={20} color="#FFFFFF" />}
-          />
-        </View>
+function Section({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  const { tokens } = useTheme();
+  return (
+    <View style={{ marginBottom: space.s6 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: space.s3 }}>
+        <Text accessibilityRole="header" style={[type.bodyMed, { color: tokens.colors.text, flex: 1 }]}>
+          {title}
+        </Text>
+        {note ? <Text style={[type.caption, { color: tokens.colors.textMuted }]}>{note}</Text> : null}
       </View>
-    </Modal>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s2 }}>{children}</View>
+    </View>
+  );
+}
+
+/** Selectable pill with a live count; selection shown by fill + checkmark. */
+function OptionChip({
+  label,
+  count,
+  selected,
+  onPress,
+  icon,
+}: {
+  label: string;
+  count: number;
+  selected: boolean;
+  onPress: () => void;
+  icon?: string;
+}) {
+  const { tokens } = useTheme();
+  const fg = selected ? tokens.colors.onBrandSubtle : tokens.colors.text;
+  return (
+    <Pressable
+      onPress={() => {
+        haptics.selection();
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${count} ${count === 1 ? 'expense' : 'expenses'}`}
+      accessibilityState={{ selected }}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: 36,
+        paddingHorizontal: space.s3,
+        borderRadius: radius.full,
+        backgroundColor: selected ? tokens.colors.brandSubtle : pressed ? tokens.colors.border : tokens.colors.surfaceSunken,
+        opacity: count === 0 && !selected ? 0.55 : 1,
+      })}
+    >
+      {selected ? (
+        <Icon name="checkmark" size={14} color={fg} style={{ marginRight: space.s1 }} />
+      ) : icon ? (
+        <Icon name={icon as any} size={14} color={tokens.colors.textMuted} style={{ marginRight: space.s1 }} />
+      ) : null}
+      <Text style={[type.caption, { color: fg }]} numberOfLines={1}>
+        {label}
+      </Text>
+      <Text style={[type.caption, tabularNums, { color: selected ? fg : tokens.colors.textMuted, marginLeft: space.s2 }]}>
+        {count}
+      </Text>
+    </Pressable>
   );
 }

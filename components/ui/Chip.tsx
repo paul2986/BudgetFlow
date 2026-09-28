@@ -3,6 +3,7 @@ import { View, Text, Pressable, ViewStyle } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import Icon from '../Icon';
 import { type, radius, space } from '../../styles/tokens';
+import { haptics } from '../../utils/haptics';
 
 /**
  * Chip per DESIGN.md §2.8: 28px, icon + caption label. Semantic chips
@@ -50,12 +51,14 @@ export default function Chip({
           borderRadius: radius.full,
           backgroundColor: bg,
           alignSelf: 'flex-start',
+          // Never spill out of a narrow cell: shrink and truncate instead.
+          maxWidth: '100%',
         },
         style,
       ]}
     >
       {icon ? <Icon name={icon as any} size={14} color={fg} style={{ marginRight: space.s1 }} /> : null}
-      <Text style={[type.caption, { color: fg }]} numberOfLines={1}>
+      <Text style={[type.caption, { color: fg, flexShrink: 1 }]} numberOfLines={1}>
         {label}
       </Text>
       {onDismiss ? <Icon name="close" size={14} color={fg} style={{ marginLeft: space.s1 }} /> : null}
@@ -66,7 +69,10 @@ export default function Chip({
 
   return (
     <Pressable
-      onPress={onDismiss ?? onPress}
+      onPress={() => {
+        haptics.selection();
+        (onDismiss ?? onPress)?.();
+      }}
       accessibilityRole="button"
       accessibilityLabel={onDismiss ? `Remove filter: ${label}` : label}
       accessibilityState={{ selected: !!selected }}

@@ -18,11 +18,11 @@ import { useToast, ToastProvider } from '../hooks/useToast';
 import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
 import { useAuth } from '../hooks/useAuth';
 import { useBreakpoint } from '../hooks/useBreakpoint';
-import { DesktopModalsProvider } from '../hooks/useDesktopModals';
 import { setupErrorLogging } from '../utils/errorLogger';
 
 import AuthGuard from '../components/AuthGuard';
 import ToastContainer from '../components/ToastContainer';
+import DialogHost from '../components/DialogHost';
 import BottomTabBar from '../components/nav/BottomTabBar';
 import NavRail from '../components/nav/NavRail';
 import Sidebar from '../components/nav/Sidebar';
@@ -88,6 +88,13 @@ function RootLayoutContent() {
           background-clip: content-box;
         }
         ::-webkit-scrollbar-thumb:hover { background: ${tokens.colors.textFaint}; background-clip: content-box; }
+        /* One brand focus ring instead of the UA ring in the OS accent color.
+           :where() keeps specificity at 0 so components that draw their own
+           ring (ui/Input) can switch this off with a plain style. */
+        :where(input, textarea, select):focus-visible {
+          outline: 2px solid ${tokens.colors.brand};
+          outline-offset: 1px;
+        }
         input[type="date"]::-webkit-calendar-picker-indicator {
           filter: ${isDarkMode ? 'invert(1) brightness(2)' : 'none'} !important;
           cursor: pointer;
@@ -173,6 +180,7 @@ function RootLayoutContent() {
         </AuthGuard>
 
         <ToastContainer toasts={toasts} onHideToast={hideToast} />
+        <DialogHost />
       </View>
     </View>
   );
@@ -183,9 +191,7 @@ function AppContent() {
     <ThemeProvider>
       <ToastProvider>
         <BudgetDataProvider>
-          <DesktopModalsProvider>
-            <RootLayoutContent />
-          </DesktopModalsProvider>
+          <RootLayoutContent />
         </BudgetDataProvider>
       </ToastProvider>
     </ThemeProvider>

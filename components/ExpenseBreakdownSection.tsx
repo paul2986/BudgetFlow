@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
-import { useThemedStyles } from '../hooks/useThemedStyles';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import Icon from './Icon';
+import { AmountText, Card, ChoicePills, EmptyState, SegmentedControl } from './ui';
+import { type, space, radius, tabularNums } from '../styles/tokens';
 import { Expense, DEFAULT_CATEGORIES, Person } from '../types/budget';
 import { router } from 'expo-router';
 
@@ -35,9 +35,8 @@ export default function ExpenseBreakdownSection({
   people = [],
   viewMode = 'monthly'
 }: ExpenseBreakdownSectionProps) {
-  const { currentColors, isDarkMode } = useTheme();
+  const { tokens } = useTheme();
   const { formatCurrency } = useCurrency();
-  const { themedStyles } = useThemedStyles();
 
   // State for personal expenses person filter
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
@@ -254,286 +253,136 @@ export default function ExpenseBreakdownSection({
     return shouldShow;
   }, [peopleWithPersonalExpenses]);
 
-  // Person switcher component
-  const PersonSwitcher = () => {
-    if (!shouldShowPersonSwitcher) {
-      console.log('ExpenseBreakdownSection: PersonSwitcher not rendering - less than 2 people with personal expenses');
-      return null;
-    }
+  const period = viewMode === 'yearly' ? 'yr' : viewMode === 'daily' ? 'day' : 'mo';
+  const periodWord = viewMode === 'yearly' ? 'year' : viewMode === 'daily' ? 'day' : 'month';
 
-    console.log('ExpenseBreakdownSection: PersonSwitcher rendering');
-
-    return (
-      <View style={{
-        flexDirection: 'row',
-        backgroundColor: currentColors.backgroundAlt,
-        borderRadius: 12,
-        padding: 4,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: currentColors.border,
-      }}>
-        {/* All People Option */}
-        <TouchableOpacity
-          onPress={() => setSelectedPersonId(null)}
-          style={{
-            flex: 1,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            borderRadius: 8,
-            backgroundColor: selectedPersonId === null ? currentColors.personal : 'transparent',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={[
-            themedStyles.text,
-            {
-              fontSize: 14,
-              fontWeight: '600',
-              color: selectedPersonId === null ? '#fff' : currentColors.text,
-            }
-          ]}>
-            All People
-          </Text>
-        </TouchableOpacity>
-
-        {/* Individual People Options */}
-        {peopleWithPersonalExpenses.map((person) => (
-          <TouchableOpacity
-            key={person.id}
-            onPress={() => setSelectedPersonId(person.id)}
-            style={{
-              flex: 1,
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              borderRadius: 8,
-              backgroundColor: selectedPersonId === person.id ? currentColors.personal : 'transparent',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text style={[
-              themedStyles.text,
-              {
-                fontSize: 14,
-                fontWeight: '600',
-                color: selectedPersonId === person.id ? '#fff' : currentColors.text,
-              }
-            ]}>
-              {person.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
+  const personSwitcher = shouldShowPersonSwitcher ? (
+    peopleWithPersonalExpenses.length <= 3 ? (
+      <SegmentedControl<string>
+        label="Whose personal spending"
+        value={selectedPersonId ?? 'all'}
+        onChange={(v) => setSelectedPersonId(v === 'all' ? null : v)}
+        options={[{ value: 'all', label: 'Everyone' }, ...peopleWithPersonalExpenses.map((p) => ({ value: p.id, label: p.name }))]}
+        style={{ marginHorizontal: space.s4, marginBottom: space.s3 }}
+      />
+    ) : (
+      <ChoicePills
+        label="Whose personal spending"
+        showLabel={false}
+        value={selectedPersonId ?? 'all'}
+        onChange={(v) => setSelectedPersonId(v === 'all' ? null : v)}
+        options={[{ value: 'all', label: 'Everyone' }, ...peopleWithPersonalExpenses.map((p) => ({ value: p.id, label: p.name }))]}
+        style={{ marginHorizontal: space.s4, marginBottom: space.s3 }}
+      />
+    )
+  ) : null;
 
   if (!breakdownData.household && !breakdownData.personal) {
-    console.log('ExpenseBreakdownSection: Rendering empty state');
     return (
-      <View style={[themedStyles.card, { marginBottom: 0 }]}>
-        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-          <Icon name="pie-chart-outline" size={48} style={{ color: currentColors.textSecondary, marginBottom: 12 }} />
-          <Text style={[themedStyles.textSecondary, { textAlign: 'center' }]}>
-            No expenses to analyze yet. Add some expenses to see the breakdown.
-          </Text>
-        </View>
-      </View>
+      <Card>
+        <EmptyState icon="pie-chart-outline" title="Nothing to break down yet" caption="Add expenses to see where the money goes." />
+      </Card>
     );
   }
 
-  console.log('ExpenseBreakdownSection: Rendering breakdown with data');
-
-  // Type breakdown component with collapsible functionality
-  const TypeBreakdownComponent = ({ breakdown }: { breakdown: TypeBreakdown }) => {
+  const TypeCard = ({ breakdown }: { breakdown: TypeBreakdown }) => {
     const isHousehold = breakdown.type === 'household';
-    const typeColor = isHousehold ? currentColors.household : currentColors.personal;
-    const typeIcon = isHousehold ? 'home' : 'person';
+    const color = isHousehold ? tokens.colors.household : tokens.colors.personal;
+    const subtle = isHousehold ? tokens.colors.householdSubtle : tokens.colors.personalSubtle;
     const isExpanded = isHousehold ? householdExpanded : personalExpanded;
     const setExpanded = isHousehold ? setHouseholdExpanded : setPersonalExpanded;
-
-    // Get selected person name for personal expenses header
-    const selectedPersonName = selectedPersonId && people
-      ? people.find(p => p.id === selectedPersonId)?.name
-      : null;
+    const personName = selectedPersonId ? people.find((p) => p.id === selectedPersonId)?.name : null;
+    const title = isHousehold ? 'Household' : personName ? `${personName}’s personal` : 'Personal';
 
     return (
-      <View
-        key={breakdown.type}
-        style={[
-          themedStyles.card,
-          {
-            backgroundColor: isDarkMode ? currentColors.backgroundAlt : typeColor + '05',
-            borderColor: isDarkMode ? typeColor + '40' : typeColor + '20',
-            borderWidth: 1.5,
-            marginBottom: 16,
-            overflow: 'hidden',
-            padding: 20,
-          },
-        ]}
-      >
-        {isDarkMode && (
-          <LinearGradient
-            colors={[typeColor + '10', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        )}
-        <View style={{ position: 'relative', zIndex: 1 }}>
-          {/* Collapsible Type Header */}
-          <TouchableOpacity
-            onPress={() => setExpanded(!isExpanded)}
-            activeOpacity={0.7}
-            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: isExpanded ? 24 : 0 }}
-          >
-            <View style={{
-              width: 52,
-              height: 52,
-              borderRadius: 14,
-              backgroundColor: isDarkMode ? typeColor + '20' : typeColor + '10',
+      <Card padded={false} style={{ marginBottom: space.s3, overflow: 'hidden' }}>
+        <Pressable
+          onPress={() => setExpanded(!isExpanded)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isExpanded }}
+          accessibilityLabel={`${title}, ${formatCurrency(breakdown.amount)} per ${periodWord}, ${breakdown.count} expenses. ${isExpanded ? 'Collapse' : 'Show categories'}`}
+          style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: space.s4,
+            backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
+          })}
+        >
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: radius.md,
+              backgroundColor: subtle,
               alignItems: 'center',
               justifyContent: 'center',
-              marginRight: 16,
-              borderWidth: 1,
-              borderColor: typeColor + '30',
-            }}>
-              <Icon name={typeIcon} size={28} style={{ color: typeColor }} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={[themedStyles.subtitle, { fontSize: 18, fontWeight: '800', marginBottom: 4, color: currentColors.text }]}>
-                {isHousehold
-                  ? 'Household Expenses'
-                  : selectedPersonName
-                    ? `${selectedPersonName} 's Personal Expenses`
-                    : 'Personal Expenses'
-                }
-              </Text >
-              <Text style={[themedStyles.textSecondary, { fontSize: 14, fontWeight: '500' }]}>
-                {breakdown.count} {breakdown.count === 1 ? 'expense' : 'expenses'} • {breakdown.percentage.toFixed(1)}% of total
-              </Text>
-            </View >
-            <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
-              <Text style={[
-                themedStyles.text,
-                { fontSize: 20, fontWeight: '800', color: typeColor }
-              ]}>
-                {formatCurrency(breakdown.amount)}
-              </Text>
-              <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }]}>
-                per {viewMode === 'yearly' ? 'year' : viewMode === 'daily' ? 'day' : 'month'}
-              </Text>
-            </View>
-            <View style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
-              backgroundColor: currentColors.border + '50',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Icon
-                name={isExpanded ? "chevron-up" : "chevron-down"}
-                size={18}
-                style={{ color: currentColors.textSecondary }}
-              />
-            </View>
-          </TouchableOpacity >
-        </View >
+              marginRight: space.s3,
+            }}
+          >
+            <Icon name={isHousehold ? 'home' : 'person'} size={22} color={color} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[type.h3, { color: tokens.colors.text }]} numberOfLines={1}>
+              {title}
+            </Text>
+            <Text style={[type.caption, tabularNums, { color: tokens.colors.textMuted }]}>
+              {breakdown.count} {breakdown.count === 1 ? 'expense' : 'expenses'} · {breakdown.percentage.toFixed(0)}% of spending
+            </Text>
+          </View>
+          <AmountText value={breakdown.amount} role="h3" suffix={`/${period}`} style={{ marginRight: space.s2 }} />
+          <Icon name={isExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={tokens.colors.textFaint} />
+        </Pressable>
 
-        {/* Expandable Content */}
-        {
-          isExpanded && (
-            <View>
-              {/* Person Switcher for Personal Expenses - Only show if 2+ people with personal expenses */}
-              {!isHousehold && <PersonSwitcher />}
-
-              {/* Categories - Interactive */}
-              <View style={{ gap: 12 }}>
-                {breakdown.categories.map((category, categoryIndex) => (
-                  <TouchableOpacity
-                    key={`${breakdown.type}-${category.category}-${categoryIndex}`}
-                    onPress={() => handleCategoryPress(breakdown.type, category.category)}
-                    activeOpacity={0.7}
-                    style={{
-                      backgroundColor: currentColors.backgroundAlt,
-                      borderRadius: 12,
-                      padding: 16,
-                      borderWidth: 1,
-                      borderColor: currentColors.border,
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                        <Text style={[themedStyles.text, { fontSize: 16, fontWeight: '600', flex: 1 }]}>
-                          {category.category}
-                        </Text>
-                        <Icon
-                          name="chevron-forward"
-                          size={16}
-                          style={{ color: currentColors.textSecondary, marginLeft: 8 }}
-                        />
-                      </View>
-                      <Text style={[themedStyles.text, { fontSize: 14, fontWeight: '700', color: typeColor, marginLeft: 12 }]}>
-                        {formatCurrency(category.amount)}
-                      </Text>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
-                        {category.count} {category.count === 1 ? 'expense' : 'expenses'}
-                      </Text>
-                      <Text style={[themedStyles.textSecondary, { fontSize: 12 }]}>
-                        {category.percentage.toFixed(1)}% of {breakdown.type}
-                      </Text>
-                    </View>
-
-                    {/* Progress Bar */}
-                    <View style={{
-                      height: 6,
-                      backgroundColor: currentColors.border,
-                      borderRadius: 3,
-                      overflow: 'hidden',
-                    }}>
-                      <View
-                        style={{
-                          height: '100%',
-                          backgroundColor: typeColor,
-                          borderRadius: 3,
-                          width: `${category.percentage}%`,
-                        }}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )
-        }
-      </View >
+        {isExpanded ? (
+          <View
+            style={{
+              borderTopWidth: StyleSheet.hairlineWidth,
+              borderTopColor: tokens.colors.borderStrong,
+              paddingTop: space.s3,
+            }}
+          >
+            {!isHousehold ? personSwitcher : null}
+            {breakdown.categories.map((category, i) => (
+              <Pressable
+                key={`${breakdown.type}-${category.category}`}
+                onPress={() => handleCategoryPress(breakdown.type, category.category)}
+                accessibilityRole="button"
+                accessibilityLabel={`${category.category}, ${formatCurrency(category.amount)}, ${category.percentage.toFixed(0)}% of ${title.toLowerCase()}. Show these expenses`}
+                style={({ pressed }) => ({
+                  paddingHorizontal: space.s4,
+                  paddingVertical: space.s3,
+                  backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
+                  borderBottomWidth: i < breakdown.categories.length - 1 ? StyleSheet.hairlineWidth : 0,
+                  borderBottomColor: tokens.colors.border,
+                })}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[type.bodyMed, { color: tokens.colors.text, flex: 1 }]} numberOfLines={1}>
+                    {category.category}
+                  </Text>
+                  <AmountText value={category.amount} role="bodyMed" />
+                  <Icon name="chevron-forward" size={16} color={tokens.colors.textFaint} style={{ marginLeft: space.s2 }} />
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: space.s2, gap: space.s3 }}>
+                  <View style={{ flex: 1, height: 4, borderRadius: radius.full, backgroundColor: tokens.colors.border, overflow: 'hidden' }}>
+                    <View style={{ width: `${category.percentage}%`, height: '100%', backgroundColor: color }} />
+                  </View>
+                  <Text style={[type.caption, tabularNums, { color: tokens.colors.textMuted, minWidth: 120, textAlign: 'right' }]}>
+                    {category.count} {category.count === 1 ? 'expense' : 'expenses'} · {category.percentage.toFixed(0)}%
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </Card>
     );
   };
 
-  console.log('ExpenseBreakdownSection: Final render decision:', {
-    hasHousehold: !!breakdownData.household,
-    hasPersonal: !!breakdownData.personal,
-    selectedPersonId,
-    totalExpenses: expenses?.length || 0,
-    personalExpensesInData: expenses?.filter(e => e && e.category === 'personal').length || 0,
-    shouldShowPersonSwitcher,
-    viewMode,
-    householdExpanded,
-    personalExpanded
-  });
-
   return (
     <View>
-      {/* Type Breakdowns */}
-      <View>
-        {breakdownData.household && <TypeBreakdownComponent breakdown={breakdownData.household} />}
-        {breakdownData.personal && <TypeBreakdownComponent breakdown={breakdownData.personal} />}
-      </View>
+      {breakdownData.household ? <TypeCard breakdown={breakdownData.household} /> : null}
+      {breakdownData.personal ? <TypeCard breakdown={breakdownData.personal} /> : null}
     </View>
   );
 }

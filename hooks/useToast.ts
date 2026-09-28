@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, createContext, useContext } from 'react';
+import { haptics } from '../utils/haptics';
 
 export interface ToastMessage {
   id: string;
@@ -41,6 +42,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       type,
       duration,
     };
+
+    if (type === 'success') haptics.success();
+    else if (type === 'error') haptics.error();
 
     console.log('ToastProvider: Showing toast:', newToast);
     setToasts(prev => [...prev, newToast]);

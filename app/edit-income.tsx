@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Text, View, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { Text, View, ScrollView } from 'react-native';
 import { Alert } from '../utils/alert';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -10,8 +10,9 @@ import { useCurrency } from '../hooks/useCurrency';
 import { Income } from '../types/budget';
 import Button from '../components/Button';
 import CurrencyInput from '../components/CurrencyInput';
-import Icon from '../components/Icon';
 import StandardHeader from '../components/StandardHeader';
+import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
+import { type, space } from '../styles/tokens';
 
 export default function EditIncomeScreen() {
   const [income, setIncome] = useState<Income | null>(null);
@@ -23,7 +24,7 @@ export default function EditIncomeScreen() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const { formatCurrency } = useCurrency();
-  const { currentColors } = useTheme();
+  const { tokens } = useTheme();
   const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
   const params = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const { personId, incomeId } = params;
@@ -196,178 +197,101 @@ export default function EditIncomeScreen() {
     router.back();
   }, []);
 
-  const FrequencyPicker = ({ value, onChange }: { value: string, onChange: (value: string) => void }) => (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 }}>
-      {['daily', 'weekly', 'monthly', 'yearly'].map((freq) => (
-        <TouchableOpacity
-          key={freq}
-          style={[
-            themedStyles.badge,
-            {
-              backgroundColor: value === freq ? currentColors.primary : currentColors.border,
-              marginRight: 8,
-              marginBottom: 8,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-            }
-          ]}
-          onPress={() => onChange(freq)}
-          disabled={saving}
-        >
-          <Text style={[
-            themedStyles.badgeText,
-            { color: value === freq ? currentColors.backgroundAlt : currentColors.text }
-          ]}>
-            {freq.charAt(0).toUpperCase() + freq.slice(1)}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-
-  // Show loading state while data is being loaded
-  if (!isDataLoaded || loading) {
-    return (
-      <View style={themedStyles.container}>
-        <StandardHeader
-          title="Edit Income"
-          onLeftPress={handleGoBack}
-          showRightIcon={false}
-        />
-        <View style={[themedStyles.centerContent, { flex: 1 }]}>
-          <ActivityIndicator size="large" color={currentColors.primary} />
-          <Text style={[themedStyles.text, { marginTop: 16 }]}>
-            Loading income data...
-          </Text>
-        </View>
-      </View>
-    );
-  }
-
-  // Show error state if income not found
-  if (!income) {
-    return (
-      <View style={themedStyles.container}>
-        <StandardHeader
-          title="Edit Income"
-          onLeftPress={handleGoBack}
-          showRightIcon={false}
-        />
-        <View style={[themedStyles.centerContent, { flex: 1 }]}>
-          <Icon name="warning-outline" size={48} style={{ color: currentColors.textSecondary, marginBottom: 16 }} />
-          <Text style={[themedStyles.text, { textAlign: 'center' }]}>
-            Income source not found
-          </Text>
-          <Text style={[themedStyles.text, { textAlign: 'center', marginTop: 8 }]}>
-            It may have been deleted or there was an error loading the data.
-          </Text>
-          <Button
-            text="Go Back"
-            onPress={() => router.back()}
-            variant="outline"
-            style={{ marginTop: 24 }}
-          />
-        </View>
-      </View>
-    );
-  }
-
   const person = data.people.find(p => p.id === personId);
 
-  return (
-    <View style={themedStyles.container}>
-      <StandardHeader
-        title="Edit Income"
-        onLeftPress={handleGoBack}
-        rightIcon="checkmark"
-        onRightPress={handleSaveIncome}
-        loading={saving}
-      />
+  const renderBody = () => {
+    if (!isDataLoaded || loading) {
+      return (
+        <View style={{ padding: space.s5, gap: space.s4 }}>
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+          <Skeleton height={40} />
+        </View>
+      );
+    }
+    if (!income) {
+      return (
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Income not found"
+          caption="It may have been deleted on another device."
+          actionLabel="Back to people"
+          onAction={() => router.replace('/people')}
+        />
+      );
+    }
 
-      <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 16, paddingTop: 16 }]}>
-        {/* Income Details */}
-        <View style={themedStyles.section}>
-          <Text style={[themedStyles.subtitle, { marginBottom: 12 }]}>
-            Edit Income for {person?.name}
-          </Text>
+    const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
+    const changed =
+      editedIncome.label.trim() !== income.label ||
+      parseFloat(editedIncome.amount) !== income.amount ||
+      editedIncome.frequency !== income.frequency;
 
-          <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600' }]}>
-            Income Source:
-          </Text>
-          <TextInput
-            style={themedStyles.input}
-            value={editedIncome.label}
-            onChangeText={(text) => setEditedIncome({ ...editedIncome, label: text })}
-            placeholder="e.g., Salary, Freelance, Side Job"
-            placeholderTextColor={currentColors.textSecondary}
-            editable={!saving}
-          />
+    return (
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: space.s5, paddingBottom: space.s10, gap: space.s5 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Input
+          label="Source"
+          value={editedIncome.label}
+          onChangeText={(text) => setEditedIncome({ ...editedIncome, label: text })}
+          placeholder="e.g. Salary"
+          editable={!saving}
+          helperText={person ? `Income for ${person.name}` : undefined}
+        />
 
-          <CurrencyInput
-            label="Amount"
-            value={editedIncome.amount}
-            onChangeText={(text) => setEditedIncome({ ...editedIncome, amount: text })}
-            editable={!saving}
-          />
+        <CurrencyInput
+          label="Amount"
+          value={editedIncome.amount}
+          onChangeText={(text) => setEditedIncome({ ...editedIncome, amount: text })}
+          editable={!saving}
+        />
 
-          <Text style={[themedStyles.text, { marginBottom: 8, fontWeight: '600' }]}>
-            Frequency:
-          </Text>
-          <FrequencyPicker
-            value={editedIncome.frequency}
+        <View>
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s2 }]}>How often</Text>
+          <SegmentedControl<'daily' | 'weekly' | 'monthly' | 'yearly'>
+            label="How often"
+            value={editedIncome.frequency as any}
             onChange={(freq) => setEditedIncome({ ...editedIncome, frequency: freq as any })}
+            options={[
+              { value: 'daily', label: 'Daily' },
+              { value: 'weekly', label: 'Weekly' },
+              { value: 'monthly', label: 'Monthly' },
+              { value: 'yearly', label: 'Yearly' },
+            ]}
           />
         </View>
 
-        {/* Current Income Preview */}
-        <View style={[themedStyles.card, { backgroundColor: currentColors.backgroundAlt }]}>
-          <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 8 }]}>
-            Current Income Details:
-          </Text>
-          <Text style={[themedStyles.textSecondary, { marginBottom: 4 }]}>
-            Source: {income.label}
-          </Text>
-          <Text style={[themedStyles.textSecondary, { marginBottom: 4 }]}>
-            Amount: {formatCurrency(income.amount)}
-          </Text>
-          <Text style={themedStyles.textSecondary}>
-            Frequency: {income.frequency}
-          </Text>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={{ flexDirection: 'row', gap: 12, marginTop: 24 }}>
-          <View style={{ flex: 1 }}>
-            <Button
-              text="Cancel"
-              onPress={() => router.back()}
-              variant="outline"
-              style={{ marginTop: 0 }}
-              disabled={saving}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button
-              text={saving ? 'Saving...' : 'Save Changes'}
-              onPress={handleSaveIncome}
-              variant="primary"
-              style={{ marginTop: 0 }}
-              disabled={saving}
-            />
-          </View>
-        </View>
-
-        {/* Delete Button */}
-        <View style={{ marginTop: 24, paddingBottom: 40 }}>
+        <View style={{ marginTop: space.s2 }}>
           <Button
-            text={saving ? 'Deleting...' : 'Delete Income Source'}
+            text="Save changes"
+            onPress={handleSaveIncome}
+            size="lg"
+            loading={saving}
+            disabled={!editedIncome.label.trim() || !amountValid || !changed}
+            style={{ marginTop: 0 }}
+          />
+          <Button
+            text="Delete income"
+            variant="ghost"
             onPress={handleDeleteIncome}
-            variant="danger"
-            style={{ marginTop: 0, opacity: 0.8 }}
             disabled={saving}
+            textStyle={{ color: tokens.colors.danger }}
+            style={{ marginTop: space.s2 }}
           />
         </View>
       </ScrollView>
+    );
+  };
+
+  return (
+    <View style={themedStyles.container}>
+      <FormScreen>
+        <StandardHeader title="Edit income" onLeftPress={handleGoBack} showRightIcon={false} loading={saving} />
+        {renderBody()}
+      </FormScreen>
     </View>
   );
 }

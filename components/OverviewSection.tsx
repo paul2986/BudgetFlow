@@ -77,7 +77,6 @@ export default function OverviewSection({
   }, [calculations, viewMode]);
 
   const negative = displayValues.remaining < 0;
-  const heroAccent = negative ? tokens.colors.expense : tokens.colors.income;
 
   // compact & medium: 2×2 grid; expanded: 4-across.
   const statMinWidth = bp.isExpanded ? 200 : '46%';
@@ -96,7 +95,6 @@ export default function OverviewSection({
           marginBottom: space.s4,
         }}
       >
-        <View style={{ height: 3, backgroundColor: heroAccent }} />
         <View style={{ padding: bp.isCompact ? space.s5 : space.s6 }}>
           <View
             style={{
@@ -161,12 +159,14 @@ export default function OverviewSection({
           label="Household"
           value={displayValues.householdExpenses}
           icon="home-outline"
+          tone="household"
           style={{ flexGrow: 1, flexBasis: statMinWidth as any, marginBottom: 0 }}
         />
         <StatCard
           label="Personal"
           value={displayValues.personalExpenses}
           icon="person-outline"
+          tone="personal"
           style={{ flexGrow: 1, flexBasis: statMinWidth as any, marginBottom: 0 }}
         />
       </View>

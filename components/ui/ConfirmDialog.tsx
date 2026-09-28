@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Modal, Pressable } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import Button from '../Button';
 import { type, radius, space, elevation } from '../../styles/tokens';
+import { haptics } from '../../utils/haptics';
 
 /**
  * Confirm dialog per DESIGN.md §2.8: max 400 wide, ghost cancel +
@@ -18,6 +19,8 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   destructive?: boolean;
   loading?: boolean;
+  /** Single-button acknowledgement (errors, notices). */
+  hideCancel?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -30,10 +33,15 @@ export default function ConfirmDialog({
   cancelLabel = 'Cancel',
   destructive,
   loading,
+  hideCancel,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   const { tokens } = useTheme();
+
+  useEffect(() => {
+    if (visible && destructive) haptics.warning();
+  }, [visible, destructive]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -68,9 +76,11 @@ export default function ConfirmDialog({
               {message}
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space.s2 }}>
-              <View style={{ minWidth: 100 }}>
-                <Button text={cancelLabel} onPress={onCancel} variant="ghost" disabled={loading} />
-              </View>
+              {hideCancel ? null : (
+                <View style={{ minWidth: 100 }}>
+                  <Button text={cancelLabel} onPress={onCancel} variant="ghost" disabled={loading} />
+                </View>
+              )}
               <View style={{ minWidth: 120 }}>
                 <Button
                   text={confirmLabel}

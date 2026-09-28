@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "budgetflow-web",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["expo", "start", "--web", "--port", "8081"],
-      "port": 8081
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "npx expo start --web --port ${PORT:-8081}"],
+      "port": 8081,
+      "autoPort": true
     }
   ]
 }

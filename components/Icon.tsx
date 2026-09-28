@@ -18,14 +18,14 @@ const styles = StyleSheet.create({
 });
 
 export default function Icon({ name, size = 24, color, style }: IconProps) {
-  const { currentColors } = useTheme();
+  const { tokens } = useTheme();
 
   return (
     <View style={styles.container}>
       <Ionicons
         name={name}
         size={size}
-        color={color || style?.color || currentColors.text}
+        color={color || style?.color || tokens.colors.text}
         style={style}
       />
     </View>

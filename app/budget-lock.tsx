@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, Switch, Platform } from 'react-native';
+import { Alert } from '../utils/alert';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
@@ -9,6 +10,8 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { useBudgetLock } from '../hooks/useBudgetLock';
 import Icon from '../components/Icon';
 import StandardHeader from '../components/StandardHeader';
+import { ListGroup, ListRow, Skeleton } from '../components/ui';
+import { type, space, radius } from '../styles/tokens';
 
 const AUTO_LOCK_OPTIONS = [
   { label: 'Immediately', value: 0 },
@@ -20,8 +23,8 @@ const AUTO_LOCK_OPTIONS = [
 ];
 
 export default function BudgetLockScreen() {
-  const { currentColors } = useTheme();
-  const { themedStyles } = useThemedStyles();
+  const { tokens } = useTheme();
+  const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
   const { appData, loading: dataLoading } = useBudgetData();
   const { capabilities, loading: lockLoading, toggleBudgetLock, setBudgetAutoLock, lockBudgetNow } = useBudgetLock();
@@ -45,14 +48,11 @@ export default function BudgetLockScreen() {
 
   if (dataLoading || lockLoading || !budget) {
     return (
-      <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-        <StandardHeader 
-          title="Budget Lock Settings" 
-          onLeftPress={() => router.back()}
-          showRightIcon={false}
-        />
-        <View style={[themedStyles.content, { justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={themedStyles.textSecondary}>Loading...</Text>
+      <View style={themedStyles.container}>
+        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} />
+        <View style={{ padding: breakpoint.gutter, paddingTop: space.s6, gap: space.s3 }}>
+          <Skeleton height={64} borderRadius={radius.lg} />
+          <Skeleton height={160} borderRadius={radius.lg} />
         </View>
       </View>
     );
@@ -122,162 +122,122 @@ export default function BudgetLockScreen() {
     }
   };
 
+  const canLock = capabilities.canUseDevicePasscode;
+
   return (
-    <View style={[themedStyles.container, { backgroundColor: currentColors.background }]}>
-      <StandardHeader 
-        title="Budget Lock Settings" 
-        onLeftPress={() => router.back()}
-        showRightIcon={false}
-      />
-      
-      <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 0, paddingTop: 16 }]}>
-        {/* Budget Info */}
-        <View style={[themedStyles.card, { marginBottom: 24 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Icon name="wallet-outline" size={20} style={{ color: currentColors.primary, marginRight: 8 }} />
-            <Text style={[themedStyles.subtitle, { flex: 1 }]}>{budget.name}</Text>
-          </View>
-          <Text style={themedStyles.textSecondary}>
-            Configure lock settings for this budget
-          </Text>
-        </View>
+    <View style={themedStyles.container}>
+      <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} loading={saving} />
 
-        {/* Device Capability Warning */}
-        {!capabilities.canUseDevicePasscode && (
-          <View style={[
-            themedStyles.card, 
-            { 
-              backgroundColor: currentColors.error + '20',
-              borderColor: currentColors.error,
-              borderWidth: 1,
-              marginBottom: 24,
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+      >
+        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+          <ListGroup
+            header={budget.name}
+            footer={
+              canLock
+                ? 'Uses Face ID, Touch ID or your device passcode. Budget Flow never sees or stores your passcode.'
+                : undefined
             }
-          ]}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-              <Icon name="warning-outline" size={20} style={{ color: currentColors.error, marginRight: 12, marginTop: 2 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[themedStyles.text, { color: currentColors.error, fontWeight: '600', marginBottom: 4 }]}>
-                  Device Passcode Required
-                </Text>
-                <Text style={[themedStyles.textSecondary, { fontSize: 14 }]}>
-                  Set a device passcode or biometric authentication in your device settings to use budget lock.
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Lock Toggle */}
-        <View style={[themedStyles.card, { marginBottom: 16 }]}>
-          <TouchableOpacity
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              minHeight: 44,
-            }}
-            onPress={() => handleToggleLock(!lockSettings.locked)}
-            disabled={saving || !capabilities.canUseDevicePasscode}
           >
-            <View style={{ flex: 1 }}>
-              <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 4 }]}>
-                Lock this budget
-              </Text>
-              <Text style={themedStyles.textSecondary}>
-                Require device authentication to view this budget
-              </Text>
-            </View>
-            <View style={{
-              width: 50,
-              height: 30,
-              borderRadius: 15,
-              backgroundColor: lockSettings.locked ? currentColors.primary : currentColors.border,
-              justifyContent: 'center',
-              paddingHorizontal: 2,
-            }}>
-              <View style={{
-                width: 26,
-                height: 26,
-                borderRadius: 13,
-                backgroundColor: '#fff',
-                alignSelf: lockSettings.locked ? 'flex-end' : 'flex-start',
-              }} />
-            </View>
-          </TouchableOpacity>
-        </View>
-
-        {/* Auto-lock Settings */}
-        {lockSettings.locked && (
-          <View style={[themedStyles.card, { marginBottom: 16 }]}>
-            <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 12 }]}>
-              Auto-lock after
-            </Text>
-            {AUTO_LOCK_OPTIONS.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingVertical: 12,
-                  borderBottomWidth: option.value === AUTO_LOCK_OPTIONS[AUTO_LOCK_OPTIONS.length - 1].value ? 0 : 1,
-                  borderBottomColor: currentColors.border,
-                }}
-                onPress={() => handleSetAutoLock(option.value)}
-                disabled={saving}
-              >
-                <Text style={themedStyles.text}>{option.label}</Text>
-                {lockSettings.autoLockMinutes === option.value && (
-                  <Icon name="checkmark" size={20} style={{ color: currentColors.primary }} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
-        {/* Lock Now Button */}
-        {lockSettings.locked && (
-          <TouchableOpacity
-            style={[
-              themedStyles.card,
-              {
-                backgroundColor: currentColors.error,
-                borderColor: currentColors.error,
-                borderWidth: 1,
-                marginBottom: 16,
-                minHeight: 50,
+            <View
+              style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
-              },
-            ]}
-            onPress={handleLockNow}
-            disabled={saving}
-          >
-            <Icon name="lock-closed" size={20} style={{ color: '#fff', marginRight: 8 }} />
-            <Text style={[themedStyles.text, { color: '#fff', fontWeight: '600' }]}>
-              Lock now
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Information */}
-        <View style={[themedStyles.card, { backgroundColor: currentColors.backgroundAlt }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            <Icon name="information-circle-outline" size={20} style={{ color: currentColors.primary, marginRight: 12, marginTop: 2 }} />
-            <View style={{ flex: 1 }}>
-              <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 8 }]}>
-                How budget lock works
-              </Text>
-              <Text style={[themedStyles.textSecondary, { fontSize: 14, lineHeight: 20 }]}>
-                • Uses your device's built-in passcode or biometric authentication{'\n'}
-                • Your passcode is never stored by this app{'\n'}
-                • Auto-lock settings control when authentication is required{'\n'}
-                • "Immediately" requires authentication every time{'\n'}
-                • "Never" keeps the budget unlocked until manually locked
-              </Text>
+                minHeight: 64,
+                paddingHorizontal: space.s4,
+                paddingVertical: space.s3,
+                opacity: canLock ? 1 : 0.5,
+              }}
+            >
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: radius.full,
+                  backgroundColor: tokens.colors.surfaceSunken,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: space.s3,
+                }}
+              >
+                <Icon name="lock-closed-outline" size={18} color={tokens.colors.textMuted} />
+              </View>
+              <View style={{ flex: 1, marginRight: space.s3 }}>
+                <Text style={[type.bodyMed, { color: tokens.colors.text }]}>Lock this budget</Text>
+                <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: 2 }]}>
+                  Ask to unlock before showing it
+                </Text>
+              </View>
+              <Switch
+                value={!!lockSettings.locked}
+                onValueChange={(v) => handleToggleLock(v)}
+                disabled={saving || !canLock}
+                accessibilityLabel="Lock this budget"
+                trackColor={{ false: tokens.colors.borderStrong, true: tokens.colors.brand }}
+                thumbColor={Platform.OS === 'android' ? tokens.colors.surface : undefined}
+                // @ts-ignore web-only prop on react-native-web's Switch
+                activeThumbColor={tokens.colors.onBrand}
+              />
             </View>
-          </View>
+          </ListGroup>
+
+          {!canLock ? (
+            <ListGroup>
+              <View style={{ flexDirection: 'row', padding: space.s4, gap: space.s3 }}>
+                <Icon
+                  name={Platform.OS === 'web' ? 'phone-portrait-outline' : 'alert-circle'}
+                  size={20}
+                  color={Platform.OS === 'web' ? tokens.colors.textMuted : tokens.colors.warning}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[type.bodyMed, { color: tokens.colors.text }]}>
+                    {Platform.OS === 'web' ? 'Available in the mobile app' : 'Set up a device passcode first'}
+                  </Text>
+                  <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1 }]}>
+                    {Platform.OS === 'web'
+                      ? 'Budget lock uses Face ID, Touch ID or your phone’s passcode, so it can only be turned on in the iOS or Android app.'
+                      : 'Budget lock uses your device’s passcode or biometrics. Turn one on in your device settings, then come back here.'}
+                  </Text>
+                </View>
+              </View>
+            </ListGroup>
+          ) : null}
+
+          {lockSettings.locked ? (
+            <>
+              <ListGroup
+                header="Lock again after"
+                footer="“Immediately” asks every time you open the budget. “Never” keeps it open until you lock it yourself."
+              >
+                {AUTO_LOCK_OPTIONS.map((option, i) => {
+                  const selected = lockSettings.autoLockMinutes === option.value;
+                  return (
+                    <ListRow
+                      key={option.value}
+                      title={option.label}
+                      trailing={selected ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
+                      onPress={saving || selected ? undefined : () => handleSetAutoLock(option.value)}
+                      accessibilityLabel={`${option.label}${selected ? ', selected' : ''}`}
+                      style={{ minHeight: 52 } as any}
+                      showSeparator={i < AUTO_LOCK_OPTIONS.length - 1}
+                    />
+                  );
+                })}
+              </ListGroup>
+
+              <ListGroup>
+                <ListRow
+                  title="Lock now"
+                  icon="lock-closed"
+                  iconColor={tokens.colors.brand}
+                  onPress={saving ? undefined : handleLockNow}
+                  showSeparator={false}
+                />
+              </ListGroup>
+            </>
+          ) : null}
         </View>
       </ScrollView>
     </View>

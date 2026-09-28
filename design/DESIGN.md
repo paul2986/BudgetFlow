@@ -123,12 +123,12 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 | `incomeSubtle` | `#ECFDF5` | Income fills |
 | `expense` | `#BE123C` | Money out (6.5:1) — always with ↓ or label |
 | `expenseSubtle` | `#FFF1F2` | Expense fills |
-| `warning` | `#B45309` | Expiring soon (5.0:1) |
-| `warningSubtle` | `#FFFBEB` | Warning fills |
-| `danger` | `#DC2626` | Destructive actions only (4.5:1) |
+| `warning` | `#A16207` | Expiring soon (4.9:1). Yellow-gold, kept clear of the orange `personal` hue |
+| `warningSubtle` | `#FEFCE8` | Warning fills |
+| `danger` | `#C81E1E` | Destructive actions only (5.7:1; 5.2:1 on dangerSubtle) |
 | `dangerSubtle` | `#FEF2F2` | Danger fills |
-| `household` | `#4338CA` | Household chip text+icon (7.7:1) |
-| `personal` | `#0E7490` | Personal chip text+icon (5.3:1) |
+| `household` | `#0369A1` | Household chip text+icon (5.9:1). Sky blue: never shares the brand indigo |
+| `personal` | `#C2410C` | Personal chip text+icon (5.2:1). Orange: blue/orange is the colour-blind-safe pair |
 | `overlay` | `rgba(15,23,42,0.5)` | Modal scrim |
 
 ### Dark
@@ -150,18 +150,20 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 | `incomeSubtle` | `#064E3B4D` | |
 | `expense` | `#FB7185` | with ↓/label |
 | `expenseSubtle` | `#88133756` | |
-| `warning` | `#FBBF24` | |
+| `warning` | `#FACC15` | |
 | `warningSubtle` | `#78350F4D` | |
 | `danger` | `#F87171` | |
 | `dangerSubtle` | `#7F1D1D4D` | |
-| `household` | `#A5B4FC` | |
-| `personal` | `#67E8F9` | |
+| `household` | `#7DD3FC` | |
+| `personal` | `#FB923C` | |
 | `overlay` | `rgba(2,6,23,0.65)` | |
 
 Rules:
 - **Delete** the `brandGradient` token and every `filter: drop-shadow(...)` glow. The only permitted gradient is an optional subtle `surface → brandSubtle` wash on the single hero KPI card.
 - **Ban** alpha-suffix color math (`color + '15'`). Every fill must be a named `*Subtle` token.
 - `household`/`personal` colors may only appear inside chips that also carry an icon (`home` / `person`) and a text label.
+- **Colour roles are decoupled (2026-09 colour audit).** `brand` is interaction only (buttons, active nav, selection, focus). `income`/`expense`/`danger`/`warning` are semantic. `household`, `personal` and the debt hues (`mortgage` purple, `loan` cyan, `creditCard` pink) are a separate categorical set that must not reuse a brand or semantic hue. Avatar hues (`lightAvatarHues` / `darkAvatarHues` in tokens) are violet, teal, fuchsia, lime, slate, stone: none of them a brand, semantic or household/personal hue. Non-interactive icon chips with no category (e.g. an untoned StatCard) are neutral (`textMuted` on `surfaceSunken`), not brand.
+- **Series in one chart need hue *and* lightness separation** (target ΔE ≥ 40 between adjacent segments, checked under deuteranopia/protanopia simulation), and stacked bars put a `space.s1` surface gap between segments.
 
 ## 2.2 Typography
 
@@ -290,7 +292,7 @@ Every screen keeps its exact current capabilities; only presentation changes.
 | **Toast** | Bottom (above tab bar), `surface` e2, icon by severity, auto-dismiss 4s, optional action ("Undo"), `aria-live=polite`, never steals focus. |
 | **EmptyState** | 64px icon in subtle circle, `h3` title, one caption line, one primary CTA. Per-screen copy defined with the screen. |
 | **Skeleton** | Replace "Loading..." text: shimmer blocks matching final layout (hero card, stat row, 3 rows) for loads >300ms; respect reduced-motion (static blocks). |
-| **Avatar** | Initial on deterministic per-person hue (from a fixed 8-hue accessible set), `rFull`, sizes 28/36/44. |
+| **Avatar** | Initial on deterministic per-person hue (from the fixed 6-hue accessible set in `styles/tokens.ts`), `rFull`, sizes 28/36/44. |
 
 ## 2.9 Charts & data-viz rules
 Allocation bars (stacked horizontal) are the default viz; donut only if categories ≤5. Colors from a fixed ordered palette (indigo, cyan, amber, rose, emerald, slate) with icon/pattern + always a legend with values; every chart has a text summary line for screen readers; tooltips on tap/hover with exact formatted values; empty chart = EmptyState, not blank axes.

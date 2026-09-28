@@ -45,7 +45,7 @@ export default function Input({
 
   const webFocusRing =
     Platform.OS === 'web' && focused
-      ? ({ outlineWidth: 2, outlineColor: error ? tokens.colors.danger : tokens.colors.brand, outlineStyle: 'solid', outlineOffset: 1 } as any)
+      ? ({ outlineWidth: 2, outlineColor: error ? tokens.colors.danger : tokens.colors.brand, outlineStyle: 'solid', outlineOffset: -1 } as any)
       : null;
 
   return (
@@ -93,8 +93,9 @@ export default function Input({
               fontSize: type.body.fontSize,
               color: tokens.colors.text,
               ...font(400),
-              // @ts-ignore web: suppress UA outline; the container carries the ring
-              ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
+              // web: the container carries the ring. outlineStyle (not
+              // width) is required: the UA ring is `outline: auto`, which ignores width.
+              ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
             },
             inputStyle,
           ]}

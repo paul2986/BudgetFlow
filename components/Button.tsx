@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Text, Pressable, StyleSheet, ViewStyle, TextStyle, View, ActivityIndicator, Platform } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { type, radius, space } from '../styles/tokens';
@@ -37,6 +37,9 @@ export default function Button({
   const { tokens } = useTheme();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  // Focus that follows a pointer press shouldn't draw the keyboard ring
+  // (the web's :focus-visible behaviour).
+  const pointerDown = useRef(false);
 
   const buttonText = text || title || '';
   const isDisabled = disabled || loading;
@@ -67,7 +70,7 @@ export default function Button({
       case 'danger':
         return {
           bg: tokens.colors.danger,
-          label: '#FFFFFF',
+          label: tokens.colors.onDanger,
           borderColor: 'transparent',
           borderWidth: 0,
         };
@@ -114,8 +117,16 @@ export default function Button({
       disabled={isDisabled}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
+      onPressIn={() => {
+        pointerDown.current = true;
+      }}
+      onFocus={() => {
+        if (!pointerDown.current) setFocused(true);
+      }}
+      onBlur={() => {
+        pointerDown.current = false;
+        setFocused(false);
+      }}
       accessible={true}
       accessibilityRole="button"
       accessibilityLabel={buttonText || undefined}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Platform, ViewStyle } from 'react-native';
+import { View, Text, Pressable, Platform, ViewStyle, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import Icon from './Icon';
@@ -7,13 +7,17 @@ import { Chip, AmountText } from './ui';
 import { normalizeCategoryName } from '../utils/storage';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import { Person, Expense } from '../types/budget';
-import { type, radius, space, elevation } from '../styles/tokens';
+import { type, radius, space } from '../styles/tokens';
 
 /**
- * Expense row card (DESIGN.md §2.7 Expenses).
+ * Expense row (DESIGN.md §2.7 Expenses). Renders inside a ListGroup: the group
+ * supplies the surface, the row draws only an inset hairline separator.
  * - No text below 12px (fixes the old 10–11px metadata).
  * - Household/personal and debt carry icon + label chips, never color alone.
- * - Delete is a 44pt labeled target, visually separated from the row press.
+ * - Delete stays out of the scan path: mouse/trackpad devices get a muted
+ *   trash that turns red on hover (still keyboard-reachable); touch devices
+ *   (native and touch web) use long-press or the VoiceOver/TalkBack "Delete"
+ *   action. The edit screen also offers delete.
  */
 
 interface ExpenseCardProps {
@@ -23,6 +27,8 @@ interface ExpenseCardProps {
     onPress: () => void;
     onDelete: (id: string, description: string) => void;
     style?: ViewStyle;
+    /** Hairline under the row; pass false for the last row in a group. */
+    showSeparator?: boolean;
 }
 
 const getExpirationInfo = (endDate: string) => {
@@ -51,10 +57,19 @@ export default function ExpenseCard({
     onPress,
     onDelete,
     style,
+    showSeparator = true,
 }: ExpenseCardProps) {
     const { tokens } = useTheme();
     const { formatCurrency } = useCurrency();
     const [hovered, setHovered] = useState(false);
+    const [trashHovered, setTrashHovered] = useState(false);
+    // Inline trash only where hover exists (mouse/trackpad). Touch devices,
+    // including the PWA on a phone, use long-press like native.
+    const showTrash =
+        Platform.OS === 'web' &&
+        typeof window !== 'undefined' &&
+        !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+    const requestDelete = () => onDelete(expense.id, expense.description);
 
     const monthlyAmount = calculateMonthlyAmount(expense.amount, expense.frequency);
     const tag = normalizeCategoryName((expense as any).categoryTag || 'Misc');
@@ -73,7 +88,7 @@ export default function ExpenseCard({
         : null;
 
     const metaLine = [
-        expense.frequency,
+        expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1),
         isHousehold ? (person ? person.name : 'Shared') : person?.name,
     ]
         .filter(Boolean)
@@ -83,39 +98,50 @@ export default function ExpenseCard({
         isHousehold ? 'household' : 'personal'
     }${debtMeta ? `, ${debtMeta.label}` : ''}${expirationInfo ? `, ${expirationInfo.text}` : ''}`;
 
+    // The row and the delete button are siblings inside a hover wrapper, so
+    // web never nests one <button> inside another.
     return (
         <Pressable
-            onPress={onPress}
-            disabled={isDeleting}
+            accessible={false}
+            focusable={false}
             onHoverIn={() => setHovered(true)}
             onHoverOut={() => setHovered(false)}
-            accessibilityRole="button"
-            accessibilityLabel={a11ySummary}
-            accessibilityHint="Opens this expense for editing"
-            style={({ pressed }) => [
+            style={[
                 {
-                    backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : tokens.colors.surface,
-                    borderRadius: radius.lg,
-                    borderWidth: 1,
-                    borderColor: tokens.colors.border,
-                    padding: space.s4,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: hovered ? tokens.colors.surfaceSunken : 'transparent',
                     opacity: isDeleting ? 0.5 : 1,
                     // @ts-ignore web transition
                     transitionDuration: '150ms',
-                    ...elevation.e1,
                 },
-                expirationInfo?.isExpired
-                    ? { borderLeftWidth: 3, borderLeftColor: tokens.colors.danger }
-                    : expirationInfo?.isExpiringSoon
-                        ? { borderLeftWidth: 3, borderLeftColor: tokens.colors.warning }
-                        : null,
                 style,
             ]}
         >
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Pressable
+                onPress={onPress}
+                onLongPress={showTrash ? undefined : requestDelete}
+                disabled={isDeleting}
+                accessibilityRole="button"
+                accessibilityLabel={a11ySummary}
+                accessibilityHint="Opens this expense for editing"
+                accessibilityActions={[{ name: 'delete', label: 'Delete' }]}
+                onAccessibilityAction={(e) => {
+                    if (e.nativeEvent.actionName === 'delete') requestDelete();
+                }}
+                style={({ pressed }) => ({
+                    flex: 1,
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    paddingLeft: space.s4,
+                    paddingRight: showTrash ? space.s2 : space.s4,
+                    paddingVertical: space.s3,
+                    backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
+                })}
+            >
                 {/* Info */}
                 <View style={{ flex: 1, marginRight: space.s3 }}>
-                    <Text style={[type.h3, { color: tokens.colors.text, marginBottom: space.s1 }]} numberOfLines={1}>
+                    <Text style={[type.bodyMed, { color: tokens.colors.text, marginBottom: space.s1 }]} numberOfLines={1}>
                         {expense.description}
                     </Text>
 
@@ -128,7 +154,7 @@ export default function ExpenseCard({
                             label={isHousehold ? 'Household' : 'Personal'}
                             icon={isHousehold ? 'home-outline' : 'person-outline'}
                             color={isHousehold ? tokens.colors.household : tokens.colors.personal}
-                            backgroundColor={tokens.colors.surfaceSunken}
+                            backgroundColor={isHousehold ? tokens.colors.householdSubtle : tokens.colors.personalSubtle}
                         />
                         {debtMeta ? (
                             <Chip
@@ -161,39 +187,54 @@ export default function ExpenseCard({
                     </View>
                 </View>
 
-                {/* Amount + delete */}
-                <View style={{ alignItems: 'flex-end', justifyContent: 'space-between', alignSelf: 'stretch' }}>
-                    <View style={{ alignItems: 'flex-end' }}>
-                        <AmountText value={expense.amount} role="bodyMed" />
-                        {shouldShowMonthlyValue && (
-                            <Text style={[type.caption, { color: tokens.colors.textMuted }]}>
-                                {formatCurrency(monthlyAmount)}/mo
-                            </Text>
-                        )}
-                    </View>
-
-                    <Pressable
-                        onPress={(e) => {
-                            e.stopPropagation();
-                            onDelete(expense.id, expense.description);
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Delete ${expense.description}`}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                        style={({ pressed }) => ({
-                            width: 36,
-                            height: 36,
-                            borderRadius: radius.md,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            marginTop: space.s2,
-                            backgroundColor: pressed ? tokens.colors.dangerSubtle : 'transparent',
-                        })}
-                    >
-                        <Icon name="trash-outline" size={18} color={tokens.colors.danger} />
-                    </Pressable>
+                {/* Amount */}
+                <View style={{ alignItems: 'flex-end' }}>
+                    <AmountText value={expense.amount} role="bodyMed" />
+                    {shouldShowMonthlyValue && (
+                        <AmountText value={monthlyAmount} role="caption" tone="muted" suffix="/mo" />
+                    )}
                 </View>
-            </View>
+            </Pressable>
+
+            {showTrash ? (
+                <Pressable
+                    onPress={requestDelete}
+                    disabled={isDeleting}
+                    onHoverIn={() => setTrashHovered(true)}
+                    onHoverOut={() => setTrashHovered(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${expense.description}`}
+                    style={({ pressed }) => ({
+                        width: 36,
+                        height: 36,
+                        borderRadius: radius.md,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: space.s2,
+                        opacity: hovered || trashHovered || pressed ? 1 : 0.4,
+                        backgroundColor: pressed || trashHovered ? tokens.colors.dangerSubtle : 'transparent',
+                    })}
+                >
+                    <Icon
+                        name="trash-outline"
+                        size={18}
+                        color={trashHovered ? tokens.colors.danger : tokens.colors.textFaint}
+                    />
+                </Pressable>
+            ) : null}
+
+            {showSeparator ? (
+                <View
+                    style={{
+                        position: 'absolute',
+                        left: space.s4,
+                        right: 0,
+                        bottom: 0,
+                        height: StyleSheet.hairlineWidth,
+                        backgroundColor: tokens.colors.borderStrong,
+                    }}
+                />
+            ) : null}
         </Pressable>
     );
 }

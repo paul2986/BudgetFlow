@@ -6,14 +6,16 @@ import { BlurView } from 'expo-blur';
 import { useTheme } from '../../hooks/useTheme';
 import { LAYOUT } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
-import { type, space, radius } from '../../styles/tokens';
+import { type, space } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
 
 /**
  * Compact-class bottom tab bar (DESIGN.md §2.6).
  * - Icons AND labels on every platform (fixes iOS icon-only tabs).
  * - Never hidden: sub-screens and empty states keep primary navigation.
- * - 56px + safe area; surface with blur (iOS/web) over a hairline top border.
+ * - 56px + safe area; translucent `chrome` material with blur (iOS/web) so
+ *   content visibly passes underneath, over a hairline top edge.
+ * - Selection is carried by tint + filled icon; labels stay sentence case.
  */
 
 function TabItem({
@@ -46,21 +48,15 @@ function TabItem({
         justifyContent: 'center',
         paddingTop: space.s2,
         paddingBottom: space.s1,
-        opacity: pressed ? 0.7 : 1,
+        opacity: pressed ? 0.6 : 1,
         minHeight: LAYOUT.tabBarHeight,
       })}
     >
-      <View
-        style={{
-          width: 4,
-          height: 4,
-          borderRadius: radius.full,
-          backgroundColor: active ? tokens.colors.brand : 'transparent',
-          marginBottom: 2,
-        }}
-      />
       <Icon name={(active ? activeIcon : icon) as any} size={24} color={color} />
-      <Text style={[type.overline, { color, marginTop: 2, letterSpacing: 0.2 }]} numberOfLines={1}>
+      <Text
+        style={[type.overline, { color, marginTop: space.s1, textTransform: 'none', letterSpacing: 0 }]}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </Pressable>
@@ -79,16 +75,18 @@ export default function BottomTabBar() {
       style={{
         flexDirection: 'row',
         borderTopWidth: StyleSheet.hairlineWidth,
-        borderTopColor: tokens.colors.border,
         paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 0 : space.s2),
+        borderTopColor: tokens.colors.borderStrong,
         backgroundColor:
           Platform.OS === 'android'
             ? tokens.colors.surface
-            : tokens.isDark
-              ? 'rgba(21,30,46,0.92)'
-              : 'rgba(255,255,255,0.92)',
+            : Platform.OS === 'ios'
+              ? 'transparent' // BlurView supplies the material
+              : tokens.colors.chrome,
         // @ts-ignore web blur
-        ...(Platform.OS === 'web' ? { backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' } : {}),
+        ...(Platform.OS === 'web'
+          ? { backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)' }
+          : {}),
       }}
     >
       {NAV_TABS.map((tab) => (
@@ -113,7 +111,7 @@ export default function BottomTabBar() {
       }}
     >
       {Platform.OS === 'ios' ? (
-        <BlurView intensity={80} tint={isDarkMode ? 'dark' : 'light'}>
+        <BlurView intensity={80} tint={isDarkMode ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}>
           {content}
         </BlurView>
       ) : (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 import Icon from './Icon';
@@ -131,11 +131,22 @@ export default function StandardHeader({
         minHeight: subtitle ? HEADER_HEIGHT + 12 : HEADER_HEIGHT,
         paddingHorizontal: bp.gutter,
         paddingVertical: space.s2,
-        backgroundColor: backgroundColor || tokens.colors.bg,
-        borderBottomWidth: 1,
-        borderBottomColor: tokens.colors.border,
-        // @ts-ignore web-only sticky header
-        ...(Platform.OS === 'web' ? { position: 'sticky', top: 0, zIndex: 100 } : {}),
+        // Web: sticky translucent material so content visibly scrolls under
+        // the header. Native: the header sits in flow, so a solid fill.
+        backgroundColor:
+          backgroundColor || (Platform.OS === 'web' ? tokens.colors.chrome : tokens.colors.bg),
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderBottomColor: tokens.colors.borderStrong,
+        // @ts-ignore web-only sticky header + material
+        ...(Platform.OS === 'web'
+          ? {
+              position: 'sticky',
+              top: 0,
+              zIndex: 100,
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            }
+          : {}),
       }}
     >
       {left.map((btn, idx) => renderButton(btn, 'left', idx))}

@@ -33,16 +33,34 @@ export interface ColorTokens {
   border: string;
   borderStrong: string;
   income: string;
+  onIncome: string;
   incomeSubtle: string;
   expense: string;
   expenseSubtle: string;
   warning: string;
   warningSubtle: string;
   danger: string;
+  onDanger: string;
   dangerSubtle: string;
   household: string;
+  onHousehold: string;
+  householdSubtle: string;
   personal: string;
+  onPersonal: string;
+  personalSubtle: string;
+  /**
+   * Debt-type accents (mortgage purple, loan cyan, credit card pink); always
+   * pair with an icon or label. Chosen to avoid brand and semantic hues.
+   */
+  mortgage: string;
+  mortgageSubtle: string;
+  creditCard: string;
+  creditCardSubtle: string;
+  loan: string;
+  loanSubtle: string;
   overlay: string;
+  /** Translucent material for floating chrome (tab bar, sticky headers); pair with a blur. */
+  chrome: string;
 }
 
 export const lightColors: ColorTokens = {
@@ -50,26 +68,41 @@ export const lightColors: ColorTokens = {
   onBrand: '#FFFFFF',
   brandSubtle: '#EEF2FF',
   onBrandSubtle: '#3730A3',
-  bg: '#F8FAFC',
+  // Grouped-page grey: white surfaces separate from it by fill alone, so
+  // cards and list groups need no stroke (Apple inset-grouped idiom).
+  bg: '#F1F5F9',
   surface: '#FFFFFF',
   surfaceRaised: '#FFFFFF',
   surfaceSunken: '#F1F5F9',
   text: '#0F172A',
   textMuted: '#475569',
-  textFaint: '#64748B',
+  textFaint: '#5A6A80', // >=4.5:1 on bg and surfaceSunken
   border: '#E2E8F0',
   borderStrong: '#CBD5E1',
   income: '#047857',
+  onIncome: '#FFFFFF',
   incomeSubtle: '#ECFDF5',
   expense: '#BE123C',
   expenseSubtle: '#FFF1F2',
-  warning: '#B45309',
-  warningSubtle: '#FFFBEB',
-  danger: '#DC2626',
+  warning: '#A16207',
+  warningSubtle: '#FEFCE8',
+  danger: '#C81E1E',
+  onDanger: '#FFFFFF',
   dangerSubtle: '#FEF2F2',
-  household: '#4338CA',
-  personal: '#0E7490',
+  household: '#0369A1',
+  onHousehold: '#FFFFFF',
+  householdSubtle: '#F0F9FF',
+  personal: '#C2410C',
+  onPersonal: '#FFFFFF',
+  personalSubtle: '#FFF7ED',
+  mortgage: '#7E22CE',
+  mortgageSubtle: '#FAF5FF',
+  creditCard: '#BE185D',
+  creditCardSubtle: '#FDF2F8',
+  loan: '#0E7490',
+  loanSubtle: '#ECFEFF',
   overlay: 'rgba(15,23,42,0.5)',
+  chrome: 'rgba(255,255,255,0.82)',
 };
 
 export const darkColors: ColorTokens = {
@@ -87,17 +120,59 @@ export const darkColors: ColorTokens = {
   border: '#293548',
   borderStrong: '#3B4A63',
   income: '#34D399',
+  onIncome: '#022C22',
   incomeSubtle: '#064E3B4D',
   expense: '#FB7185',
   expenseSubtle: '#88133756',
-  warning: '#FBBF24',
-  warningSubtle: '#78350F4D',
+  warning: '#FACC15',
+  warningSubtle: '#713F124D',
   danger: '#F87171',
+  onDanger: '#450A0A',
   dangerSubtle: '#7F1D1D4D',
-  household: '#A5B4FC',
-  personal: '#67E8F9',
+  household: '#7DD3FC',
+  onHousehold: '#082F49',
+  householdSubtle: '#0C4A6E4D',
+  personal: '#FB923C',
+  onPersonal: '#431407',
+  personalSubtle: '#7C2D124D',
+  mortgage: '#C084FC',
+  mortgageSubtle: '#581C874D',
+  creditCard: '#F472B6',
+  creditCardSubtle: '#8318434D',
+  loan: '#67E8F9',
+  loanSubtle: '#164E634D',
   overlay: 'rgba(2,6,23,0.65)',
+  chrome: 'rgba(21,30,46,0.82)',
 };
+
+/**
+ * Avatar identity hues (initial on a tinted circle). Deliberately excludes every
+ * hue that carries meaning elsewhere: brand indigo, income green, expense/danger
+ * red, warning yellow, and the household (sky) / personal (orange) categories,
+ * so a person's avatar never reads as a status.
+ */
+export interface AvatarHue {
+  bg: string;
+  fg: string;
+}
+
+export const lightAvatarHues: AvatarHue[] = [
+  { bg: '#F5F3FF', fg: '#5B21B6' }, // violet
+  { bg: '#F0FDFA', fg: '#115E59' }, // teal
+  { bg: '#FDF4FF', fg: '#86198F' }, // fuchsia
+  { bg: '#F7FEE7', fg: '#3F6212' }, // lime
+  { bg: '#F1F5F9', fg: '#334155' }, // slate
+  { bg: '#F5F5F4', fg: '#57534E' }, // stone
+];
+
+export const darkAvatarHues: AvatarHue[] = [
+  { bg: '#4C1D9566', fg: '#DDD6FE' },
+  { bg: '#134E4A66', fg: '#99F6E4' },
+  { bg: '#701A7566', fg: '#F5D0FE' },
+  { bg: '#36531466', fg: '#D9F99D' },
+  { bg: '#33415566', fg: '#E2E8F0' },
+  { bg: '#44403C66', fg: '#E7E5E4' },
+];
 
 // ---------------------------------------------------------------------------
 // Typography
@@ -146,17 +221,21 @@ export interface TypeToken extends FontToken {
   textTransform?: TextStyle['textTransform'];
 }
 
-/** The only permitted text styles. No other font sizes are allowed. */
+/**
+ * The only permitted text styles. No other font sizes are allowed.
+ * Tracking is size-specific (Inter's optical metrics): tighter as size grows,
+ * near zero at caption, positive only on the small uppercase overline.
+ */
 export const type: Record<
   'display' | 'h1' | 'h2' | 'h3' | 'body' | 'bodyMed' | 'caption' | 'overline',
   TypeToken
 > = {
-  display: { fontSize: 34, lineHeight: 40, letterSpacing: -0.5, ...font(700) },
-  h1: { fontSize: 28, lineHeight: 34, letterSpacing: -0.5, ...font(700) },
-  h2: { fontSize: 22, lineHeight: 28, ...font(600) },
-  h3: { fontSize: 17, lineHeight: 24, ...font(600) },
-  body: { fontSize: 16, lineHeight: 24, ...font(400) },
-  bodyMed: { fontSize: 16, lineHeight: 24, ...font(500) },
+  display: { fontSize: 34, lineHeight: 40, letterSpacing: -0.75, ...font(700) },
+  h1: { fontSize: 28, lineHeight: 34, letterSpacing: -0.6, ...font(700) },
+  h2: { fontSize: 22, lineHeight: 28, letterSpacing: -0.4, ...font(600) },
+  h3: { fontSize: 17, lineHeight: 24, letterSpacing: -0.2, ...font(600) },
+  body: { fontSize: 16, lineHeight: 24, letterSpacing: -0.1, ...font(400) },
+  bodyMed: { fontSize: 16, lineHeight: 24, letterSpacing: -0.1, ...font(500) },
   caption: { fontSize: 13, lineHeight: 18, ...font(500) },
   overline: {
     fontSize: 12,

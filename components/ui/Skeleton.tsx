@@ -45,7 +45,9 @@ export default function Skeleton({ width = '100%', height = 16, borderRadius = r
           width,
           height,
           borderRadius,
-          backgroundColor: tokens.colors.surfaceSunken,
+          // `border` grey reads on both the page grey and white cards (light);
+          // the raised surface does the same job in dark mode.
+          backgroundColor: tokens.isDark ? tokens.colors.surfaceRaised : tokens.colors.border,
           opacity: pulse,
         },
         style,

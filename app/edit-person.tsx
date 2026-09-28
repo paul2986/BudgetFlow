@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import PersonForm from '../components/forms/PersonForm';
 import StandardHeader from '../components/StandardHeader';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { FormScreen } from '../components/ui';
 
 export default function EditPersonScreen() {
   const params = useLocalSearchParams<{ personId: string }>();
@@ -16,11 +17,13 @@ export default function EditPersonScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader
-        title="Edit Person"
-        onLeftPress={handleClose}
-      />
-      <PersonForm personId={params.personId} onClose={handleClose} />
+      <FormScreen>
+        <StandardHeader
+          title="Edit person"
+          onLeftPress={handleClose}
+        />
+        <PersonForm personId={params.personId} onClose={handleClose} />
+      </FormScreen>
     </View>
   );
 }

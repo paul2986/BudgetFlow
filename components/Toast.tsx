@@ -1,8 +1,9 @@
-
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useCallback } from 'react';
+import { Text, Animated, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import Icon from './Icon';
+import { type, space, radius, elevation, motion } from '../styles/tokens';
 
 interface ToastProps {
   message: string;
@@ -12,120 +13,88 @@ interface ToastProps {
   duration?: number;
 }
 
-export default function Toast({ message, type, visible, onHide, duration = 4000 }: ToastProps) {
-  const { currentColors, tokens } = useTheme();
-  const [fadeAnim] = useState(new Animated.Value(0));
-  // Toasts live at the bottom (above the tab bar) and slide up into place.
-  const [slideAnim] = useState(new Animated.Value(40));
+/**
+ * Calm Ledger toast (DESIGN.md §2.8): raised surface, severity carried by
+ * icon color + shape, never a colored background.
+ * Motion: springs up from the bottom edge and leaves the same way (spatial
+ * consistency); a plain cross-fade under Reduce Motion. Tap to dismiss early.
+ */
+export default function Toast({ message, type: kind, visible, onHide, duration = 4000 }: ToastProps) {
+  const { tokens } = useTheme();
+  const reduceMotion = useReducedMotion();
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(reduceMotion ? 0 : space.s8)).current;
+  const hiding = useRef(false);
 
   const hideToast = useCallback(() => {
+    if (hiding.current) return;
+    hiding.current = true;
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 40,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onHide();
-    });
-  }, [fadeAnim, slideAnim, onHide]);
+      Animated.timing(opacity, { toValue: 0, duration: motion.exit, useNativeDriver: true }),
+      reduceMotion
+        ? Animated.delay(0)
+        : Animated.timing(translateY, { toValue: space.s8, duration: motion.exit, useNativeDriver: true }),
+    ]).start(() => onHide());
+  }, [opacity, translateY, reduceMotion, onHide]);
 
   useEffect(() => {
-    if (visible) {
-      // Show animation
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 220,
-          useNativeDriver: true,
-        }),
-      ]).start();
+    if (!visible) return;
+    hiding.current = false;
+    // Reduce Motion can resolve after first render; never leave the toast offset.
+    if (reduceMotion) translateY.setValue(0);
+    Animated.parallel([
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: reduceMotion ? motion.fast : motion.base,
+        useNativeDriver: true,
+      }),
+      reduceMotion
+        ? Animated.delay(0)
+        : Animated.spring(translateY, { toValue: 0, ...motion.spring, useNativeDriver: true }),
+    ]).start();
 
-      // Auto hide after duration
-      const timer = setTimeout(() => {
-        hideToast();
-      }, duration);
-
-      return () => clearTimeout(timer);
-    }
-  }, [visible, duration, fadeAnim, slideAnim, hideToast]);
+    const timer = setTimeout(hideToast, duration);
+    return () => clearTimeout(timer);
+  }, [visible, duration, opacity, translateY, reduceMotion, hideToast]);
 
   if (!visible) return null;
 
-  // Calm Ledger toast (DESIGN.md §2.8): surface card, severity carried by the
-  // icon color + shape, not a colored background.
-  const getSeverityColor = () => {
-    switch (type) {
-      case 'success':
-        return tokens.colors.income;
-      case 'error':
-        return tokens.colors.danger;
-      case 'info':
-      default:
-        return tokens.colors.brand;
-    }
-  };
-
-  const getIconName = () => {
-    switch (type) {
-      case 'success':
-        return 'checkmark-circle';
-      case 'error':
-        return 'alert-circle';
-      case 'info':
-      default:
-        return 'information-circle';
-    }
-  };
+  const severity =
+    kind === 'success'
+      ? { color: tokens.colors.income, icon: 'checkmark-circle' }
+      : kind === 'error'
+        ? { color: tokens.colors.danger, icon: 'alert-circle' }
+        : { color: tokens.colors.brand, icon: 'information-circle' };
 
   return (
     <Animated.View
       accessibilityLiveRegion="polite"
-      style={[
-        styles.container,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: slideAnim }],
-          backgroundColor: tokens.colors.surfaceRaised,
-          borderColor: tokens.colors.border,
-        },
-      ]}
+      style={{
+        width: '100%',
+        maxWidth: 480,
+        opacity,
+        transform: [{ translateY }],
+      }}
     >
-      <Icon name={getIconName()} size={20} style={{ color: getSeverityColor(), marginRight: 8 }} />
-      <Text style={[styles.message, { color: tokens.colors.text }]}>{message}</Text>
+      <Pressable
+        onPress={hideToast}
+        accessibilityRole="alert"
+        accessibilityHint="Dismisses this message"
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: space.s4,
+          paddingVertical: space.s3,
+          borderRadius: radius.md,
+          backgroundColor: pressed ? tokens.colors.surfaceSunken : tokens.colors.surfaceRaised,
+          borderWidth: tokens.isDark ? 1 : 0,
+          borderColor: tokens.colors.border,
+          ...elevation.e2,
+        })}
+      >
+        <Icon name={severity.icon as any} size={20} style={{ color: severity.color, marginRight: space.s2 }} />
+        <Text style={[type.bodyMed, { color: tokens.colors.text, flex: 1 }]}>{message}</Text>
+      </Pressable>
     </Animated.View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    width: '100%',
-    maxWidth: 480,
-    borderRadius: 12,
-    borderWidth: 1,
-    elevation: 6,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-  },
-  message: {
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-});

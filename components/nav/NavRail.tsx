@@ -60,7 +60,7 @@ export default function NavRail() {
               })}
             >
               <Icon name={(active ? tab.activeIcon : tab.icon) as any} size={24} color={color} />
-              <Text style={[type.overline, { color, marginTop: space.s1, letterSpacing: 0.2 }]} numberOfLines={1}>
+              <Text style={[type.overline, { color, marginTop: space.s1, textTransform: 'none', letterSpacing: 0 }]} numberOfLines={1}>
                 {tab.label}
               </Text>
             </Pressable>
@@ -84,7 +84,7 @@ export default function NavRail() {
       >
         <Icon name="add" size={24} color={tokens.colors.onBrand} />
       </Pressable>
-      <Text style={[type.overline, { color: tokens.colors.textMuted, marginTop: space.s1, letterSpacing: 0.2 }]}>
+      <Text style={[type.overline, { color: tokens.colors.textMuted, marginTop: space.s1, textTransform: 'none', letterSpacing: 0 }]}>
         Expense
       </Text>
     </View>

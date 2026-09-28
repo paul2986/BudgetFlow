@@ -1,22 +1,25 @@
-
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Modal as RNModal, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView } from 'react-native';
+import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
-import { useThemedStyles } from '../../hooks/useThemedStyles';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Alert } from '../../utils/alert';
-import Icon from '../Icon';
 import Button from '../Button';
-import CurrencyInput from '../CurrencyInput';
-import { Person, Income, Frequency } from '../../types/budget';
-import {
-    calculatePersonIncome,
-    calculateMonthlyAmount,
-    calculatePersonalExpenses,
-    calculateHouseholdShare,
-    calculateHouseholdExpenses
-} from '../../utils/calculations';
+import IncomeModal from '../IncomeModal';
+import { AmountText, Input, ListGroup, ListRow, Skeleton } from '../ui';
+import { Income } from '../../types/budget';
+import { calculatePersonIncome, calculateMonthlyAmount } from '../../utils/calculations';
+import { space } from '../../styles/tokens';
+
+/**
+ * Edit a person: name, income sources (each opens /edit-income, which owns
+ * update + confirmed delete), add income via the shared IncomeModal sheet,
+ * and a quiet destructive action at the end.
+ *
+ * The name is held separately from the live person so adding income (which
+ * refreshes budget data) never discards an unsaved name edit.
+ */
 
 interface PersonFormProps {
     personId?: string;
@@ -25,209 +28,139 @@ interface PersonFormProps {
 }
 
 export default function PersonForm({ personId, onClose, onSuccess }: PersonFormProps) {
-    const { data, updatePerson, removePerson, addIncome, removeIncome, saving, loading, refreshData } = useBudgetData();
-    const { currentColors } = useTheme();
-    const { themedStyles } = useThemedStyles();
+    const { data, updatePerson, removePerson, addIncome, saving } = useBudgetData();
+    const { tokens } = useTheme();
     const { formatCurrency } = useCurrency();
 
-    const [person, setPerson] = useState<Person | null>(null);
+    const person = data.people.find(p => p.id === personId) || null;
+    const [name, setName] = useState('');
+    const [nameLoaded, setNameLoaded] = useState(false);
     const [showAddIncome, setShowAddIncome] = useState(false);
-    const [editingIncome, setEditingIncome] = useState<Income | null>(null);
-    const [newIncome, setNewIncome] = useState({
-        amount: '',
-        label: '',
-        frequency: 'monthly' as Frequency,
-    });
-
     const [isDeletingPerson, setIsDeletingPerson] = useState(false);
-    const [deletingIncomeId, setDeletingIncomeId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (personId) {
-            const found = data.people.find(p => p.id === personId);
-            if (found) setPerson(found);
+        if (person && !nameLoaded) {
+            setName(person.name);
+            setNameLoaded(true);
         }
-    }, [personId, data.people]);
+    }, [person, nameLoaded]);
 
     const handleSavePerson = async () => {
-        if (!person) return;
-        const result = await updatePerson(person);
+        if (!person || !name.trim()) return;
+        const result = await updatePerson({ ...person, name: name.trim() });
         if (result.success) onSuccess?.() || onClose();
-        else Alert.alert('Error', 'Failed to update person');
+        else Alert.alert('Couldn’t save', 'Please try again.');
     };
 
     const handleDeletePerson = () => {
         if (!person) return;
-        Alert.alert('Delete Person', `Are you sure you want to delete ${person.name}?`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete', style: 'destructive', onPress: async () => {
-                    setIsDeletingPerson(true);
-                    const result = await removePerson(person.id);
-                    setIsDeletingPerson(false);
-                    if (result.success) onSuccess?.() || onClose();
-                }
-            }
-        ]);
+        Alert.alert(
+            `Delete ${person.name}?`,
+            'This also removes their income and personal expenses. It can’t be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setIsDeletingPerson(true);
+                        const result = await removePerson(person.id);
+                        setIsDeletingPerson(false);
+                        if (result.success) onSuccess?.() || onClose();
+                    },
+                },
+            ]
+        );
     };
 
-    const handleAddOrUpdateIncome = async () => {
-        if (!person || !newIncome.amount || !newIncome.label.trim()) return;
+    const handleAddIncome = useCallback(
+        async (forPersonId: string, incomeData: Omit<Income, 'id' | 'personId'>) => {
+            const income: Income = {
+                id: `income_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+                personId: forPersonId,
+                ...incomeData,
+            };
+            return addIncome(forPersonId, income);
+        },
+        [addIncome]
+    );
 
-        const incomeData: Income = {
-            id: editingIncome?.id || `income_${Date.now()}`,
-            amount: parseFloat(newIncome.amount),
-            label: newIncome.label.trim(),
-            frequency: newIncome.frequency,
-            personId: person.id,
-        };
+    if (!person) {
+        return (
+            <View style={{ padding: space.s5, gap: space.s3 }}>
+                <Skeleton height={48} />
+                <Skeleton height={160} />
+            </View>
+        );
+    }
 
-        if (editingIncome) {
-            // Logic for updating income (remove then add for simplicity in this version, 
-            // or we could add updateIncome to useBudgetData if it exists)
-            await removeIncome(person.id, editingIncome.id);
-        }
-
-        const result = await addIncome(person.id, incomeData);
-        if (result.success) {
-            setNewIncome({ amount: '', label: '', frequency: 'monthly' });
-            setShowAddIncome(false);
-            setEditingIncome(null);
-        }
-    };
-
-    if (!person && personId) return <ActivityIndicator style={{ padding: 40 }} />;
-
-    const totalIncome = person ? calculatePersonIncome(person) : 0;
-    const monthlyIncome = calculateMonthlyAmount(totalIncome, 'yearly');
+    const monthlyIncome = calculateMonthlyAmount(calculatePersonIncome(person), 'yearly');
+    const nameChanged = name.trim() !== person.name;
 
     return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 24, paddingBottom: 100 }}>
-            {person && (
-                <View style={{ gap: 24 }}>
-                    {/* Name */}
-                    <View style={themedStyles.section}>
-                        <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 8 }]}>Name</Text>
-                        <TextInput
-                            style={themedStyles.input}
-                            value={person.name}
-                            onChangeText={(text) => setPerson({ ...person, name: text })}
-                            placeholder="Person's name"
-                            placeholderTextColor={currentColors.textSecondary}
+        <>
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={{ padding: space.s5, paddingBottom: space.s10 }}
+                keyboardShouldPersistTaps="handled"
+            >
+                <Input label="Name" value={name} onChangeText={setName} placeholder="Name" maxLength={50} />
+
+                <ListGroup
+                    header="Income"
+                    footer={`${formatCurrency(monthlyIncome)} a month in total. Income changes save straight away.`}
+                    style={{ marginTop: space.s6 }}
+                >
+                    {person.income.map((income) => (
+                        <ListRow
+                            key={income.id}
+                            title={income.label}
+                            caption={income.frequency.charAt(0).toUpperCase() + income.frequency.slice(1)}
+                            icon="trending-up-outline"
+                            iconColor={tokens.colors.income}
+                            trailing={<AmountText value={income.amount} role="bodyMed" />}
+                            chevron
+                            onPress={() =>
+                                router.push({ pathname: '/edit-income', params: { personId: person.id, incomeId: income.id } })
+                            }
+                            accessibilityLabel={`${income.label}, ${formatCurrency(income.amount)} ${income.frequency}. Edit`}
                         />
-                    </View>
+                    ))}
+                    <ListRow
+                        title="Add income"
+                        icon="add"
+                        iconColor={tokens.colors.brand}
+                        onPress={() => setShowAddIncome(true)}
+                        showSeparator={false}
+                    />
+                </ListGroup>
 
-                    {/* Income Summary */}
-                    <View style={[themedStyles.card, { backgroundColor: currentColors.backgroundAlt }]}>
-                        <Text style={[themedStyles.subtitle, { marginBottom: 12 }]}>Income Summary</Text>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={themedStyles.text}>Monthly Income:</Text>
-                            <Text style={[themedStyles.text, { color: currentColors.income, fontWeight: '700' }]}>
-                                {formatCurrency(monthlyIncome)}
-                            </Text>
-                        </View>
-                    </View>
+                <Button
+                    text="Save changes"
+                    onPress={handleSavePerson}
+                    size="lg"
+                    loading={saving && !isDeletingPerson}
+                    disabled={!name.trim() || !nameChanged}
+                    style={{ marginTop: 0 }}
+                />
+                <Button
+                    text="Delete person"
+                    variant="ghost"
+                    onPress={handleDeletePerson}
+                    loading={isDeletingPerson}
+                    textStyle={{ color: tokens.colors.danger }}
+                    style={{ marginTop: space.s2 }}
+                />
+            </ScrollView>
 
-                    {/* Income Sources */}
-                    <View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                            <Text style={themedStyles.subtitle}>Income Sources</Text>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setEditingIncome(null);
-                                    setNewIncome({ amount: '', label: '', frequency: 'monthly' });
-                                    setShowAddIncome(true);
-                                }}
-                                style={{ backgroundColor: currentColors.income + '20', padding: 8, borderRadius: 12 }}
-                            >
-                                <Icon name="add" size={20} style={{ color: currentColors.income }} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={{ gap: 12 }}>
-                            {person.income.map((income) => (
-                                <View key={income.id} style={themedStyles.card}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <View>
-                                            <Text style={[themedStyles.text, { fontWeight: '600' }]}>{income.label}</Text>
-                                            <Text style={themedStyles.textSecondary}>{formatCurrency(income.amount)} • {income.frequency}</Text>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                                            <TouchableOpacity onPress={() => {
-                                                setEditingIncome(income);
-                                                setNewIncome({ amount: income.amount.toString(), label: income.label, frequency: income.frequency });
-                                                setShowAddIncome(true);
-                                            }}>
-                                                <Icon name="pencil" size={18} style={{ color: currentColors.primary }} />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => removeIncome(person.id, income.id)}>
-                                                <Icon name="trash-outline" size={18} style={{ color: currentColors.error }} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                </View>
-                            ))}
-                            {person.income.length === 0 && (
-                                <Text style={[themedStyles.textSecondary, { textAlign: 'center', padding: 20 }]}>No income sources yet</Text>
-                            )}
-                        </View>
-                    </View>
-
-                    {/* Danger Zone */}
-                    <View style={{ marginTop: 20, padding: 20, borderRadius: 16, borderWidth: 1, borderColor: currentColors.error + '40', backgroundColor: currentColors.error + '05' }}>
-                        <Text style={[themedStyles.text, { color: currentColors.error, fontWeight: '700', marginBottom: 8 }]}>Danger Zone</Text>
-                        <Button text="Delete Person" variant="danger" onPress={handleDeletePerson} loading={isDeletingPerson} />
-                    </View>
-
-                    {/* Save Button */}
-                    <Button text="Save Changes" variant="primary" onPress={handleSavePerson} loading={saving} />
-                </View>
-            )}
-
-            {/* Add/Edit Income Modal */}
-            <RNModal visible={showAddIncome} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.miniModal, { backgroundColor: currentColors.background }]}>
-                        <Text style={[themedStyles.subtitle, { marginBottom: 16 }]}>{editingIncome ? 'Edit Income' : 'Add Income'}</Text>
-                        <View style={{ gap: 16 }}>
-                            <View>
-                                <Text style={[themedStyles.text, { fontWeight: '600', marginBottom: 8 }]}>Label</Text>
-                                <TextInput
-                                    style={themedStyles.input}
-                                    value={newIncome.label}
-                                    onChangeText={(t) => setNewIncome({ ...newIncome, label: t })}
-                                    placeholder="e.g. Salary"
-                                />
-                            </View>
-                            <CurrencyInput
-                                label="Amount"
-                                value={newIncome.amount}
-                                onChangeText={(t) => setNewIncome({ ...newIncome, amount: t })}
-                            />
-                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
-                                <Button text="Cancel" variant="outline" onPress={() => setShowAddIncome(false)} style={{ flex: 1 }} />
-                                <Button text={editingIncome ? 'Update' : 'Add'} onPress={handleAddOrUpdateIncome} style={{ flex: 1 }} />
-                            </View>
-                        </View>
-                    </View>
-                </View>
-            </RNModal>
-        </ScrollView>
+            <IncomeModal
+                visible={showAddIncome}
+                onClose={() => setShowAddIncome(false)}
+                onAddIncome={handleAddIncome}
+                people={[person]}
+                selectedPersonId={person.id}
+                saving={saving}
+            />
+        </>
     );
 }
-
-const styles = StyleSheet.create({
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-    },
-    miniModal: {
-        width: '100%',
-        maxWidth: 400,
-        padding: 24,
-        borderRadius: 24,
-    }
-});

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from './Toast';
 import { ToastMessage } from '../hooks/useToast';
 import { LAYOUT } from '../hooks/useBreakpoint';
+import { space } from '../styles/tokens';
 
 interface ToastContainerProps {
   toasts: ToastMessage[];
@@ -19,7 +20,7 @@ export default function ToastContainer({ toasts, onHideToast }: ToastContainerPr
 
   if (toasts.length === 0) return null;
 
-  const baseOffset = LAYOUT.tabBarHeight + insets.bottom + 16;
+  const baseOffset = LAYOUT.tabBarHeight + insets.bottom + space.s4;
 
   return (
     <View style={styles.container}>
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: space.s4,
     pointerEvents: 'auto',
   },
 });

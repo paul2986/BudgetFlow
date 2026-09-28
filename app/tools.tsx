@@ -1,6 +1,6 @@
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, Platform, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import StandardHeader from '../components/StandardHeader';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
@@ -12,47 +12,12 @@ import * as Clipboard from 'expo-clipboard';
 import { computeCreditCardPayoff, computeInterestOnlyMinimum } from '../utils/calculations';
 import { CreditCardPayoffResult } from '../types/budget';
 import { useToast } from '../hooks/useToast';
-
-const styles = StyleSheet.create({
-  labelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  labelText: {
-    fontWeight: '700',
-  },
-  resultsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-  },
-  th: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-  },
-  td: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-});
+import { AmountText, Card, EmptyState, Input } from '../components/ui';
+import { type, space, radius, tabularNums } from '../styles/tokens';
 
 export default function ToolsScreen() {
-  const { themedStyles, isPad } = useThemedStyles();
-  const { currentColors } = useTheme();
+  const { themedStyles, breakpoint } = useThemedStyles();
+  const { tokens } = useTheme();
   const { formatCurrency, currency } = useCurrency();
   const { showToast } = useToast();
 
@@ -63,16 +28,13 @@ export default function ToolsScreen() {
   const [errors, setErrors] = useState<{ balance?: string; apr?: string; payment?: string }>({});
   const [result, setResult] = useState<CreditCardPayoffResult | null>(null);
   const [showResults, setShowResults] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
 
   // Minimum payment suggestion state
   const [suggestedMin, setSuggestedMin] = useState<number | null>(null);
   const [isPaymentAuto, setIsPaymentAuto] = useState<boolean>(false);
   const [hasPaymentOverride, setHasPaymentOverride] = useState<boolean>(false);
   const [isPaymentFocused, setIsPaymentFocused] = useState<boolean>(false);
-  const [infoOpen, setInfoOpen] = useState<boolean>(false);
 
-  const aprRef = useRef<TextInput>(null);
 
   const parseNumber = (val: string): number | null => {
     if (typeof val !== 'string') return null;
@@ -144,22 +106,14 @@ export default function ToolsScreen() {
     return Object.keys(newErrors).length === 0;
   }, [balanceInput, aprInput, paymentInput]);
 
+  // Enabled purely from the current inputs; stale blur-time errors must not keep
+  // the button disabled once the values are valid (handleCalculate re-validates).
   const canCalculate = useMemo(() => {
     const b = parseNumber(balanceInput);
     const a = aprInput.trim() === '' ? null : parseNumber(aprInput);
     const p = parseNumber(paymentInput);
-    
-    console.log('canCalculate check - Balance:', b, 'APR:', a, 'Payment:', p);
-    console.log('Errors:', errors);
-    
-    // Allow calculation when payment is 0 (default state) or positive
-    const hasValidInputs = b !== null && b > 0 && a !== null && a >= 0 && p !== null && p >= 0;
-    const hasNoErrors = Object.keys(errors).length === 0;
-    
-    console.log('hasValidInputs:', hasValidInputs, 'hasNoErrors:', hasNoErrors);
-    
-    return hasValidInputs && hasNoErrors;
-  }, [balanceInput, aprInput, paymentInput, errors]);
+    return b !== null && b > 0 && a !== null && a >= 0 && p !== null && p >= 0;
+  }, [balanceInput, aprInput, paymentInput]);
 
   const onBlurApr = () => {
     const num = parseNumber(aprInput);
@@ -190,11 +144,11 @@ export default function ToolsScreen() {
         months: 0,
         totalInterest: 0,
         schedule: [],
+        monthlyRate: a / 12 / 100,
       };
       setResult(r);
       setShowResults(true);
-      setCollapsed(false);
-      return;
+        return;
     }
 
     let r = computeCreditCardPayoff(b, a, p);
@@ -217,7 +171,6 @@ export default function ToolsScreen() {
 
     setResult(r);
     setShowResults(true);
-    setCollapsed(false);
   };
 
   const handleReset = () => {
@@ -227,7 +180,6 @@ export default function ToolsScreen() {
     setErrors({});
     setResult(null);
     setShowResults(false);
-    setCollapsed(false);
     setHasPaymentOverride(false);
     setIsPaymentAuto(false);
     setSuggestedMin(null);
@@ -265,351 +217,214 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
     }
   };
 
-  const HelperRow = () => {
-    if (suggestedMin === null || !paymentInput.trim()) return null;
-    
-    const paymentNum = parseNumber(paymentInput);
-    const isUsingMin =
-      paymentNum !== null &&
-      suggestedMin !== null &&
-      Number(paymentNum.toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits));
+  const paymentNum = parseNumber(paymentInput);
+  const isUsingMin =
+    suggestedMin !== null &&
+    paymentNum !== null &&
+    Number(paymentNum.toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits));
 
-    if (isUsingMin) {
-      return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: -8, marginBottom: 8 }}>
-          <Icon name="alert-circle" size={16} style={{ color: currentColors.warning, marginRight: 6 }} />
-          <Text style={[themedStyles.textSecondary, { color: currentColors.warning, flex: 1 }]}>
-            This payment only covers interest — your balance will never be reduced.
-          </Text>
-          <TouchableOpacity onPress={() => setInfoOpen(true)} accessibilityLabel="What is interest-only minimum?">
-            <Icon name="information-circle-outline" size={18} style={{ color: currentColors.warning }} />
-          </TouchableOpacity>
+  const durationLabel = (months: number) => {
+    const y = Math.floor(months / 12);
+    const m = months % 12;
+    if (y === 0) return `${m} ${m === 1 ? 'month' : 'months'}`;
+    return `${y} ${y === 1 ? 'year' : 'years'}${m ? ` ${m} ${m === 1 ? 'month' : 'months'}` : ''}`;
+  };
+
+  const inputsCard = (
+    <Card>
+      <View style={{ gap: space.s5 }}>
+        <CurrencyInput
+          label="Balance"
+          value={balanceInput}
+          onChangeText={setBalanceInput}
+          error={errors.balance}
+        />
+
+        <Input
+          label="Interest rate (APR %)"
+          value={aprInput}
+          onChangeText={(t) => {
+            // Numbers and one decimal point, max 2 decimal places.
+            const cleaned = t.replace(/[^0-9.]/g, '');
+            const parts = cleaned.split('.');
+            setAprInput(parts.length > 1 ? `${parts[0]}.${parts[1].substring(0, 2)}` : parts[0]);
+          }}
+          onBlur={() => {
+            onBlurApr();
+            validate();
+          }}
+          keyboardType="decimal-pad"
+          placeholder="e.g. 22.9"
+          error={errors.apr}
+        />
+
+        <View>
+          <CurrencyInput
+            label="Monthly payment"
+            value={paymentInput}
+            onChangeText={(t) => {
+              setPaymentInput(t);
+              setHasPaymentOverride(true);
+              setIsPaymentAuto(false);
+              if (errors.payment) {
+                const next = { ...errors };
+                delete next.payment;
+                setErrors(next);
+              }
+            }}
+            onBlur={() => validate()}
+            error={errors.payment}
+            placeholder="0.00"
+          />
+          {suggestedMin !== null ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: space.s2, gap: space.s2 }}>
+              <Icon
+                name={isUsingMin ? 'alert-circle' : 'information-circle-outline'}
+                size={16}
+                color={isUsingMin ? tokens.colors.warning : tokens.colors.textMuted}
+              />
+              <Text style={[type.caption, { flex: 1, color: isUsingMin ? tokens.colors.warning : tokens.colors.textMuted }]}>
+                {isUsingMin
+                  ? 'This only covers interest, so the balance will never go down.'
+                  : `Interest this month is about ${formatCurrency(suggestedMin)}. Pay more than that to reduce the balance.`}
+              </Text>
+            </View>
+          ) : null}
         </View>
+
+        <Button text="Calculate" onPress={handleCalculate} disabled={!canCalculate} size="lg" style={{ marginTop: 0 }} />
+      </View>
+    </Card>
+  );
+
+  const resultsCard = () => {
+    if (!showResults || !result) {
+      return breakpoint.isCompact ? null : (
+        <Card>
+          <EmptyState
+            icon="analytics-outline"
+            title="Your payoff plan appears here"
+            caption="Enter a balance, interest rate and monthly payment, then calculate."
+          />
+        </Card>
       );
     }
 
-    return null;
-  };
-
-  const renderCalculatorCard = () => (
-    <View style={themedStyles.card}>
-      <CurrencyInput
-        label="Balance"
-        value={balanceInput}
-        onChangeText={setBalanceInput}
-        error={errors.balance}
-        accessibilityLabel="Balance amount"
-      />
-
-      <View style={[styles.labelRow, { marginBottom: 8 }]}>
-        <Text style={[themedStyles.text, styles.labelText]}>APR %</Text>
-        <TouchableOpacity
-          onPress={() => aprRef.current?.focus()}
-          accessibilityLabel="Focus APR input"
-        >
-          <Icon name="create-outline" size={16} style={{ color: currentColors.textSecondary }} />
-        </TouchableOpacity>
-      </View>
-      <TextInput
-        ref={aprRef}
-        value={aprInput}
-        onChangeText={(t) => {
-          // Allow numbers and decimal point only
-          const cleaned = t.replace(/[^0-9.]/g, '');
-          // Prevent multiple decimal points and limit to 2 decimal places
-          const parts = cleaned.split('.');
-          let finalValue = parts[0];
-          if (parts.length > 1) {
-            // Limit decimal places to 2
-            const decimalPart = parts[1].substring(0, 2);
-            finalValue += '.' + decimalPart;
-          }
-          setAprInput(finalValue);
-        }}
-        onBlur={() => {
-          onBlurApr();
-          validate();
-        }}
-        keyboardType="decimal-pad"
-        placeholder="18.99"
-        placeholderTextColor={currentColors.textSecondary}
-        style={[
-          themedStyles.input,
-          errors.apr ? { borderColor: currentColors.error } : null,
-        ]}
-        accessibilityLabel="APR percent"
-      />
-      {!!errors.apr && (
-        <Text style={[themedStyles.textSecondary, { color: currentColors.error, marginTop: -10, marginBottom: 8 }]}>
-          {errors.apr}
-        </Text>
-      )}
-
-      {/* Static Minimum Payment Box */}
-      {suggestedMin !== null && (
-        <View style={[
-          themedStyles.card,
-          {
-            backgroundColor: currentColors.info + '10',
-            borderColor: currentColors.info + '30',
-            borderWidth: 1,
-            padding: 16,
-            marginBottom: 16,
-          }
-        ]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-            <Icon name="calculator" size={20} style={{ color: currentColors.info, marginRight: 8 }} />
-            <Text style={[themedStyles.text, { fontWeight: '700', color: currentColors.info }]}>
-              Minimum Payment Required
-            </Text>
-          </View>
-          <Text style={[themedStyles.text, { fontSize: 24, fontWeight: '800', color: currentColors.info, marginBottom: 4 }]}>
-            {formatCurrency(suggestedMin)}
-          </Text>
-          <Text style={[themedStyles.textSecondary, { fontSize: 12, lineHeight: 16 }]}>
-            This is the minimum payment to cover interest only. Paying this amount will not reduce your balance.
-          </Text>
-        </View>
-      )}
-
-      <CurrencyInput
-        label="Monthly Payment"
-        value={paymentInput}
-        onChangeText={(t) => {
-          console.log('Payment input changed to:', t);
-          setPaymentInput(t);
-          setHasPaymentOverride(true);
-          setIsPaymentAuto(false);
-          // Clear payment error when user starts typing
-          if (errors.payment) {
-            const newErrors = { ...errors };
-            delete newErrors.payment;
-            setErrors(newErrors);
-          }
-        }}
-        onBlur={() => {
-          console.log('Payment input blurred, validating...');
-          validate();
-        }}
-        error={errors.payment}
-        accessibilityLabel="Monthly payment amount"
-        placeholder="0.00"
-      />
-
-      <HelperRow />
-
-      <Button text="Calculate" onPress={handleCalculate} disabled={!canCalculate} variant="primary" />
-
-      <Modal visible={infoOpen} transparent animationType="fade" onRequestClose={() => setInfoOpen(false)}>
-        <View style={{ flex: 1, backgroundColor: '#00000088', alignItems: 'center', justifyContent: 'center' }}>
-          <View style={[themedStyles.card, { width: '88%', maxWidth: 420 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Icon name="information-circle" size={22} style={{ color: currentColors.warning, marginRight: 8 }} />
-              <Text style={[themedStyles.text, { fontWeight: '800' }]}>Interest-only payments</Text>
-            </View>
-            <Text style={[themedStyles.textSecondary, { marginBottom: 12 }]}>
-              The minimum shown is the interest charged this month. Paying only this amount will not reduce your balance. Increase your monthly payment to start reducing the principal and pay off the debt sooner.
-            </Text>
-            <Button text="Got it" onPress={() => setInfoOpen(false)} variant="primary" />
-          </View>
-        </View>
-      </Modal>
-    </View>
-  );
-
-  const renderResults = () => {
-    if (!showResults) return null;
-
-    const never = result?.neverRepaid;
-
     return (
-      <View style={themedStyles.card}>
-        <TouchableOpacity
-          onPress={() => setCollapsed((c) => !c)}
-          style={[styles.resultsHeader, { minHeight: 44 }]}
-          accessibilityLabel="Toggle results panel"
-        >
-          <Text style={[themedStyles.text, { fontWeight: '700' }]}>Results</Text>
-          <Icon name={collapsed ? 'chevron-down' : 'chevron-up'} size={20} style={{ color: currentColors.textSecondary }} />
-        </TouchableOpacity>
-
-        {!collapsed && (
+      <Card title="Results">
+        {result.neverRepaid ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: space.s3,
+              padding: space.s4,
+              borderRadius: radius.md,
+              backgroundColor: tokens.colors.warningSubtle,
+            }}
+          >
+            <Icon name="warning" size={20} color={tokens.colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={[type.bodyMed, { color: tokens.colors.text }]}>This balance won’t be paid off</Text>
+              <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1 }]}>
+                {formatCurrency(result.inputs.monthlyPayment)} a month only covers the interest. Increase the payment to start
+                reducing what you owe.
+              </Text>
+            </View>
+          </View>
+        ) : (
           <>
-            {never && (
+            <View style={{ flexDirection: 'row', gap: space.s4, marginBottom: space.s5 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={[type.caption, { color: tokens.colors.textMuted }]}>Paid off in</Text>
+                <Text style={[type.h2, tabularNums, { color: tokens.colors.text, marginTop: space.s1 }]}>
+                  {durationLabel(result.months)}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[type.caption, { color: tokens.colors.textMuted }]}>Total interest</Text>
+                <AmountText value={result.totalInterest} role="h2" tone="expense" style={{ marginTop: space.s1 }} />
+              </View>
+            </View>
+
+            <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s2 }]}>First 3 months</Text>
+            <View
+              style={{
+                flexDirection: 'row',
+                paddingBottom: space.s2,
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: tokens.colors.borderStrong,
+              }}
+            >
+              {['Month', 'Interest', 'Principal', 'Left'].map((h, i) => (
+                <Text
+                  key={h}
+                  style={[type.caption, { flex: i === 0 ? 0.6 : 1, color: tokens.colors.textMuted, textAlign: i === 0 ? 'left' : 'right' }]}
+                >
+                  {h}
+                </Text>
+              ))}
+            </View>
+            {result.schedule.map((row) => (
               <View
+                key={row.month}
                 style={{
-                  backgroundColor: currentColors.warning + '20',
-                  borderColor: currentColors.warning,
-                  borderWidth: 2,
-                  borderRadius: 12,
-                  padding: 12,
-                  marginBottom: 12,
+                  flexDirection: 'row',
+                  paddingVertical: space.s2,
+                  borderBottomWidth: StyleSheet.hairlineWidth,
+                  borderBottomColor: tokens.colors.border,
                 }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Icon name="warning" size={20} style={{ color: currentColors.warning, marginRight: 8 }} />
-                  <Text style={[themedStyles.text, { color: currentColors.warning, fontWeight: '700' }]}>
-                    Only covers interest — balance will never be repaid.
+                <Text style={[type.body, tabularNums, { flex: 0.6, color: tokens.colors.text }]}>{row.month}</Text>
+                {[row.interest, row.principal, row.remaining].map((v, i) => (
+                  <Text key={i} style={[type.body, tabularNums, { flex: 1, textAlign: 'right', color: tokens.colors.text }]}>
+                    {formatCurrency(v)}
                   </Text>
-                </View>
+                ))}
               </View>
-            )}
-
-            {!never && result && (
-              <>
-                <View style={{ marginBottom: 12 }}>
-                  <View style={[themedStyles.row, { marginBottom: 6 }]}>
-                    <Text style={themedStyles.text}>Months to Payoff</Text>
-                    <Text style={[themedStyles.text, { fontWeight: '700' }]}>{result.months}</Text>
-                  </View>
-                  <View style={themedStyles.row}>
-                    <Text style={themedStyles.text}>Total Interest Paid</Text>
-                    <Text style={[themedStyles.text, { fontWeight: '700' }]}>{formatCurrency(result.totalInterest)}</Text>
-                  </View>
-                </View>
-
-                <View style={{ borderTopColor: currentColors.border, borderTopWidth: 1, paddingTop: 12 }}>
-                  <Text style={[themedStyles.text, { fontWeight: '700', marginBottom: 8 }]}>First 3 Months</Text>
-                  <View style={[styles.tableHeader, { borderBottomColor: currentColors.border }]}>
-                    <Text style={[styles.th, themedStyles.textSecondary]}>Month</Text>
-                    <Text style={[styles.th, themedStyles.textSecondary]}>Payment</Text>
-                    <Text style={[styles.th, themedStyles.textSecondary]}>Interest</Text>
-                    <Text style={[styles.th, themedStyles.textSecondary]}>Principal</Text>
-                    <Text style={[styles.th, themedStyles.textSecondary]}>Remaining</Text>
-                  </View>
-                  {result.schedule.map((row) => (
-                    <View key={row.month} style={[styles.tableRow, { borderBottomColor: currentColors.border }]}>
-                      <Text style={[styles.td, themedStyles.text]}>{row.month}</Text>
-                      <Text style={[styles.td, themedStyles.text]}>{formatCurrency(row.payment)}</Text>
-                      <Text style={[styles.td, themedStyles.text]}>{formatCurrency(row.interest)}</Text>
-                      <Text style={[styles.td, themedStyles.text]}>{formatCurrency(row.principal)}</Text>
-                      <Text style={[styles.td, themedStyles.text]}>{formatCurrency(row.remaining)}</Text>
-                    </View>
-                  ))}
-                </View>
-              </>
-            )}
-
-            <View style={{ marginTop: 16, flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
-                <Button
-                  text="Reset"
-                  onPress={handleReset}
-                  variant="outline"
-                  style={{ marginTop: 0 }}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Button
-                  text="Copy Results"
-                  onPress={handleCopy}
-                  disabled={!result}
-                  variant="secondary"
-                  style={{ marginTop: 0 }}
-                />
-              </View>
-            </View>
+            ))}
           </>
         )}
-      </View>
+
+        <View style={{ flexDirection: 'row', gap: space.s3, marginTop: space.s5 }}>
+          <View style={{ flex: 1 }}>
+            <Button text="Start over" onPress={handleReset} variant="ghost" style={{ marginTop: 0 }} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button text="Copy results" onPress={handleCopy} variant="secondary" style={{ marginTop: 0 }} />
+          </View>
+        </View>
+      </Card>
     );
   };
 
   return (
     <View style={themedStyles.container}>
-      {isPad ? (
-        // Desktop Header
-        <View style={{
-          paddingHorizontal: 32,
-          paddingTop: 32,
-          paddingBottom: 16,
-          backgroundColor: currentColors.background,
-          flexDirection: 'row',
-          alignItems: 'center',
-        }}>
-          <Icon name="calculator-outline" size={28} style={{ color: currentColors.primary, marginRight: 12 }} />
-          <Text style={[themedStyles.subtitle, { fontSize: 26, fontWeight: '700', marginBottom: 0 }]}>Tools</Text>
-        </View>
-      ) : (
-        <StandardHeader title="Tools" showLeftIcon={false} showRightIcon={false} />
-      )}
-      <ScrollView style={themedStyles.content} contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: 0, paddingTop: 16 }]}>
-        {isPad ? (
-          // Two column layout for desktop
-          <View>
-            {/* Title Section */}
-            <View style={{ 
-              flexDirection: 'row', 
-              alignItems: 'center', 
-              marginBottom: 20,
-              minHeight: 32,
-            }}>
-              <Icon 
-                name="calculator" 
-                size={24} 
-                style={{ 
-                  color: currentColors.primary, 
-                  marginRight: 12,
-                  marginTop: -2,
-                }} 
-              />
-              <Text style={[themedStyles.subtitle, { fontSize: 22, fontWeight: '700', marginBottom: 0 }]}>
-                Credit Card Payoff Calculator
-              </Text>
-            </View>
+      <StandardHeader title="Tools" showLeftIcon={false} showRightIcon={false} />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
+          <Text accessibilityRole="header" style={[type.h2, { color: tokens.colors.text }]}>
+            Credit card payoff
+          </Text>
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1, marginBottom: space.s4 }]}>
+            See how long a balance takes to clear and how much interest it costs.
+          </Text>
 
-            <View style={{ flexDirection: 'row', gap: 24, alignItems: 'flex-start' }}>
-              {/* Left Column (Inputs) */}
-              <View style={{ flex: 1.2 }}>
-                {renderCalculatorCard()}
-              </View>
-
-              {/* Right Column (Results or Placeholder) */}
-              <View style={{ flex: 1.5 }}>
-                {showResults ? (
-                  renderResults()
-                ) : (
-                  <View style={[themedStyles.card, { minHeight: 380, justifyContent: 'center', alignItems: 'center', padding: 32 }]}>
-                    <Icon name="calculator-outline" size={48} style={{ color: currentColors.primary + 'AA', marginBottom: 20 }} />
-                    <Text style={[themedStyles.subtitle, { textAlign: 'center', fontSize: 20, marginBottom: 10, fontWeight: '700' }]}>Payoff Analysis</Text>
-                    <Text style={[themedStyles.textSecondary, { textAlign: 'center', lineHeight: 22, maxWidth: 360 }]}>
-                      Enter your credit card balance, APR %, and monthly payment on the left, then click Calculate to generate a detailed payoff schedule, total interest projection, and amortization timeline.
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
+          <View
+            style={{
+              flexDirection: breakpoint.isExpanded ? 'row' : 'column',
+              alignItems: breakpoint.isExpanded ? 'flex-start' : 'stretch',
+              gap: space.s6,
+            }}
+          >
+            <View style={breakpoint.isExpanded ? { flex: 1 } : undefined}>{inputsCard}</View>
+            <View style={breakpoint.isExpanded ? { flex: 1.2 } : undefined}>{resultsCard()}</View>
           </View>
-        ) : (
-          // Standard single column layout for mobile
-          <>
-            {/* Credit Card Calculator Section - matching dashboard style */}
-            <View style={{ marginBottom: 24 }}>
-              <View style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center', 
-                marginBottom: 16,
-                minHeight: 32,
-              }}>
-                <Icon 
-                  name="calculator" 
-                  size={24} 
-                  style={{ 
-                    color: currentColors.primary, 
-                    marginRight: 12,
-                    marginTop: -2,
-                  }} 
-                />
-                <Text style={[themedStyles.subtitle, { fontSize: 22, fontWeight: '700', marginBottom: 0 }]}>
-                  Credit Card Payoff Calculator
-                </Text>
-              </View>
-              {renderCalculatorCard()}
-            </View>
-
-            {renderResults()}
-          </>
-        )}
+        </View>
       </ScrollView>
     </View>
   );

@@ -17,7 +17,8 @@ interface StatCardProps {
   label: string;
   value: number;
   icon: string;
-  tone?: 'default' | 'income' | 'expense';
+  /** Colors the icon chip; the amount is only tinted for income/expense. */
+  tone?: 'default' | 'income' | 'expense' | 'household' | 'personal';
   caption?: string;
   style?: ViewStyle | ViewStyle[];
 }
@@ -26,14 +27,14 @@ export default function StatCard({ label, value, icon, tone = 'default', caption
   const { tokens } = useTheme();
   const bp = useBreakpoint();
 
-  const iconColor =
-    tone === 'income' ? tokens.colors.income
-    : tone === 'expense' ? tokens.colors.expense
-    : tokens.colors.brand;
-  const iconBg =
-    tone === 'income' ? tokens.colors.incomeSubtle
-    : tone === 'expense' ? tokens.colors.expenseSubtle
-    : tokens.colors.brandSubtle;
+  // Brand is reserved for interactive elements, so an untoned card stays neutral.
+  const { colors } = tokens;
+  const [iconColor, iconBg] =
+    tone === 'income' ? [colors.income, colors.incomeSubtle]
+    : tone === 'expense' ? [colors.expense, colors.expenseSubtle]
+    : tone === 'household' ? [colors.household, colors.householdSubtle]
+    : tone === 'personal' ? [colors.personal, colors.personalSubtle]
+    : [colors.textMuted, colors.surfaceSunken];
 
   return (
     <Card style={style as ViewStyle}>
@@ -62,7 +63,7 @@ export default function StatCard({ label, value, icon, tone = 'default', caption
       <AmountText
         value={value}
         role={bp.isCompact ? 'h2' : 'h1'}
-        tone={tone === 'default' ? 'default' : tone}
+        tone={tone === 'income' || tone === 'expense' ? tone : 'default'}
         numberOfLines={1}
       />
       {caption ? (

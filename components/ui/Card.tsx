@@ -5,7 +5,9 @@ import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { type, radius, space, elevation } from '../../styles/tokens';
 
 /**
- * Card per design/DESIGN.md §2.8: surface, radius lg, e1 + hairline border.
+ * Card per design/DESIGN.md §2.8: surface on the grouped-grey page, radius lg.
+ * Separation comes from fill, not stroke: light mode adds a soft e1 lift, dark
+ * mode relies on the stepped surface alone (no shadow, no border).
  * The only colored-border variant allowed is the 3px left accent strip for
  * warning/expired states — always paired with an icon + label in content.
  */
@@ -33,10 +35,8 @@ export default function Card({ children, title, action, accent, style, padded = 
         {
           backgroundColor: tokens.colors.surface,
           borderRadius: radius.lg,
-          borderWidth: 1,
-          borderColor: tokens.colors.border,
           padding: padded ? padding : 0,
-          ...elevation.e1,
+          ...(tokens.isDark ? null : elevation.e1),
         },
         accent
           ? { borderLeftWidth: 3, borderLeftColor: tokens.colors[accent] }

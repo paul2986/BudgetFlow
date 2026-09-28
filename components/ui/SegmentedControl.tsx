@@ -2,9 +2,10 @@ import React from 'react';
 import { View, Text, Pressable, ViewStyle, Platform } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { type, radius, space, elevation } from '../../styles/tokens';
+import { haptics } from '../../utils/haptics';
 
 /**
- * SegmentedControl per DESIGN.md §2.8: surfaceSunken track, raised active
+ * SegmentedControl per DESIGN.md §2.8: `border`-grey track, raised active
  * segment. Used for Daily/Monthly/Yearly, theme selection, login/register.
  */
 
@@ -38,7 +39,9 @@ export default function SegmentedControl<T extends string>({
       style={[
         {
           flexDirection: 'row',
-          backgroundColor: tokens.colors.surfaceSunken,
+          // Light: `border` grey so the track reads on the page grey and on
+          // white cards. Dark: a raised track with a lighter thumb (iOS).
+          backgroundColor: tokens.isDark ? tokens.colors.surfaceRaised : tokens.colors.border,
           borderRadius: radius.md,
           padding: 2,
         },
@@ -50,7 +53,11 @@ export default function SegmentedControl<T extends string>({
         return (
           <Pressable
             key={option.value}
-            onPress={() => onChange(option.value)}
+            onPress={() => {
+              if (selected) return;
+              haptics.selection();
+              onChange(option.value);
+            }}
             accessibilityRole={Platform.OS === 'web' ? ('tab' as any) : 'radio'}
             accessibilityLabel={option.label}
             accessibilityState={{ selected }}
@@ -62,7 +69,7 @@ export default function SegmentedControl<T extends string>({
                 alignItems: 'center',
                 justifyContent: 'center',
                 paddingHorizontal: space.s3,
-                backgroundColor: selected ? tokens.colors.surface : 'transparent',
+                backgroundColor: selected ? (tokens.isDark ? tokens.colors.borderStrong : tokens.colors.surfaceRaised) : 'transparent',
                 opacity: pressed ? 0.8 : 1,
                 // @ts-ignore web transition
                 transitionDuration: '220ms',

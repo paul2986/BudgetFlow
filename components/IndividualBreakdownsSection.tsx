@@ -1,10 +1,9 @@
 
 import React from 'react';
-import { View, Text, Dimensions, Platform, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
-import { useCurrency } from '../hooks/useCurrency';
-import { useThemedStyles } from '../hooks/useThemedStyles';
+import { AmountText, Avatar, Card, EmptyState } from './ui';
+import { type, space, radius, tabularNums } from '../styles/tokens';
 
 
 import {
@@ -32,9 +31,7 @@ export default function IndividualBreakdownsSection({
   totalHouseholdExpenses,
   viewMode = 'monthly'
 }: IndividualBreakdownsSectionProps) {
-  const { currentColors, isDarkMode } = useTheme();
-  const { formatCurrency } = useCurrency();
-  const { themedStyles, isPad } = useThemedStyles();
+  const { tokens } = useTheme();
 
   // Helper function to convert amounts based on view mode
   const convertAmount = (amount: number): number => {
@@ -46,26 +43,33 @@ export default function IndividualBreakdownsSection({
     return amount; // yearly
   };
 
+  const period = viewMode === 'yearly' ? 'year' : viewMode === 'daily' ? 'day' : 'month';
+
   if (!people || people.length === 0) {
     return (
-      <View style={[
-        themedStyles.card,
-        {
-          marginBottom: 0,
-        }
-      ]}>
-        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-          <Icon name="person-add-outline" size={48} style={{ color: currentColors.textSecondary, marginBottom: 12 }} />
-          <Text style={[themedStyles.textSecondary, { textAlign: 'center' }]}>
-            No people added yet. Add people to see individual breakdowns.
-          </Text>
-        </View>
-      </View>
+      <Card>
+        <EmptyState icon="person-add-outline" title="No people yet" caption="Add people to see how each person's income is used." />
+      </Card>
     );
   }
 
+  const Line = ({ icon, iconColor, label, value }: { icon: string; iconColor: string; label: string; value: number }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: space.s1 }}>
+      <Icon name={icon as any} size={14} color={iconColor} style={{ marginRight: space.s2 }} />
+      <Text style={[type.body, { color: tokens.colors.text, flex: 1 }]}>{label}</Text>
+      <AmountText value={value} role="bodyMed" />
+    </View>
+  );
+
+  const Legend = ({ color, label, strong }: { color: string; label: string; strong?: boolean }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <View style={{ width: 8, height: 8, borderRadius: radius.full, backgroundColor: color, marginRight: space.s1 }} />
+      <Text style={[type.caption, tabularNums, { color: strong ? color : tokens.colors.textMuted }]}>{label}</Text>
+    </View>
+  );
+
   return (
-    <View style={isPad ? { flexDirection: 'row', flexWrap: 'wrap', gap: 20 } : { gap: 16 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s4 }}>
       {people.map((person) => {
         const personIncome = calculatePersonIncome(person);
         const personPersonalExpenses = calculatePersonalExpenses(expenses, person.id);
@@ -77,243 +81,87 @@ export default function IndividualBreakdownsSection({
         );
         const personRemaining = personIncome - personPersonalExpenses - personHouseholdShare;
 
-        // Convert amounts based on view mode
-        const displayPersonIncome = convertAmount(personIncome);
-        const displayPersonPersonalExpenses = convertAmount(personPersonalExpenses);
-        const displayPersonHouseholdShare = convertAmount(personHouseholdShare);
-        const displayPersonRemaining = convertAmount(personRemaining);
+        const income = convertAmount(personIncome);
+        const personal = convertAmount(personPersonalExpenses);
+        const share = convertAmount(personHouseholdShare);
+        const remaining = convertAmount(personRemaining);
+        const over = remaining < 0;
 
-        // Calculate percentages for the progress bar
-        const personalPercentage = displayPersonIncome > 0 ? (displayPersonPersonalExpenses / displayPersonIncome) * 100 : 0;
-        const householdPercentage = displayPersonIncome > 0 ? (displayPersonHouseholdShare / displayPersonIncome) * 100 : 0;
-        const remainingPercentage = displayPersonIncome > 0 ? Math.max(0, (displayPersonRemaining / displayPersonIncome) * 100) : 0;
-
-        // Ensure percentages don't exceed 100% for display
-        const displayPersonalPercentage = Math.min(personalPercentage, 100);
-        const displayHouseholdPercentage = Math.min(householdPercentage, 100 - displayPersonalPercentage);
-        const displayRemainingPercentage = Math.max(0, 100 - displayPersonalPercentage - displayHouseholdPercentage);
+        const pct = (v: number) => (income > 0 ? (v / income) * 100 : 0);
+        const personalPct = Math.min(pct(personal), 100);
+        const sharePct = Math.min(pct(share), 100 - personalPct);
+        const leftPct = Math.max(0, 100 - personalPct - sharePct);
+        const leftColor = over ? tokens.colors.danger : tokens.colors.income;
 
         return (
-          <View
-            key={person.id}
-            style={[
-              themedStyles.card,
-              {
-                backgroundColor: isDarkMode ? currentColors.backgroundAlt : '#FFFFFF',
-                borderColor: isDarkMode ? currentColors.border : currentColors.border,
-                borderWidth: 1,
-                marginBottom: 0,
-                width: isPad ? 'calc(33.333% - 14px)' as any : '100%',
-                flexGrow: isPad ? 1 : undefined,
-                flexShrink: isPad ? 1 : undefined,
-                flexBasis: isPad ? 'calc(33.333% - 14px)' as any : undefined,
-                overflow: 'hidden',
-                padding: 20,
-              }
-            ]}
-          >
-            {isDarkMode && (
-              <LinearGradient
-                colors={[currentColors.primary + '10', 'transparent']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-            )}
-            <View style={{ position: 'relative', zIndex: 1 }}>
-              {/* Person Header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-                <View style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
-                  backgroundColor: isDarkMode ? currentColors.primary + '20' : currentColors.primary + '10',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: 14,
-                  borderWidth: 1,
-                  borderColor: currentColors.primary + '30',
-                }}>
-                  <Icon name="person" size={22} style={{ color: currentColors.primary }} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[themedStyles.text, { fontSize: 18, fontWeight: '800', color: currentColors.text }]}>
-                    {person.name}
-                  </Text>
-                  <Text style={[themedStyles.textSecondary, { fontSize: 13, fontWeight: '500' }]}>
-                    {viewMode === 'yearly' ? 'Yearly' : viewMode === 'daily' ? 'Daily' : 'Monthly'} breakdown
-                  </Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[
-                    themedStyles.text,
-                    {
-                      fontSize: 18,
-                      fontWeight: '800',
-                      color: displayPersonRemaining >= 0 ? currentColors.success : currentColors.error
-                    }
-                  ]}>
-                    {formatCurrency(displayPersonRemaining)}
-                  </Text>
-                  <Text style={[themedStyles.textSecondary, { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }]}>
-                    remaining
-                  </Text>
-                </View>
-              </View>
-
-              {/* Income */}
-              <View style={{ marginBottom: 16 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Icon name="trending-up" size={14} style={{ color: currentColors.success, marginRight: 8 }} />
-                    <Text style={[themedStyles.text, { fontSize: 15, fontWeight: '600' }]}>Income</Text>
-                  </View>
-                  <Text style={[
-                    themedStyles.text,
-                    {
-                      fontSize: 15,
-                      fontWeight: '700',
-                      color: currentColors.success
-                    }
-                  ]}>
-                    {formatCurrency(displayPersonIncome)}
-                  </Text>
-                </View>
-
-                {/* Individual Income Sources */}
-                {person.income && person.income.length > 0 && (
-                  <View style={{ marginLeft: 22, marginTop: 6, gap: 4 }}>
-                    {person.income.map((income) => {
-                      const annualAmount = calculateAnnualAmount(income.amount, income.frequency);
-                      const displayAmount = convertAmount(annualAmount);
-
-                      return (
-                        <View key={income.id} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={[themedStyles.textSecondary, { fontSize: 13, fontWeight: '500' }]}>{income.label}</Text>
-                          <Text style={[themedStyles.textSecondary, { fontSize: 13, fontWeight: '600' }]}>
-                            {formatCurrency(displayAmount)}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-
-              {/* Personal Expenses */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Icon name="person" size={14} style={{ color: currentColors.personal, marginRight: 8 }} />
-                  <Text style={[themedStyles.text, { fontSize: 15, fontWeight: '600' }]}>Personal Expenses</Text>
-                </View>
-                <Text style={[
-                  themedStyles.text,
-                  {
-                    fontSize: 15,
-                    fontWeight: '700',
-                    color: currentColors.personal
-                  }
-                ]}>
-                  {formatCurrency(displayPersonPersonalExpenses)}
+          <Card key={person.id} style={{ flexGrow: 1, flexBasis: 300 } as any}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.s4 }}>
+              <Avatar name={person.name} seed={person.id} size={44} />
+              <View style={{ flex: 1, marginLeft: space.s3 }}>
+                <Text style={[type.h3, { color: tokens.colors.text }]} numberOfLines={1}>
+                  {person.name}
                 </Text>
+                <Text style={[type.caption, { color: tokens.colors.textMuted }]}>Per {period}</Text>
               </View>
-
-              {/* Household Share */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ alignItems: 'flex-end' }}>
+                <AmountText value={remaining} role="h3" tone={over ? 'expense' : 'income'} />
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Icon name="home" size={14} style={{ color: currentColors.household, marginRight: 8 }} />
-                  <Text style={[themedStyles.text, { fontSize: 15, fontWeight: '600' }]}>Household Share</Text>
-                </View>
-                <Text style={[
-                  themedStyles.text,
-                  {
-                    fontSize: 15,
-                    fontWeight: '700',
-                    color: currentColors.household
-                  }
-                ]}>
-                  {formatCurrency(displayPersonHouseholdShare)}
-                </Text>
-              </View>
-
-              {/* Progress Bar */}
-              <View style={{ marginBottom: 12 }}>
-                <View style={{
-                  height: 10,
-                  backgroundColor: isDarkMode ? currentColors.background : currentColors.border + '50',
-                  borderRadius: 5,
-                  overflow: 'hidden',
-                  flexDirection: 'row',
-                  borderWidth: 1,
-                  borderColor: isDarkMode ? currentColors.border : 'transparent',
-                }}>
-                  {displayPersonIncome > 0 && (
-                    <>
-                      {/* Personal Expenses Bar */}
-                      {displayPersonalPercentage > 0 && (
-                        <View style={{
-                          backgroundColor: currentColors.personal,
-                          width: `${displayPersonalPercentage}%`,
-                        }} />
-                      )}
-                      {/* Household Share Bar */}
-                      {displayHouseholdPercentage > 0 && (
-                        <View style={{
-                          backgroundColor: currentColors.household,
-                          width: `${displayHouseholdPercentage}%`,
-                        }} />
-                      )}
-                      {/* Remaining Income Bar - Green */}
-                      {displayRemainingPercentage > 0 && displayPersonRemaining >= 0 && (
-                        <View style={{
-                          backgroundColor: currentColors.success,
-                          width: `${displayRemainingPercentage}%`,
-                        }} />
-                      )}
-                      {/* Over Budget Bar - Red */}
-                      {displayPersonRemaining < 0 && (
-                        <View style={{
-                          backgroundColor: currentColors.error,
-                          width: `${Math.min(Math.abs((displayPersonRemaining / displayPersonIncome) * 100), 100 - displayPersonalPercentage - displayHouseholdPercentage)}%`,
-                        }} />
-                      )}
-                    </>
-                  )}
-                </View>
-              </View>
-
-              {/* Percentage Labels */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: currentColors.personal, marginRight: 6 }} />
-                  <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '600' }]}>
-                    {displayPersonIncome > 0
-                      ? `${personalPercentage.toFixed(0)}% personal`
-                      : '0% personal'
-                    }
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: currentColors.household, marginRight: 6 }} />
-                  <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '600' }]}>
-                    {displayPersonIncome > 0
-                      ? `${householdPercentage.toFixed(0)}% household`
-                      : '0% household'
-                    }
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: displayPersonRemaining >= 0 ? currentColors.success : currentColors.error, marginRight: 6 }} />
-                  <Text style={[themedStyles.textSecondary, { fontSize: 12, fontWeight: '700', color: displayPersonRemaining >= 0 ? currentColors.success : currentColors.error }]}>
-                    {displayPersonIncome > 0
-                      ? `${remainingPercentage.toFixed(0)}% ${displayPersonRemaining >= 0 ? 'left' : 'over'}`
-                      : '0% left'
-                    }
+                  {over ? <Icon name="alert-circle" size={12} color={tokens.colors.danger} style={{ marginRight: 2 }} /> : null}
+                  <Text style={[type.caption, { color: over ? tokens.colors.danger : tokens.colors.textMuted }]}>
+                    {over ? 'over' : 'left'}
                   </Text>
                 </View>
               </View>
             </View>
-          </View>
+
+            <Line icon="trending-up" iconColor={tokens.colors.income} label="Income" value={income} />
+            {person.income?.length > 1
+              ? person.income.map((src) => (
+                  <View key={src.id} style={{ flexDirection: 'row', paddingLeft: space.s5, paddingVertical: 2 }}>
+                    <Text style={[type.caption, { color: tokens.colors.textMuted, flex: 1 }]} numberOfLines={1}>
+                      {src.label}
+                    </Text>
+                    <AmountText
+                      value={convertAmount(calculateAnnualAmount(src.amount, src.frequency))}
+                      role="caption"
+                      tone="muted"
+                    />
+                  </View>
+                ))
+              : null}
+            <Line icon="person" iconColor={tokens.colors.personal} label="Personal spending" value={personal} />
+            <Line icon="home" iconColor={tokens.colors.household} label="Household share" value={share} />
+
+            <View
+              accessibilityLabel={`${Math.round(pct(personal))}% personal, ${Math.round(pct(share))}% household, ${Math.round(Math.abs(pct(remaining)))}% ${over ? 'over' : 'left'}`}
+              style={{
+                height: 8,
+                borderRadius: radius.full,
+                overflow: 'hidden',
+                flexDirection: 'row',
+                // Surface-colored gaps keep adjacent segments from bleeding
+                // together; the grey track only shows when there's no income.
+                gap: space.s1,
+                backgroundColor: income > 0 ? 'transparent' : tokens.colors.border,
+                marginTop: space.s4,
+                marginBottom: space.s3,
+              }}
+            >
+              {income > 0 ? (
+                <>
+                  {personalPct > 0 ? <View style={{ flexGrow: personalPct, backgroundColor: tokens.colors.personal }} /> : null}
+                  {sharePct > 0 ? <View style={{ flexGrow: sharePct, backgroundColor: tokens.colors.household }} /> : null}
+                  {!over && leftPct > 0 ? <View style={{ flexGrow: leftPct, backgroundColor: tokens.colors.income }} /> : null}
+                </>
+              ) : null}
+            </View>
+
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: space.s4, rowGap: space.s1 }}>
+              <Legend color={tokens.colors.personal} label={`${pct(personal).toFixed(0)}% personal`} />
+              <Legend color={tokens.colors.household} label={`${pct(share).toFixed(0)}% household`} />
+              <Legend color={leftColor} label={`${Math.abs(pct(remaining)).toFixed(0)}% ${over ? 'over' : 'left'}`} strong />
+            </View>
+          </Card>
         );
       })}
     </View>

@@ -211,9 +211,16 @@ export const setupErrorLogging = () => {
   // React Native specific error handling
   if (Platform.OS !== 'web') {
     // Set up React Native error handler
-    const originalHandler = global.ErrorUtils?.getGlobalHandler?.();
-    
-    global.ErrorUtils?.setGlobalHandler?.((error, isFatal) => {
+    type GlobalErrorHandler = (error: Error, isFatal?: boolean) => void;
+    const errorUtils = (global as typeof globalThis & {
+      ErrorUtils?: {
+        getGlobalHandler?: () => GlobalErrorHandler;
+        setGlobalHandler?: (handler: GlobalErrorHandler) => void;
+      };
+    }).ErrorUtils;
+    const originalHandler = errorUtils?.getGlobalHandler?.();
+
+    errorUtils?.setGlobalHandler?.((error, isFatal) => {
       const errorData = {
         message: error.message,
         stack: error.stack,
@@ -254,7 +261,7 @@ export const setupErrorLogging = () => {
 
   // Wrap setTimeout and setInterval to catch errors
   const originalSetTimeout = global.setTimeout;
-  global.setTimeout = (callback, delay, ...args) => {
+  global.setTimeout = ((callback: TimerHandler, delay?: number, ...args: any[]) => {
     const wrappedCallback = (...callbackArgs: any[]) => {
       try {
         if (typeof callback === 'function') {
@@ -272,10 +279,10 @@ export const setupErrorLogging = () => {
       }
     };
     return originalSetTimeout(wrappedCallback, delay, ...args);
-  };
+  }) as typeof global.setTimeout;
 
   const originalSetInterval = global.setInterval;
-  global.setInterval = (callback, delay, ...args) => {
+  global.setInterval = ((callback: TimerHandler, delay?: number, ...args: any[]) => {
     const wrappedCallback = (...callbackArgs: any[]) => {
       try {
         if (typeof callback === 'function') {
@@ -293,7 +300,7 @@ export const setupErrorLogging = () => {
       }
     };
     return originalSetInterval(wrappedCallback, delay, ...args);
-  };
+  }) as typeof global.setInterval;
 
   console.log('✅ Comprehensive error logging setup complete');
 };
