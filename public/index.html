@@ -60,6 +60,11 @@
         // leave iPad windowing / split view alone.
         if (w === fullW && fullH > h && fullH - h <= 100) h = fullH;
         document.documentElement.style.setProperty('--app-height', h + 'px');
+        // iOS 26 draws a Liquid Glass blur ~40pt below the status bar that
+        // no CSS or meta tag disables; reserve space.s7 (32px) under the
+        // inset so header content starts below the ramp. Landscape hides
+        // the status bar, so no ramp there.
+        document.documentElement.style.setProperty('--status-ramp', portrait ? '32px' : '0px');
       }
       setAppHeight();
       window.addEventListener('resize', setAppHeight);

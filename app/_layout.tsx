@@ -77,23 +77,6 @@ function RootLayoutContent() {
           flex-direction: column;
           background-color: ${tokens.colors.bg} !important;
         }
-        /* iOS 26 home-screen apps draw a Liquid Glass blur under the
-           status bar that ramps ~40pt down over the header. WebKit swaps
-           that blur for a flat fill when a fixed, opaque box touches the
-           top edge, so pin a bg-coloured strip over the status-bar inset. */
-        @media (display-mode: standalone) {
-          body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: env(safe-area-inset-top);
-            background-color: ${tokens.colors.bg};
-            z-index: 2000;
-            pointer-events: none;
-          }
-        }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
@@ -139,11 +122,22 @@ function RootLayoutContent() {
         minHeight: '100%',
         backgroundColor: tokens.colors.bg,
         flexDirection: bp.isCompact ? 'column' : 'row',
-        paddingTop: Platform.OS === 'web'
-          ? (bp.isCompact ? ('env(safe-area-inset-top)' as any) : 0)
-          : (bp.isCompact ? insets.top : 0),
+        paddingTop: Platform.OS === 'web' ? 0 : bp.isCompact ? insets.top : 0,
       }}
     >
+      {Platform.OS === 'web' && bp.isCompact ? (
+        // Status-bar band. On iOS 26 home-screen apps it also absorbs the
+        // Liquid Glass edge blur (--status-ramp, set in index.html) so the
+        // header's title and actions start below it. Painted in the
+        // header's `chrome` material so status bar and header read as one
+        // bar; the auth screens have no header, so they keep the page bg.
+        <View
+          style={{
+            height: 'calc(env(safe-area-inset-top) + var(--status-ramp, 0px))' as any,
+            backgroundColor: user ? tokens.colors.chrome : 'transparent',
+          }}
+        />
+      ) : null}
       <Head>
         <title>Budget Flow</title>
         <meta
