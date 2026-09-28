@@ -28,6 +28,7 @@
     "@react-navigation/native-stack": "^7.3.25",
     "@supabase/supabase-js": "^2.90.1",
     "@types/difflib": "^0.2.7",
+    "@vercel/analytics": "^2.0.1",
     "aes-js": "^3.1.2",
     "difflib": "^0.2.4",
     "eas": "^0.1.0",
