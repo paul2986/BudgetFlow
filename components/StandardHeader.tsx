@@ -131,10 +131,12 @@ export default function StandardHeader({
         minHeight: subtitle ? HEADER_HEIGHT + 12 : HEADER_HEIGHT,
         paddingHorizontal: bp.gutter,
         paddingVertical: space.s2,
-        // Web: sticky translucent material so content visibly scrolls under
-        // the header. Native: the header sits in flow, so a solid fill.
+        // Web: sticky and opaque `surface`, matching the status-bar band and
+        // the colour iOS 27 extends under the status bar, so the three read
+        // as one bar (a translucent header drifts from it as content passes
+        // underneath). Native: the header sits in flow, so the page bg.
         backgroundColor:
-          backgroundColor || (Platform.OS === 'web' ? tokens.colors.chrome : tokens.colors.bg),
+          backgroundColor || (Platform.OS === 'web' ? tokens.colors.surface : tokens.colors.bg),
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: tokens.colors.borderStrong,
         // @ts-ignore web-only sticky header + material
@@ -143,8 +145,6 @@ export default function StandardHeader({
               position: 'sticky',
               top: 0,
               zIndex: 100,
-              backdropFilter: 'blur(20px) saturate(180%)',
-              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             }
           : {}),
       }}

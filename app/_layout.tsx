@@ -77,6 +77,24 @@ function RootLayoutContent() {
           flex-direction: column;
           background-color: ${tokens.colors.bg} !important;
         }
+        /* iOS 27 home-screen apps draw a Liquid Glass blur that ramps well
+           below the status bar. WebKit swaps it for a flat fill when a
+           fixed element with a real height and background-color touches
+           the top edge; it samples background-color, not pixels, so
+           background-clip: text keeps the element itself invisible. */
+        html[data-ios-standalone] body::before {
+          content: '';
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 11px;
+          background-color: ${user ? tokens.colors.surface : tokens.colors.bg};
+          -webkit-background-clip: text;
+          background-clip: text;
+          z-index: 2147483647;
+          pointer-events: none;
+        }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb {
@@ -102,14 +120,14 @@ function RootLayoutContent() {
 
       const metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
-        metaThemeColor.setAttribute('content', tokens.colors.bg);
+        metaThemeColor.setAttribute('content', user ? tokens.colors.surface : tokens.colors.bg);
       }
 
       return () => {
         document.getElementById('app-global-styles')?.remove();
       };
     }
-  }, [tokens, isDarkMode]);
+  }, [tokens, isDarkMode, user]);
 
   const showRail = user && bp.isMedium;
   const showSidebar = user && bp.isExpanded;
@@ -126,15 +144,13 @@ function RootLayoutContent() {
       }}
     >
       {Platform.OS === 'web' && bp.isCompact ? (
-        // Status-bar band. On iOS 26 home-screen apps it also absorbs the
-        // Liquid Glass edge blur (--status-ramp, set in index.html) so the
-        // header's title and actions start below it. Painted in the
-        // header's `chrome` material so status bar and header read as one
-        // bar; the auth screens have no header, so they keep the page bg.
+        // Status-bar band, painted in the header's surface so status bar
+        // and header read as one bar; the auth screens have no header, so
+        // they keep the page bg.
         <View
           style={{
-            height: 'calc(env(safe-area-inset-top) + var(--status-ramp, 0px))' as any,
-            backgroundColor: user ? tokens.colors.chrome : 'transparent',
+            height: 'env(safe-area-inset-top)' as any,
+            backgroundColor: user ? tokens.colors.surface : 'transparent',
           }}
         />
       ) : null}
@@ -144,7 +160,7 @@ function RootLayoutContent() {
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"
         />
-        <meta name="theme-color" content={tokens.colors.bg} />
+        <meta name="theme-color" content={user ? tokens.colors.surface : tokens.colors.bg} />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
