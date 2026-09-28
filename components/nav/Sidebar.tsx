@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { useBudgetData } from '../../hooks/useBudgetData';
-import { LAYOUT } from '../../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance, useBottomInset } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import Button from '../Button';
 import { Avatar, ConfirmDialog } from '../ui';
@@ -65,6 +65,7 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
@@ -77,7 +78,7 @@ export default function Sidebar() {
         borderRightColor: tokens.colors.border,
         height: '100%',
         paddingTop: insets.top,
-        paddingBottom: insets.bottom,
+        paddingBottom: bottomClearance(bottomInset),
       }}
     >
       {/* Brand + budget switcher */}

@@ -1,8 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Modal, Pressable, Platform, Animated, StyleSheet, DimensionValue } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
-import { useBreakpoint } from '../../hooks/useBreakpoint';
+import { useBreakpoint, useBottomInset } from '../../hooks/useBreakpoint';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { type, space, radius, elevation, motion } from '../../styles/tokens';
 
@@ -58,7 +57,7 @@ export default function Sheet({
   const { tokens } = useTheme();
   const bp = useBreakpoint();
   const reduceMotion = useReducedMotion();
-  const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset();
   const isCompact = bp.isCompact;
   const useNativeSheet = Platform.OS === 'ios' && isCompact;
 
@@ -110,7 +109,7 @@ export default function Sheet({
             paddingHorizontal: space.s5,
             paddingTop: space.s4,
             // Bottom sheets sit on the home indicator; keep the footer above it.
-            paddingBottom: isCompact ? Math.max(insets.bottom, space.s4) : space.s4,
+            paddingBottom: isCompact ? Math.max(bottomInset, space.s4) : space.s4,
             borderTopWidth: StyleSheet.hairlineWidth,
             borderTopColor: tokens.colors.borderStrong,
           }}

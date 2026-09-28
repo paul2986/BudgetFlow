@@ -3,7 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
-import { LAYOUT } from '../../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance, useBottomInset } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import { type, space, radius } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -20,6 +20,7 @@ export default function NavRail() {
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset();
 
   return (
     <View
@@ -29,7 +30,7 @@ export default function NavRail() {
         borderRightWidth: 1,
         borderRightColor: tokens.colors.border,
         paddingTop: insets.top + space.s4,
-        paddingBottom: insets.bottom + space.s4,
+        paddingBottom: bottomClearance(bottomInset + space.s4),
         alignItems: 'center',
       }}
     >

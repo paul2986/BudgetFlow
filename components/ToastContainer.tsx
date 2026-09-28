@@ -1,9 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from './Toast';
 import { ToastMessage } from '../hooks/useToast';
-import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB } from '../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB, useBottomInset } from '../hooks/useBreakpoint';
 import { space } from '../styles/tokens';
 
 interface ToastContainerProps {
@@ -16,11 +15,11 @@ interface ToastContainerProps {
  * steal focus.
  */
 export default function ToastContainer({ toasts, onHideToast }: ToastContainerProps) {
-  const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset();
 
   if (toasts.length === 0) return null;
 
-  const baseOffset = LAYOUT.tabBarHeight + insets.bottom + space.s4;
+  const baseOffset = LAYOUT.tabBarHeight + bottomInset + space.s4;
 
   return (
     <View style={[styles.container, IS_IOS_SAFARI_TAB && { position: 'fixed' as any }]}>

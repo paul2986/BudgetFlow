@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * Single source of truth for responsive layout classes.
@@ -32,6 +33,18 @@ export const IS_IOS_SAFARI_TAB =
   Platform.OS === 'web' &&
   typeof navigator !== 'undefined' &&
   (navigator as any).standalone === false;
+
+/**
+ * Bottom safe-area inset to pad against. In an iOS Safari tab
+ * env(safe-area-inset-bottom) reports the band hidden behind the floating
+ * toolbar (measured 121pt), which UI pinned to the visible page already
+ * clears, so it counts as 0 there; the toolbar band is handled by
+ * bottomClearance() for shell-anchored UI.
+ */
+export function useBottomInset(): number {
+  const insets = useSafeAreaInsets();
+  return IS_IOS_SAFARI_TAB ? 0 : insets.bottom;
+}
 
 /**
  * In an iOS 26+ Safari tab the web shell extends below the visible page by

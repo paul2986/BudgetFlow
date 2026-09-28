@@ -1,10 +1,9 @@
 import React from 'react';
 import { View, Pressable, Platform, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../hooks/useTheme';
-import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB } from '../../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB, useBottomInset } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import { space, radius, elevation } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -62,11 +61,11 @@ export default function BottomTabBar() {
   const { tokens, isDarkMode } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const insets = useSafeAreaInsets();
+  const bottomInset = useBottomInset();
 
   // Sit inside the home-indicator zone rather than above it; devices without
   // an inset still get a small float gap.
-  const bottom = Math.max(insets.bottom - space.s3, space.s3);
+  const bottom = Math.max(bottomInset - space.s3, space.s3);
 
   const tabs = (
     <View
