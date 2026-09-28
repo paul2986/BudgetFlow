@@ -1,21 +1,22 @@
 import React from 'react';
-import { View, Text, Pressable, Platform, StyleSheet } from 'react-native';
+import { View, Pressable, Platform, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../../hooks/useTheme';
 import { LAYOUT } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
-import { type, space } from '../../styles/tokens';
+import { space, radius, elevation } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
 
 /**
- * Compact-class bottom tab bar (DESIGN.md §2.6).
- * - Icons AND labels on every platform (fixes iOS icon-only tabs).
+ * Compact-class bottom tab bar (DESIGN.md §2.6), as a floating pill.
+ * - Icon-only (labels live in accessibilityLabel); selection is carried by
+ *   tint, a filled icon and a capsule, never color alone.
  * - Never hidden: sub-screens and empty states keep primary navigation.
- * - 56px + safe area; translucent `chrome` material with blur (iOS/web) so
- *   content visibly passes underneath, over a hairline top edge.
- * - Selection is carried by tint + filled icon; labels stay sentence case.
+ * - Floats inside the home-indicator zone (like iOS 26 / Instagram) rather
+ *   than stacking a full safe-area band under a flat bar.
+ * - Translucent `chrome` material with blur so content passes underneath.
  */
 
 function TabItem({
@@ -46,19 +47,13 @@ function TabItem({
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: space.s2,
-        paddingBottom: space.s1,
+        borderRadius: radius.full,
+        backgroundColor: active ? tokens.colors.brandSubtle : 'transparent',
         opacity: pressed ? 0.6 : 1,
-        minHeight: LAYOUT.tabBarHeight,
+        minHeight: LAYOUT.tabBarHeight - space.s2,
       })}
     >
-      <Icon name={(active ? activeIcon : icon) as any} size={24} color={color} />
-      <Text
-        style={[type.overline, { color, marginTop: space.s1, textTransform: 'none', letterSpacing: 0 }]}
-        numberOfLines={1}
-      >
-        {label}
-      </Text>
+      <Icon name={(active ? activeIcon : icon) as any} size={26} color={color} />
     </Pressable>
   );
 }
@@ -69,25 +64,14 @@ export default function BottomTabBar() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  const content = (
+  // Sit inside the home-indicator zone rather than above it; devices without
+  // an inset still get a small float gap.
+  const bottom = Math.max(insets.bottom - space.s3, space.s3);
+
+  const tabs = (
     <View
       accessibilityRole={Platform.OS === 'web' ? ('tablist' as any) : undefined}
-      style={{
-        flexDirection: 'row',
-        borderTopWidth: StyleSheet.hairlineWidth,
-        paddingBottom: Math.max(insets.bottom, Platform.OS === 'web' ? 0 : space.s2),
-        borderTopColor: tokens.colors.borderStrong,
-        backgroundColor:
-          Platform.OS === 'android'
-            ? tokens.colors.surface
-            : Platform.OS === 'ios'
-              ? 'transparent' // BlurView supplies the material
-              : tokens.colors.chrome,
-        // @ts-ignore web blur
-        ...(Platform.OS === 'web'
-          ? { backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)' }
-          : {}),
-      }}
+      style={{ flexDirection: 'row', padding: space.s1 }}
     >
       {NAV_TABS.map((tab) => (
         <TabItem
@@ -102,23 +86,47 @@ export default function BottomTabBar() {
 
   return (
     <View
+      pointerEvents="box-none"
       style={{
         // Absolute (not fixed) on web too: iOS standalone PWAs anchor fixed
         // elements to a viewport that is short by the status-bar height.
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom,
+        left: space.s4,
+        right: space.s4,
         zIndex: 1000,
       }}
     >
-      {Platform.OS === 'ios' ? (
-        <BlurView intensity={80} tint={isDarkMode ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}>
-          {content}
-        </BlurView>
-      ) : (
-        content
-      )}
+      <View
+        style={[
+          {
+            borderRadius: radius.full,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: tokens.colors.borderStrong,
+            overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
+            backgroundColor:
+              Platform.OS === 'android'
+                ? tokens.colors.surfaceRaised
+                : Platform.OS === 'ios'
+                  ? 'transparent' // BlurView supplies the material
+                  : tokens.colors.chrome,
+            // @ts-ignore web blur
+            ...(Platform.OS === 'web'
+              ? { backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)' }
+              : {}),
+          },
+          // Dark mode separates by surface + hairline, not shadow.
+          isDarkMode ? null : elevation.e2,
+        ]}
+      >
+        {Platform.OS === 'ios' ? (
+          <BlurView intensity={80} tint={isDarkMode ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}>
+            {tabs}
+          </BlurView>
+        ) : (
+          tabs
+        )}
+      </View>
     </View>
   );
 }

@@ -216,7 +216,7 @@ Breakpoints (single source `useBreakpoint()` hook — delete all scattered `widt
 
 | Class | Width | Nav | Content |
 |---|---|---|---|
-| **compact** | < 640 | Bottom tab bar (5 items, icons **and** labels, always visible incl. sub-screens) | Single column, 16px gutters, full-bleed lists |
+| **compact** | < 640 | Floating pill tab bar (5 icon-only items with accessibility labels, selected tab on a capsule; always visible incl. sub-screens) | Single column, 16px gutters, full-bleed lists |
 | **medium** (tablet portrait / landscape phones) | 640–1023 | **Icon+label nav rail, 84px**, left edge (not the 280px sidebar) | Content max 720 centered; dashboard 2-col grid; forms max 560 |
 | **expanded** | ≥ 1024 | Full sidebar 264px (nav + budget switcher + account) | Content max **1120** centered, 32px gutters; dashboard 12-col grid |
 
