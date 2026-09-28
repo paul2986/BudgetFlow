@@ -21,24 +21,51 @@
     /* These styles make the body full-height */
     html,
     body {
-      height: 100%;
-      background-color: #000000;
+      height: var(--app-height, 100%);
+      background-color: #0B1220;
       /* Prevent white bands on iOS */
     }
 
-    /* These styles disable body scrolling if you are using <ScrollView> */
+    /* These styles disable document scrolling; screens scroll inside <ScrollView> */
+    html,
     body {
       overflow: hidden;
+      overscroll-behavior: none;
     }
 
     /* These styles make the root element full-height */
     #root {
       display: flex;
-      height: 100%;
+      height: var(--app-height, 100%);
       flex: 1;
-      background-color: #000000;
+      background-color: #0B1220;
     }
   </style>
+  <script>
+    // iOS home-screen web apps with a black-translucent status bar report a
+    // layout viewport that is short by the status-bar height, so 100dvh and
+    // `position: fixed; bottom: 0` stop well above the home indicator. Measure
+    // the real screen height and expose it as --app-height for the shell.
+    (function () {
+      if (window.navigator.standalone !== true) return; // iOS standalone only
+      function setAppHeight() {
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        var portrait = w <= h;
+        var long = Math.max(screen.width, screen.height);
+        var short = Math.min(screen.width, screen.height);
+        var fullW = portrait ? short : long;
+        var fullH = portrait ? long : short;
+        // Only correct the known small shortfall on a full-screen window;
+        // leave iPad windowing / split view alone.
+        if (w === fullW && fullH > h && fullH - h <= 100) h = fullH;
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      setAppHeight();
+      window.addEventListener('resize', setAppHeight);
+      window.addEventListener('orientationchange', function () { setTimeout(setAppHeight, 300); });
+    })();
+  </script>
   <script>
     window.canInstall = false;
     window.deferredPrompt = null;

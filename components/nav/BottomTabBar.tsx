@@ -103,7 +103,9 @@ export default function BottomTabBar() {
   return (
     <View
       style={{
-        position: Platform.OS === 'web' ? ('fixed' as any) : 'absolute',
+        // Absolute (not fixed) on web too: iOS standalone PWAs anchor fixed
+        // elements to a viewport that is short by the status-bar height.
+        position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,

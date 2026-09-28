@@ -19,6 +19,8 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   prefix?: string;
   containerStyle?: ViewStyle | ViewStyle[];
   inputStyle?: TextInputProps['style'];
+  /** Forwarded to the underlying TextInput (React 19 ref-as-prop). */
+  ref?: React.Ref<TextInput>;
 }
 
 export default function Input({

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -8,6 +8,7 @@ import {
     ActivityIndicator,
     Image,
     Pressable,
+    TextInput,
 } from 'react-native';
 import { supabase, AUTH_REDIRECT_HTTPS } from '../utils/supabase';
 import { useTheme } from '../hooks/useTheme';
@@ -41,6 +42,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     const [resetLoading, setResetLoading] = useState(false);
     const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+    const passwordRef = useRef<TextInput>(null);
 
     // Match the page background on web while unauthenticated.
     useEffect(() => {
@@ -197,6 +199,9 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                             keyboardType="email-address"
                             autoComplete="email"
                             textContentType="emailAddress"
+                            returnKeyType="next"
+                            submitBehavior="submit"
+                            onSubmitEditing={() => passwordRef.current?.focus()}
                             containerStyle={{ marginBottom: space.s4 }}
                         />
 
@@ -213,6 +218,11 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                             password
                             autoComplete={authMode === 'register' ? 'new-password' : 'password'}
                             textContentType={authMode === 'register' ? 'newPassword' : 'password'}
+                            ref={passwordRef}
+                            returnKeyType="go"
+                            onSubmitEditing={() => {
+                                if (!authLoading) handleAuth();
+                            }}
                             containerStyle={{ marginBottom: space.s6 }}
                         />
 
