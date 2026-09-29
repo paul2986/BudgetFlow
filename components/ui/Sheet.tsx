@@ -133,7 +133,7 @@ export default function Sheet({
       <Pressable
         onPress={onClose}
         accessibilityLabel={`Close ${title}`}
-        style={{ ...StyleSheet.absoluteFillObject, backgroundColor: tokens.colors.overlay }}
+        style={{ ...StyleSheet.absoluteFill, backgroundColor: tokens.colors.overlay }}
       />
       {isCompact ? (
         <Animated.View
@@ -169,7 +169,7 @@ export default function Sheet({
           style={
             anchor === 'headerTrailing'
               ? { position: 'absolute', top: anchorTop, right: bp.gutter }
-              : { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', padding: space.s6 }
+              : { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', padding: space.s6 }
           }
         >
           <View

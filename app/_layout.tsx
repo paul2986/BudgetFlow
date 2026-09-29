@@ -157,8 +157,6 @@ function RootLayoutContent() {
 
       <StatusBar
         style={isDarkMode ? 'light' : 'dark'}
-        backgroundColor="transparent"
-        translucent
       />
 
       {showSidebar && <Sidebar />}

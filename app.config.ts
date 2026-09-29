@@ -8,12 +8,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     orientation: 'portrait',
     icon: './assets/images/icon.png',
     userInterfaceStyle: 'automatic',
-    newArchEnabled: true,
-    splash: {
-        image: './assets/images/icon.png',
-        resizeMode: 'contain',
-        backgroundColor: '#000000',
-    },
     ios: {
         supportsTablet: true,
         bundleIdentifier: 'com.budgetflow.app',
@@ -38,6 +32,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     plugins: [
         'expo-font',
         'expo-router',
+        [
+            'expo-splash-screen',
+            {
+                image: './assets/images/icon.png',
+                resizeMode: 'contain',
+                backgroundColor: '#000000',
+            },
+        ],
         './plugins/withMinimumPodsDeploymentTarget',
         './plugins/withUserScriptSandboxingDisabled',
         './plugins/withSceneLifecycle',
