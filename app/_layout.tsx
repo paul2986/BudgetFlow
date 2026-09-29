@@ -139,17 +139,21 @@ function RootLayoutContent() {
           }}
         />
       ) : null}
-      <Head>
-        <title>Budget Flow</title>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover"
-        />
-        <meta name="theme-color" content={user ? tokens.colors.surface : tokens.colors.bg} />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-      </Head>
+      {/* Web only: these are document tags, and on iOS expo-router's Head is a
+          Handoff/Spotlight API that requires a configured origin. */}
+      {Platform.OS === 'web' && (
+        <Head>
+          <title>Budget Flow</title>
+          <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, viewport-fit=cover"
+          />
+          <meta name="theme-color" content={user ? tokens.colors.surface : tokens.colors.bg} />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        </Head>
+      )}
 
       <StatusBar
         style={isDarkMode ? 'light' : 'dark'}
