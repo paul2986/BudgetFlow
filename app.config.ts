@@ -38,6 +38,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     plugins: [
         'expo-font',
         'expo-router',
+        './plugins/withMinimumPodsDeploymentTarget',
+        './plugins/withUserScriptSandboxingDisabled',
+        './plugins/withSceneLifecycle',
         [
             'expo-local-authentication',
             {
