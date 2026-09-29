@@ -212,7 +212,7 @@ export const setupErrorLogging = () => {
   if (Platform.OS !== 'web') {
     // Set up React Native error handler
     type GlobalErrorHandler = (error: Error, isFatal?: boolean) => void;
-    const errorUtils = (global as typeof globalThis & {
+    const errorUtils = (globalThis as typeof globalThis & {
       ErrorUtils?: {
         getGlobalHandler?: () => GlobalErrorHandler;
         setGlobalHandler?: (handler: GlobalErrorHandler) => void;
@@ -243,9 +243,9 @@ export const setupErrorLogging = () => {
   }
 
   // Wrap common async operations to catch unhandled rejections
-  const originalFetch = global.fetch;
+  const originalFetch = globalThis.fetch;
   if (originalFetch) {
-    global.fetch = (...args) => {
+    globalThis.fetch = (...args) => {
       return originalFetch(...args).catch((error) => {
         console.error('🚨 FETCH ERROR:', error);
         sendErrorToParent('error', 'Fetch Error', {
@@ -260,8 +260,8 @@ export const setupErrorLogging = () => {
   }
 
   // Wrap setTimeout and setInterval to catch errors
-  const originalSetTimeout = global.setTimeout;
-  global.setTimeout = ((callback: TimerHandler, delay?: number, ...args: any[]) => {
+  const originalSetTimeout = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: TimerHandler, delay?: number, ...args: any[]) => {
     const wrappedCallback = (...callbackArgs: any[]) => {
       try {
         if (typeof callback === 'function') {
@@ -279,10 +279,10 @@ export const setupErrorLogging = () => {
       }
     };
     return originalSetTimeout(wrappedCallback, delay, ...args);
-  }) as typeof global.setTimeout;
+  }) as typeof globalThis.setTimeout;
 
-  const originalSetInterval = global.setInterval;
-  global.setInterval = ((callback: TimerHandler, delay?: number, ...args: any[]) => {
+  const originalSetInterval = globalThis.setInterval;
+  globalThis.setInterval = ((callback: TimerHandler, delay?: number, ...args: any[]) => {
     const wrappedCallback = (...callbackArgs: any[]) => {
       try {
         if (typeof callback === 'function') {
@@ -300,7 +300,7 @@ export const setupErrorLogging = () => {
       }
     };
     return originalSetInterval(wrappedCallback, delay, ...args);
-  }) as typeof global.setInterval;
+  }) as typeof globalThis.setInterval;
 
   console.log('✅ Comprehensive error logging setup complete');
 };
