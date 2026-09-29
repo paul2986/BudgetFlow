@@ -3,6 +3,11 @@ module.exports = {
 	globPatterns: [
 		'**/*.{js,css,html,png,jpg,jpeg,svg,ico,json}'
 	],
+	// The web bundle is ~2.1 MB, over Workbox's 2 MB default. Precaching it
+	// keeps each service worker's index.html and bundle a matching pair:
+	// otherwise, after a deploy, the old worker serves a cached index.html
+	// whose bundle no longer exists and the page loads blank until a reload.
+	maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
 	swDest: 'dist/sw.js',
 	skipWaiting: true,
 	clientsClaim: true,
