@@ -475,7 +475,6 @@ export default function HomeScreen() {
 
       <Animated.ScrollView
         {...largeTitle.scrollProps}
-        style={{ flex: 1 }}
         contentContainerStyle={[
           themedStyles.scrollContent,
           {

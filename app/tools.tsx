@@ -405,7 +405,6 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
       <StandardHeader title="Tools" largeTitle={largeTitle} showLeftIcon={false} showRightIcon={false} />
       <Animated.ScrollView
         {...largeTitle.scrollProps}
-        style={{ flex: 1 }}
         contentContainerStyle={[
           themedStyles.scrollContent,
           { paddingHorizontal: breakpoint.gutter, paddingTop: largeTitle.enabled ? 0 : space.s6 },

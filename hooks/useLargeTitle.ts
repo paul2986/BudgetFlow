@@ -5,6 +5,8 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   type ScrollView,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useBreakpoint } from './useBreakpoint';
 import { type } from '../styles/tokens';
@@ -12,21 +14,22 @@ import { type } from '../styles/tokens';
 /**
  * iOS large-title header state for a tab root screen (compact only).
  *
- * At rest the bar is bare (page bg, no stroke) and the title sits large just
- * below it. As the content scrolls, that one title moves up with it while
- * shrinking into the bar's title slot, and the bar's surface fill and
- * hairline appear as it lands, giving the standard header. Medium+ layouts
+ * At rest the bar is bare (page bg, no stroke) and its title is large, level
+ * with the bar's buttons. As the content scrolls, the title shrinks in place
+ * to the bar's size and the bar's surface fill and hairline appear as it
+ * lands, giving the standard header. Medium+ layouts
  * keep the standard header throughout (the rail/sidebar already name the
  * screen).
  *
  * Wire it up: pass the result to `StandardHeader` (`largeTitle`), put
- * `<LargeTitle>` first in the scroll content (it reserves the title's space),
- * render the scroller as `Animated.ScrollView` and spread `scrollProps` on it.
+ * `<LargeTitle>` first in the scroll content (it reserves the subtitle's
+ * space), render the scroller as `Animated.ScrollView` and spread
+ * `scrollProps` on it (it sets the scroller's style too).
  */
 export interface LargeTitleGeometry {
   /** Scroll distance over which the title shrinks into the bar. */
   collapseDistance: number;
-  /** Height the title takes in the content at rest. */
+  /** Content room for what hangs below the bar at rest (the subtitle). */
   spacerHeight: number;
 }
 
@@ -38,12 +41,20 @@ export interface LargeTitleState extends LargeTitleGeometry {
   setGeometry: (g: LargeTitleGeometry) => void;
   scrollProps: {
     ref: React.RefObject<ScrollView | null>;
+    style: StyleProp<ViewStyle>;
+    bounces: boolean;
+    overScrollMode: 'never';
     onScroll: (...args: any[]) => void;
     scrollEventThrottle: number;
     onScrollEndDrag?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
     onMomentumScrollEnd?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   };
 }
+
+const SCROLL_STYLE: StyleProp<ViewStyle> = [
+  { flex: 1 },
+  Platform.OS === 'web' ? ({ overscrollBehaviorY: 'none' } as ViewStyle) : null,
+];
 
 export function useLargeTitle(): LargeTitleState {
   const { isCompact } = useBreakpoint();
@@ -98,6 +109,16 @@ export function useLargeTitle(): LargeTitleState {
     scrollY,
     ...geometry,
     setGeometry,
-    scrollProps: { ref, onScroll, scrollEventThrottle: 16, ...nativeSettle },
+    scrollProps: {
+      ref,
+      // The page stays put at the top: no pull-down past the header
+      // (bounce on iOS, overscroll in the PWA's scroller).
+      style: SCROLL_STYLE,
+      bounces: false,
+      overScrollMode: 'never',
+      onScroll,
+      scrollEventThrottle: 16,
+      ...nativeSettle,
+    },
   };
 }

@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, Pressable, ActivityIndicator, Platform, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { LargeTitleState } from '../hooks/useLargeTitle';
 import Icon from './Icon';
 import { type, radius, space } from '../styles/tokens';
@@ -97,7 +96,6 @@ export default function StandardHeader({
 }: StandardHeaderProps) {
   const { tokens } = useTheme();
   const bp = useBreakpoint();
-  const reducedMotion = useReducedMotion();
   const large = largeTitle?.enabled ? largeTitle : undefined;
 
   const buttonSize = 44;
@@ -189,21 +187,26 @@ export default function StandardHeader({
       ? [{ icon: rightIcon, onPress: onRightPress, iconColor: rightIconColor }]
       : [];
 
-  // Large title: one title that scrolls up with the content while shrinking
-  // from display size to the bar's h2, landing exactly where the bar's own
-  // title sits, so it never clips or cross-fades. Positions come from the
+  // Large title: the title sits in the bar's own row at display size, level
+  // with the buttons, and shrinks in place to the bar's h2 as the content
+  // scrolls; the subtitle rides up beneath it. Positions come from the
   // measured bar height and the type tokens.
   const minHeight = subtitle ? HEADER_HEIGHT + 12 : HEADER_HEIGHT;
   const [barHeight, setBarHeight] = React.useState(minHeight);
   const scale = type.h2.fontSize / type.display.fontSize;
   const smallBlock = type.h2.lineHeight + (subtitle ? 1 + type.caption.lineHeight : 0);
-  const yCol = (barHeight - smallBlock) / 2; // bar title block, centred
-  const titleYCol = yCol + (type.h2.lineHeight - type.display.lineHeight * scale) / 2;
-  const titleYExp = barHeight; // first thing in the content, just below the bar
-  const subYCol = yCol + type.h2.lineHeight + 1;
-  const subYExp = titleYExp + type.display.lineHeight + space.s1;
-  const collapseDistance = Math.max(1, Math.round(titleYExp - titleYCol));
-  const spacerHeight = type.display.lineHeight + (subtitle ? space.s1 + type.caption.lineHeight : 0);
+  const yCol = (barHeight - smallBlock) / 2; // collapsed title block, centred
+  // At rest the title is centred on the row (level with the buttons).
+  const titleTopRest = barHeight / 2 - type.display.lineHeight / 2;
+  const titleShiftCol = yCol + type.h2.lineHeight / 2 - barHeight / 2;
+  const subTopRest = type.display.lineHeight + space.s1; // below the large title, in title coords
+  const subShiftCol = yCol + type.h2.lineHeight + 1 - (titleTopRest + subTopRest);
+  const collapseDistance = space.s7;
+  // Content room for whatever hangs below the bar at rest (the subtitle).
+  const overhang = subtitle
+    ? Math.max(0, Math.ceil(titleTopRest + subTopRest + type.caption.lineHeight - barHeight))
+    : 0;
+  const spacerHeight = overhang;
 
   const setGeometry = large?.setGeometry;
   React.useEffect(() => {
@@ -211,45 +214,26 @@ export default function StandardHeader({
   }, [setGeometry, collapseDistance, spacerHeight]);
 
   let chromeOpacity: Animated.AnimatedInterpolation<number> | number = 1;
-  let largeTitleEl: React.ReactNode = null;
+  let titleSlot: React.ReactNode;
   if (large) {
     const d = collapseDistance;
     const y = large.scrollY;
+    const range = { inputRange: [0, d], extrapolate: 'clamp' as const };
     // The fill and hairline arrive as the title lands.
-    chromeOpacity = y.interpolate({ inputRange: [d * 0.75, d], outputRange: [0, 1], extrapolate: 'clamp' });
-    // Negative offsets are the iOS pull-down: the title follows the content
-    // down and, unless motion is reduced, grows a little.
-    const pull = 120;
-    const titleY = y.interpolate({
-      inputRange: [-pull, 0, d],
-      outputRange: [titleYExp + pull, titleYExp, titleYCol],
-      extrapolate: 'clamp',
-    });
-    const titleScale = y.interpolate({
-      inputRange: [-pull, 0, d],
-      outputRange: [reducedMotion ? 1 : 1.08, 1, scale],
-      extrapolate: 'clamp',
-    });
-    const subY = y.interpolate({
-      inputRange: [-pull, 0, d],
-      outputRange: [subYExp + pull, subYExp, subYCol],
-      extrapolate: 'clamp',
-    });
-    const layer = { position: 'absolute' as const, top: 0, left: 0, right: 0 };
-    largeTitleEl = (
-      <View
-        pointerEvents="none"
-        style={{ position: 'absolute', top: 0, left: bp.gutter, right: bp.gutter }}
-      >
+    chromeOpacity = y.interpolate({ inputRange: [d * 0.5, d], outputRange: [0, 1], extrapolate: 'clamp' });
+    const titleScale = y.interpolate({ ...range, outputRange: [1, scale] });
+    const titleY = y.interpolate({ ...range, outputRange: [0, titleShiftCol] });
+    const subY = y.interpolate({ ...range, outputRange: [0, subShiftCol] });
+    titleSlot = (
+      <View style={{ flex: 1 }} pointerEvents="none">
         <Animated.Text
           accessibilityRole="header"
           numberOfLines={1}
           style={[
             type.display,
-            layer,
             {
               color: tokens.colors.text,
-              transformOrigin: 'left top',
+              transformOrigin: 'left center',
               transform: [{ translateY: titleY }, { scale: titleScale }],
             },
           ]}
@@ -261,12 +245,35 @@ export default function StandardHeader({
             numberOfLines={1}
             style={[
               type.caption,
-              layer,
-              { color: tokens.colors.textMuted, transform: [{ translateY: subY }] },
+              {
+                position: 'absolute',
+                top: subTopRest,
+                left: 0,
+                right: 0,
+                color: tokens.colors.textMuted,
+                transform: [{ translateY: subY }],
+              },
             ]}
           >
             {subtitle}
           </Animated.Text>
+        ) : null}
+      </View>
+    );
+  } else {
+    titleSlot = (
+      <View style={{ flex: 1 }}>
+        <Text
+          accessibilityRole="header"
+          style={[type.h2, { color: tokens.colors.text }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: 1 }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
         ) : null}
       </View>
     );
@@ -286,8 +293,8 @@ export default function StandardHeader({
         minHeight,
         paddingHorizontal: bp.gutter,
         paddingVertical: space.s2,
-        // The large title hangs below the bar over the scroll content, so
-        // the bar paints above its sibling scroller.
+        // The subtitle hangs below the bar at rest, over the scroll content,
+        // so the bar paints above its sibling scroller.
         ...(large ? { zIndex: 1 } : null),
         // @ts-ignore web-only sticky header + material
         ...(Platform.OS === 'web'
@@ -320,37 +327,19 @@ export default function StandardHeader({
 
       {left.map((btn, idx) => renderButton(btn, 'left', idx))}
 
-      {large ? (
-        <View style={{ flex: 1 }} />
-      ) : (
-        <View style={{ flex: 1 }}>
-          <Text
-            accessibilityRole="header"
-            style={[type.h2, { color: tokens.colors.text }]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: 1 }]} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-      )}
+      {titleSlot}
 
       {right.map((btn, idx) => renderButton(btn, 'right', idx))}
       {confirm ? renderConfirm(confirm) : null}
-      {largeTitleEl}
     </View>
   );
 }
 
 /**
- * Space for a `largeTitle` header's title at rest: first child of the
- * screen's scroll content. The title itself is drawn by the header, over this
- * spacer, so it can shrink into the bar without being clipped by the
- * scroller. Renders nothing when the large title is off (medium+).
+ * First child of a `largeTitle` screen's scroll content: the gap below the
+ * header at rest, plus room for the subtitle that hangs below the bar. The
+ * title itself is drawn by the header. Renders nothing when the large title is
+ * off (medium+).
  */
 export function LargeTitle({ largeTitle }: { largeTitle: LargeTitleState }) {
   if (!largeTitle.enabled) return null;
