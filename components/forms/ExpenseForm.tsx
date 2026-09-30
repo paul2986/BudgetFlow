@@ -5,6 +5,7 @@ import { View, Text, ScrollView } from 'react-native';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
 import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
+import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import Button from '../Button';
 import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
@@ -218,7 +219,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             const result = isEditMode ? await updateExpense(expenseData) : await addExpense(expenseData);
 
             if (result.success) {
-                onSuccess?.() || onClose();
+                leave(() => onSuccess?.() || onClose());
             } else {
                 Alert.alert('Error', result.error?.message || 'Failed to save expense');
             }
@@ -238,7 +239,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                     setDeleting(true);
                     const result = await removeExpense(id);
                     setDeleting(false);
-                    if (result.success) onSuccess?.() || onClose();
+                    if (result.success) leave(() => onSuccess?.() || onClose());
                 }
             }
         ]);
@@ -247,7 +248,8 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const isDirty =
         snapshotOf({ description, amount, category, frequency, personId, categoryTag, debtRepayment, startDateYMD, endDate }) !==
         baseline;
-    const handleCancel = () => confirmDiscard(isDirty, onClose);
+    const leave = useDiscardGuard(isDirty);
+    const handleCancel = () => confirmDiscard(isDirty, () => leave(onClose));
 
     const canSave = !!description.trim() && !!amount && parseFloat(amount) > 0 && (category === 'household' || !!personId);
     const closeAddPerson = () => {

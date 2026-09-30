@@ -10,8 +10,11 @@ export default function EditPersonScreen() {
   const params = useLocalSearchParams<{ personId: string }>();
   const { themedStyles } = useThemedStyles();
 
+  // Return to wherever the form was opened from; a direct link has nowhere
+  // to go back to, so it lands on the list.
   const handleClose = () => {
-    router.replace('/people');
+    if (router.canGoBack()) router.back();
+    else router.replace('/people');
   };
 
   return (

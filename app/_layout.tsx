@@ -27,6 +27,8 @@ import DialogHost from '../components/DialogHost';
 import BottomTabBar from '../components/nav/BottomTabBar';
 import NavRail from '../components/nav/NavRail';
 import Sidebar from '../components/nav/Sidebar';
+// Side effect: its popstate listener must be registered before expo-router's.
+import '../hooks/useDiscardGuard';
 
 /**
  * Root shell (DESIGN.md §2.5–2.6):
@@ -165,6 +167,11 @@ function RootLayoutContent() {
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <AuthGuard user={user} loading={authLoading || isInitialLoad}>
           <Tabs
+            // Back (browser, Android, router.back) returns to the previous
+            // screen, e.g. an edit form back to its list. The default,
+            // firstRoute, keeps only Home + current, so opening a form
+            // replaced the list's browser history entry instead of pushing.
+            backBehavior="history"
             screenOptions={{
               headerShown: false,
               tabBarStyle: { display: 'none' },

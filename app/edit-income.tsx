@@ -14,6 +14,7 @@ import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
 import { type, space } from '../styles/tokens';
 import { useScrollBottomPadding } from '../hooks/useBreakpoint';
+import { useDiscardGuard } from '../hooks/useDiscardGuard';
 
 export default function EditIncomeScreen() {
   const [income, setIncome] = useState<Income | null>(null);
@@ -32,6 +33,21 @@ export default function EditIncomeScreen() {
   const { personId, incomeId } = params;
 
   const { data, updateIncome, removeIncome, saving, loading } = useBudgetData();
+
+  const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
+  const changed =
+    !!income &&
+    (editedIncome.label.trim() !== income.label ||
+      parseFloat(editedIncome.amount) !== income.amount ||
+      editedIncome.frequency !== income.frequency);
+  const canSave = changed && !!editedIncome.label.trim() && amountValid;
+  const leave = useDiscardGuard(changed);
+
+  // Back to wherever this was opened from (Edit person or People); a direct
+  // link has nowhere to go back to, so it lands on People.
+  const handleGoBack = useCallback(() => {
+    leave(() => (router.canGoBack() ? router.back() : router.replace('/people')));
+  }, [leave]);
 
   // Use ref to track if we've already refreshed on this focus
   const hasRefreshedOnFocus = useRef(false);
@@ -143,7 +159,7 @@ export default function EditIncomeScreen() {
       if (result && result.success) {
         console.log('EditIncomeScreen: Income saved successfully, navigating to people page');
         // Navigate specifically to the people page to show the updated data
-        router.replace('/people');
+        handleGoBack();
       } else {
         console.error('EditIncomeScreen: Income save failed:', result?.error);
         Alert.alert('Error', result?.error?.message || 'Failed to update income. Please try again.');
@@ -152,7 +168,7 @@ export default function EditIncomeScreen() {
       console.error('EditIncomeScreen: Error updating income:', error);
       Alert.alert('Error', 'Failed to update income. Please try again.');
     }
-  }, [income, personId, editedIncome, updateIncome, data.people, data.expenses]);
+  }, [income, personId, editedIncome, updateIncome, handleGoBack, data.people, data.expenses]);
 
   const handleDeleteIncome = useCallback(() => {
     if (!income || !personId) return;
@@ -180,7 +196,7 @@ export default function EditIncomeScreen() {
               if (result && result.success) {
                 console.log('EditIncomeScreen: Income deleted successfully, navigating to people page');
                 // Navigate specifically to the people page to show the updated data
-                router.replace('/people');
+                handleGoBack();
               } else {
                 console.error('EditIncomeScreen: Income delete failed:', result?.error);
                 Alert.alert('Error', result?.error?.message || 'Failed to delete income. Please try again.');
@@ -193,21 +209,10 @@ export default function EditIncomeScreen() {
         },
       ]
     );
-  }, [income, personId, removeIncome, data.people, data.expenses]);
-
-  const handleGoBack = useCallback(() => {
-    router.back();
-  }, []);
+  }, [income, personId, removeIncome, handleGoBack, data.people, data.expenses]);
 
   const person = data.people.find(p => p.id === personId);
 
-  const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
-  const changed =
-    !!income &&
-    (editedIncome.label.trim() !== income.label ||
-      parseFloat(editedIncome.amount) !== income.amount ||
-      editedIncome.frequency !== income.frequency);
-  const canSave = changed && !!editedIncome.label.trim() && amountValid;
 
   const renderBody = () => {
     if (!isDataLoaded || loading) {

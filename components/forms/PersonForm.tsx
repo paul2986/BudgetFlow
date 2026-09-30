@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
 import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
+import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import Button from '../Button';
@@ -48,10 +49,14 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
         }
     }, [person, nameLoaded]);
 
+    // Hooks run before the loading return below, so derive dirty from the raw
+    // person, and only once the name has loaded (it starts empty).
+    const leave = useDiscardGuard(nameLoaded && !!person && name.trim() !== person.name);
+
     const handleSavePerson = async () => {
         if (!person || !name.trim()) return;
         const result = await updatePerson({ ...person, name: name.trim() });
-        if (result.success) onSuccess?.() || onClose();
+        if (result.success) leave(() => onSuccess?.() || onClose());
         else Alert.alert('Couldn’t save', 'Please try again.');
     };
 
@@ -69,7 +74,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                         setIsDeletingPerson(true);
                         const result = await removePerson(person.id);
                         setIsDeletingPerson(false);
-                        if (result.success) onSuccess?.() || onClose();
+                        if (result.success) leave(() => onSuccess?.() || onClose());
                     },
                 },
             ]
@@ -107,7 +112,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
         <>
             <StandardHeader
                 title="Edit person"
-                onLeftPress={() => confirmDiscard(nameChanged, onClose)}
+                onLeftPress={() => confirmDiscard(nameChanged, () => leave(onClose))}
                 confirm={{
                     onPress: handleSavePerson,
                     disabled: !name.trim() || !nameChanged,
