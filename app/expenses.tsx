@@ -653,7 +653,7 @@ export default function ExpensesScreen() {
             />
           ) : (
             <ListGroup>
-              {filteredExpenses.map((expense) => (
+              {filteredExpenses.map((expense, idx) => (
                 <ExpenseCard
                   key={expense.id}
                   expense={expense}
@@ -661,6 +661,8 @@ export default function ExpensesScreen() {
                   isDeleting={deletingExpenseId === expense.id}
                   onPress={() => handleEditExpense(expense)}
                   onDelete={handleDeletePress}
+                  // Light mode: the total row's divider replaces the last hairline.
+                  showSeparator={tokens.isDark || idx < filteredExpenses.length - 1}
                 />
               ))}
               <View
@@ -670,10 +672,17 @@ export default function ExpensesScreen() {
                   justifyContent: 'space-between',
                   paddingHorizontal: space.s4,
                   paddingVertical: space.s4,
-                  backgroundColor: tokens.colors.surfaceSunken,
+                  // Light: surfaceSunken is the page grey, so the total row
+                  // melted into the page below. Keep it on the card's white
+                  // and set it off from the rows with a firm divider instead.
+                  backgroundColor: tokens.isDark ? tokens.colors.surfaceSunken : tokens.colors.surface,
+                  borderTopWidth: tokens.isDark ? 0 : 1,
+                  borderTopColor: tokens.colors.borderStrong,
                 }}
               >
-                <Text style={[type.bodyMed, { color: tokens.colors.textMuted }]}>Monthly total</Text>
+                <Text style={[type.bodyMed, { color: tokens.isDark ? tokens.colors.textMuted : tokens.colors.text }]}>
+                  Monthly total
+                </Text>
                 <AmountText value={totalMonthlyAmount} role="h3" />
               </View>
             </ListGroup>

@@ -36,8 +36,8 @@ export default function Chip({
 }: ChipProps) {
   const { tokens } = useTheme();
 
-  const fg = color ?? (selected ? tokens.colors.onBrandSubtle : tokens.colors.textMuted);
-  const bg = backgroundColor ?? (selected ? tokens.colors.brandSubtle : tokens.colors.surfaceSunken);
+  const fg = color ?? (selected ? tokens.colors.onBrand : tokens.colors.textMuted);
+  const bg = backgroundColor ?? (selected ? tokens.colors.brand : tokens.colors.surfaceSunken);
   const interactive = onPress || onDismiss;
 
   const content = (

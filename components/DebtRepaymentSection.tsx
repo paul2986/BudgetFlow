@@ -5,6 +5,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { Expense, Person } from '../types/budget';
 import { calculateMonthlyAmount } from '../utils/calculations';
+import { debtMeta } from '../utils/debtMeta';
 import Icon from './Icon';
 import { AmountText, Chip, ChoicePills, EmptyState, ListRow } from './ui';
 import { type, space, radius } from '../styles/tokens';
@@ -60,13 +61,7 @@ export default function DebtRepaymentSection({ expenses, people = [] }: DebtRepa
     };
   }, [filteredDebtExpenses]);
 
-  const DEBT_META: Record<string, { label: string; icon: string; color: string; subtle: string }> = {
-    mortgage: { label: 'Mortgage', icon: 'business-outline', color: tokens.colors.mortgage, subtle: tokens.colors.mortgageSubtle },
-    loan: { label: 'Loan', icon: 'cash-outline', color: tokens.colors.loan, subtle: tokens.colors.loanSubtle },
-    credit_card: { label: 'Credit card', icon: 'card-outline', color: tokens.colors.creditCard, subtle: tokens.colors.creditCardSubtle },
-  };
-  const meta = (type?: string) =>
-    DEBT_META[type || ''] || { label: 'Debt', icon: 'trending-down-outline', color: tokens.colors.brand, subtle: tokens.colors.brandSubtle };
+  const meta = (type?: string) => debtMeta(type, tokens.colors);
 
   if (debtExpenses.length === 0) {
     return (

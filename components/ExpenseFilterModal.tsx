@@ -578,7 +578,7 @@ function OptionChip({
   icon?: string;
 }) {
   const { tokens } = useTheme();
-  const fg = selected ? tokens.colors.onBrandSubtle : tokens.colors.text;
+  const fg = selected ? tokens.colors.onBrand : tokens.colors.text;
   return (
     <Pressable
       onPress={() => {
@@ -594,7 +594,7 @@ function OptionChip({
         minHeight: 36,
         paddingHorizontal: space.s3,
         borderRadius: radius.full,
-        backgroundColor: selected ? tokens.colors.brandSubtle : pressed ? tokens.colors.border : tokens.colors.surfaceSunken,
+        backgroundColor: selected ? tokens.colors.brand : pressed ? tokens.colors.border : tokens.colors.surfaceSunken,
         opacity: count === 0 && !selected ? 0.55 : 1,
       })}
     >

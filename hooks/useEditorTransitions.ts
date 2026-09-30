@@ -6,7 +6,8 @@ import { motion } from '../styles/tokens';
 import { useReducedMotion } from './useReducedMotion';
 
 /**
- * Editor screens (expense, person, income) slide in from the right over the
+ * Editor screens (expense, person, income) and sub-screens (budgets, budget
+ * lock, categories) slide in from the right over the
  * screen that opened them and slide back out when saved or closed, like an
  * iOS push/pop. They stay tab routes, so the tab bar remains in place.
  *
@@ -31,7 +32,15 @@ import { useReducedMotion } from './useReducedMotion';
  * keeps its instant swap. Reduced motion swaps the slide for a short fade.
  */
 
-const EDITOR_ROUTES = new Set(['add-expense', 'edit-person', 'edit-income']);
+const EDITOR_ROUTES = new Set([
+  'add-expense',
+  'edit-person',
+  'edit-income',
+  // Sub-screens opened from Home and Settings; they push and pop the same way.
+  'budgets',
+  'budget-lock',
+  'manage-categories',
+]);
 
 /**
  * Upper bound on how long an editor stays visible after it loses focus while

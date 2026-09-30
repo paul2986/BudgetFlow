@@ -61,7 +61,7 @@ export default function Input({
             flexDirection: 'row',
             alignItems: 'center',
             minHeight: 48,
-            backgroundColor: tokens.colors.surfaceSunken,
+            backgroundColor: tokens.colors.field,
             borderWidth: 1,
             borderColor,
             borderRadius: radius.sm,

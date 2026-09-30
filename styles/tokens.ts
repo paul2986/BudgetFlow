@@ -26,6 +26,8 @@ export interface ColorTokens {
   /** One visible lightness step above `surface`; used instead of bigger shadows in dark mode. */
   surfaceRaised: string;
   surfaceSunken: string;
+  /** Editable field fill (inputs, date fields). White in light mode so fields don't read as read-only on the grey page. */
+  field: string;
   text: string;
   textMuted: string;
   /** Tertiary text — only legal at >=14px sizes. */
@@ -76,6 +78,7 @@ export const lightColors: ColorTokens = {
   surface: '#FFFFFF',
   surfaceRaised: '#FFFFFF',
   surfaceSunken: '#F1F5F9',
+  field: '#FFFFFF',
   text: '#0F172A',
   textMuted: '#475569',
   textFaint: '#5A6A80', // >=4.5:1 on bg and surfaceSunken
@@ -117,6 +120,7 @@ export const darkColors: ColorTokens = {
   surface: '#151E2E',
   surfaceRaised: '#1B2537',
   surfaceSunken: '#0F1726',
+  field: '#0F1726',
   text: '#F1F5F9',
   textMuted: '#94A3B8',
   textFaint: '#7C8BA1',
@@ -177,6 +181,23 @@ export const darkAvatarHues: AvatarHue[] = [
   { bg: '#33415566', fg: '#E2E8F0' },
   { bg: '#44403C66', fg: '#E7E5E4' },
 ];
+
+const hashString = (s: string): number => {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+};
+
+/**
+ * A person's identity hue, stable per seed (their id). Avatars and anything
+ * tagged with that person (expense chips) use it so a person reads as one colour.
+ */
+export const avatarHue = (seed: string, isDark: boolean): AvatarHue => {
+  const hues = isDark ? darkAvatarHues : lightAvatarHues;
+  return hues[hashString(seed) % hues.length];
+};
 
 // ---------------------------------------------------------------------------
 // Typography
@@ -319,6 +340,8 @@ export const motion = {
   /** Crossfades, accordion, tab content (enter; exits ~150ms). */
   base: 220,
   exit: 150,
+  /** Light/dark switch: the whole screen cross-fades (ease-in-out). */
+  theme: 320,
   /** Amounts counting up/down to a new value (ease-out), e.g. a period switch. */
   count: 420,
   /** Bottom sheets & dialogs (scale 0.96 -> 1 + fade). */

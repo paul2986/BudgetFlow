@@ -7,8 +7,8 @@ import { haptics } from '../../utils/haptics';
 
 /**
  * Single-choice pill group for option sets too long for a SegmentedControl
- * (frequency, category, person). Selection = brandSubtle fill + checkmark,
- * never color alone. 36pt pills with hitSlop to a 44pt target. An optional
+ * (frequency, category, person). Selection = solid brand fill + checkmark,
+ * never color alone; a subtle tint was too close to the unselected grey. 36pt pills with hitSlop to a 44pt target. An optional
  * trailing "add" pill covers inline creation (new person, new category).
  */
 
@@ -51,7 +51,7 @@ export default function ChoicePills<T extends string>({
     paddingHorizontal: space.s3,
     borderRadius: radius.full,
     // `border` grey reads on the page grey and on white/raised cards alike.
-    backgroundColor: selected ? tokens.colors.brandSubtle : pressed ? tokens.colors.borderStrong : tokens.colors.border,
+    backgroundColor: selected ? tokens.colors.brand : pressed ? tokens.colors.borderStrong : tokens.colors.border,
     opacity: disabled ? 0.5 : 1,
   });
 
@@ -67,7 +67,7 @@ export default function ChoicePills<T extends string>({
       >
         {options.map((option) => {
           const selected = option.value === value;
-          const fg = selected ? tokens.colors.onBrandSubtle : tokens.colors.text;
+          const fg = selected ? tokens.colors.onBrand : tokens.colors.text;
           return (
             <Pressable
               key={option.value}

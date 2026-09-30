@@ -6,7 +6,7 @@ import Icon from '../Icon';
 import { type, radius, space, font } from '../../styles/tokens';
 
 /**
- * Optional date field styled like ui/Input: caption label, sunken field, one
+ * Optional date field styled like ui/Input: caption label, field fill, one
  * focus ring. Web uses the native <input type="date">; iOS/Android open the
  * platform picker. A "Clear" action appears once a date is set.
  */
@@ -35,7 +35,7 @@ export default function DateField({ label, value, onChange, placeholder = 'None'
     borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: focused ? tokens.colors.brand : tokens.colors.borderStrong,
-    backgroundColor: tokens.colors.surfaceSunken,
+    backgroundColor: tokens.colors.field,
     overflow: 'hidden' as const,
     ...(Platform.OS === 'web' && focused
       ? ({ outlineWidth: 2, outlineStyle: 'solid', outlineColor: tokens.colors.brand, outlineOffset: -1 } as any)

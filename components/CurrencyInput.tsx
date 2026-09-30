@@ -132,7 +132,7 @@ export default function CurrencyInput({
             borderRadius: radius.sm,
             borderWidth: 1,
             borderColor: error ? tokens.colors.danger : isFocused ? tokens.colors.brand : tokens.colors.borderStrong,
-            backgroundColor: tokens.colors.surfaceSunken,
+            backgroundColor: tokens.colors.field,
           },
           webRing,
         ]}
