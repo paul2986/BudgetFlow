@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, ScrollView, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
@@ -9,16 +9,14 @@ import { useCurrency } from '../../hooks/useCurrency';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import Button from '../Button';
 import StandardHeader from '../StandardHeader';
-import IncomeModal from '../IncomeModal';
 import { AmountText, Input, ListGroup, ListRow, Skeleton } from '../ui';
-import { Income } from '../../types/budget';
 import { calculatePersonIncome, calculateMonthlyAmount } from '../../utils/calculations';
 import { space } from '../../styles/tokens';
 
 /**
  * Edit a person: name, whether they share household costs, income sources
- * (each opens /edit-income, which owns update + confirmed delete), add income
- * via the shared IncomeModal sheet, and a quiet destructive action at the end.
+ * (each opens /edit-income, which owns update + confirmed delete; so does
+ * Add income), and a quiet destructive action at the end.
  *
  * The name and share setting are held separately from the live person so
  * adding income (which refreshes budget data) never discards an unsaved edit.
@@ -31,7 +29,7 @@ interface PersonFormProps {
 }
 
 export default function PersonForm({ personId, onClose, onSuccess }: PersonFormProps) {
-    const { data, updatePerson, removePerson, addIncome, saving } = useBudgetData();
+    const { data, updatePerson, removePerson, saving } = useBudgetData();
     const { tokens } = useTheme();
     const scrollBottomPadding = useScrollBottomPadding();
     const { formatCurrency } = useCurrency();
@@ -40,7 +38,6 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
     const [name, setName] = useState('');
     const [sharesHousehold, setSharesHousehold] = useState(true);
     const [nameLoaded, setNameLoaded] = useState(false);
-    const [showAddIncome, setShowAddIncome] = useState(false);
     const [isDeletingPerson, setIsDeletingPerson] = useState(false);
 
     useEffect(() => {
@@ -90,18 +87,6 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
             ]
         );
     };
-
-    const handleAddIncome = useCallback(
-        async (forPersonId: string, incomeData: Omit<Income, 'id' | 'personId'>) => {
-            const income: Income = {
-                id: `income_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
-                personId: forPersonId,
-                ...incomeData,
-            };
-            return addIncome(forPersonId, income);
-        },
-        [addIncome]
-    );
 
     if (!person) {
         return (
@@ -196,7 +181,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                         title="Add income"
                         icon="add"
                         iconColor={tokens.colors.brand}
-                        onPress={() => setShowAddIncome(true)}
+                        onPress={() => leave(() => router.push({ pathname: '/edit-income', params: { personId: person.id } }))}
                         showSeparator={false}
                     />
                 </ListGroup>
@@ -210,15 +195,6 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                     style={{ marginTop: 0 }}
                 />
             </ScrollView>
-
-            <IncomeModal
-                visible={showAddIncome}
-                onClose={() => setShowAddIncome(false)}
-                onAddIncome={handleAddIncome}
-                people={[person]}
-                selectedPersonId={person.id}
-                saving={saving}
-            />
         </>
     );
 }

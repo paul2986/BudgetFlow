@@ -3,6 +3,7 @@ import React from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { View } from 'react-native';
 import PersonForm from '../components/forms/PersonForm';
+import NewPersonForm from '../components/forms/NewPersonForm';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { FormScreen } from '../components/ui';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
@@ -22,8 +23,13 @@ export default function EditPersonScreen() {
   return (
     <View style={themedStyles.container}>
       <FormScreen>
-        {/* Fresh form per person and per visit (the screen stays mounted). */}
-        <PersonForm key={`${params.personId}:${session}`} personId={params.personId} onClose={handleClose} />
+        {/* Fresh form per person and per visit (the screen stays mounted).
+            No personId: adding someone new (People's + button). */}
+        {params.personId ? (
+          <PersonForm key={`${params.personId}:${session}`} personId={params.personId} onClose={handleClose} />
+        ) : (
+          <NewPersonForm key={`new:${session}`} onClose={handleClose} />
+        )}
       </FormScreen>
     </View>
   );
