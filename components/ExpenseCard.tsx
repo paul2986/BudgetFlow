@@ -6,8 +6,9 @@ import Icon from './Icon';
 import { Chip, AmountText } from './ui';
 import { normalizeCategoryName } from '../utils/storage';
 import { calculateMonthlyAmount } from '../utils/calculations';
+import { debtMeta as getDebtMeta } from '../utils/debtMeta';
 import { Person, Expense } from '../types/budget';
-import { type, radius, space } from '../styles/tokens';
+import { type, radius, space, avatarHue } from '../styles/tokens';
 
 /**
  * Expense row (DESIGN.md §2.7 Expenses). Renders inside a ListGroup: the group
@@ -79,23 +80,20 @@ export default function ExpenseCard({
     const hasExpirationDate = expense.endDate && expense.frequency !== 'one-time';
     const expirationInfo = hasExpirationDate && expense.endDate ? getExpirationInfo(expense.endDate) : null;
 
-    const debtMeta = expense.debtRepayment
-        ? expense.debtRepayment === 'mortgage'
-            ? { label: 'Mortgage', icon: 'business-outline' }
-            : expense.debtRepayment === 'credit_card'
-                ? { label: 'Credit card', icon: 'card-outline' }
-                : { label: 'Loan', icon: 'cash-outline' }
-        : null;
+    // A personal expense is tagged in its owner's avatar colour (People page).
+    const ownerHue = !isHousehold && person ? avatarHue(person.id, tokens.isDark) : null;
+    const debtMeta = expense.debtRepayment ? getDebtMeta(expense.debtRepayment, tokens.colors) : null;
 
+    // A personal expense's owner is its chip, so the meta line doesn't repeat it.
     const metaLine = [
         expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1),
-        isHousehold ? (person ? person.name : 'Shared') : person?.name,
+        isHousehold ? (person ? person.name : 'Shared') : null,
     ]
         .filter(Boolean)
         .join(' · ');
 
     const a11ySummary = `${expense.description}, ${formatCurrency(expense.amount)} ${expense.frequency}, ${
-        isHousehold ? 'household' : 'personal'
+        isHousehold ? 'household' : person ? `personal, ${person.name}` : 'personal'
     }${debtMeta ? `, ${debtMeta.label}` : ''}${expirationInfo ? `, ${expirationInfo.text}` : ''}`;
 
     // The row and the delete button are siblings inside a hover wrapper, so
@@ -151,17 +149,17 @@ export default function ExpenseCard({
 
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s1 }}>
                         <Chip
-                            label={isHousehold ? 'Household' : 'Personal'}
+                            label={isHousehold ? 'Household' : person?.name || 'Personal'}
                             icon={isHousehold ? 'home-outline' : 'person-outline'}
-                            color={isHousehold ? tokens.colors.household : tokens.colors.personal}
-                            backgroundColor={isHousehold ? tokens.colors.householdSubtle : tokens.colors.personalSubtle}
+                            color={isHousehold ? tokens.colors.household : ownerHue?.fg ?? tokens.colors.personal}
+                            backgroundColor={isHousehold ? tokens.colors.householdSubtle : ownerHue?.bg ?? tokens.colors.personalSubtle}
                         />
                         {debtMeta ? (
                             <Chip
                                 label={debtMeta.label}
                                 icon={debtMeta.icon}
-                                color={tokens.colors.textMuted}
-                                backgroundColor={tokens.colors.surfaceSunken}
+                                color={debtMeta.color}
+                                backgroundColor={debtMeta.subtle}
                             />
                         ) : null}
                         {expirationInfo ? (

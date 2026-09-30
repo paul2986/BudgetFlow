@@ -1,9 +1,11 @@
 
-import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
-import { useColorScheme } from 'react-native';
+import React, { useState, useEffect, useRef, createContext, useContext, useMemo } from 'react';
+import { Animated, Platform, StyleSheet, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, darkColors } from '../styles/commonStyles';
-import { getTokens, Tokens } from '../styles/tokens';
+import { getTokens, motion, Tokens } from '../styles/tokens';
+import { crossfadeTheme } from '../utils/themeCrossfade';
+import { useReducedMotion } from './useReducedMotion';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -91,7 +93,42 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const isDarkMode = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
+  const targetDark = themeMode === 'dark' || (themeMode === 'system' && systemColorScheme === 'dark');
+  // The theme on screen trails the target so a switch can fade instead of
+  // snapping. Unset until the saved mode has loaded; that first theme applies
+  // instantly.
+  const [appliedDark, setAppliedDark] = useState<boolean>();
+  const isDarkMode = appliedDark ?? targetDark;
+  const reducedMotion = useReducedMotion();
+  // Native: the old background, covering the switch while it fades out.
+  const [veil, setVeil] = useState<string | null>(null);
+  const veilOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (loading) return;
+    if (appliedDark === undefined || reducedMotion) {
+      setAppliedDark(targetDark);
+      return;
+    }
+    if (appliedDark === targetDark) return;
+    const animated = crossfadeTheme(() => setAppliedDark(targetDark));
+    if (!animated && Platform.OS !== 'web') {
+      setVeil(getTokens(appliedDark).colors.bg);
+    }
+  }, [targetDark, appliedDark, loading, reducedMotion]);
+
+  useEffect(() => {
+    if (!veil) return;
+    veilOpacity.setValue(1);
+    const fade = Animated.timing(veilOpacity, {
+      toValue: 0,
+      duration: motion.theme,
+      useNativeDriver: true,
+    });
+    fade.start(() => setVeil(null));
+    return () => fade.stop();
+  }, [veil, veilOpacity]);
+
   const currentColors = isDarkMode ? darkColors : colors;
   const tokens = useMemo(() => getTokens(isDarkMode), [isDarkMode]);
 
@@ -116,6 +153,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return React.createElement(
     ThemeContext.Provider,
     { value: contextValue },
-    children
+    children,
+    veil
+      ? React.createElement(Animated.View, {
+          pointerEvents: 'none',
+          style: [StyleSheet.absoluteFill, { backgroundColor: veil, opacity: veilOpacity }],
+        })
+      : null
   );
 };

@@ -5,8 +5,9 @@ import Icon from './Icon';
 import { Chip, AmountText } from './ui';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import { normalizeCategoryName } from '../utils/storage';
+import { debtMeta } from '../utils/debtMeta';
 import { Expense, Person } from '../types/budget';
-import { type, radius, space, elevation, tabularNums } from '../styles/tokens';
+import { type, radius, space, elevation, tabularNums, avatarHue } from '../styles/tokens';
 
 /**
  * Expenses table for medium/expanded layouts. One surface, hairline row
@@ -46,12 +47,6 @@ const COLUMNS: Column[] = [
 
 /** Fixed trailing column for the delete button (outside the row's button). */
 const ACTION_WIDTH = 44;
-
-const DEBT_META = {
-  mortgage: { label: 'Mortgage', icon: 'business-outline' },
-  credit_card: { label: 'Credit card', icon: 'card-outline' },
-  loan: { label: 'Loan', icon: 'cash-outline' },
-} as const;
 
 const formatDate = (iso?: string) => {
   if (!iso) return '—';
@@ -125,7 +120,9 @@ function Row({
   const [hovered, setHovered] = useState(false);
   const [trashHovered, setTrashHovered] = useState(false);
   const isHousehold = expense.category === 'household';
-  const debt = expense.debtRepayment ? DEBT_META[expense.debtRepayment as keyof typeof DEBT_META] : null;
+  const debt = expense.debtRepayment ? debtMeta(expense.debtRepayment, tokens.colors) : null;
+  // A personal expense is tagged in its owner's avatar colour (People page).
+  const ownerHue = !isHousehold && person ? avatarHue(person.id, tokens.isDark) : null;
   const cell = { paddingHorizontal: space.s2 };
 
   // Row button and delete button are siblings inside a hover wrapper, so
@@ -174,13 +171,13 @@ function Row({
           <Chip
             label={person?.name || (isHousehold ? 'Household' : 'Personal')}
             icon={isHousehold ? 'home-outline' : 'person-outline'}
-            color={isHousehold ? tokens.colors.household : tokens.colors.personal}
-            backgroundColor={isHousehold ? tokens.colors.householdSubtle : tokens.colors.personalSubtle}
+            color={isHousehold ? tokens.colors.household : ownerHue?.fg ?? tokens.colors.personal}
+            backgroundColor={isHousehold ? tokens.colors.householdSubtle : ownerHue?.bg ?? tokens.colors.personalSubtle}
           />
         </View>
         <View style={[cell, { flex: 1.2 }]}>
           {debt ? (
-            <Chip label={debt.label} icon={debt.icon} />
+            <Chip label={debt.label} icon={debt.icon} color={debt.color} backgroundColor={debt.subtle} />
           ) : (
             <Text style={[type.caption, { color: tokens.colors.textFaint }]}>—</Text>
           )}

@@ -109,11 +109,12 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 |---|---|---|
 | `brand` | `#4F46E5` | Primary actions, active nav, focus ring (6.3:1 on white) |
 | `onBrand` | `#FFFFFF` | Text/icon on brand |
-| `brandSubtle` | `#EEF2FF` | Selected/active fills, chips |
+| `brandSubtle` | `#EEF2FF` | Active/tinted fills (not selection: too close to the unselected grey) |
 | `onBrandSubtle` | `#3730A3` | Text on brandSubtle (8.9:1) |
 | `bg` | `#F8FAFC` | Page background |
 | `surface` | `#FFFFFF` | Cards, sheets, bars |
-| `surfaceSunken` | `#F1F5F9` | Inset wells, segmented track, input bg |
+| `surfaceSunken` | `#F1F5F9` | Inset wells, segmented track |
+| `field` | `#FFFFFF` | Editable field fill (inputs, date fields); white so fields never read as read-only on the grey page |
 | `text` | `#0F172A` | Primary text (16.9:1) |
 | `textMuted` | `#475569` | Secondary text (7.5:1 — replaces #6B7280) |
 | `textFaint` | `#64748B` | Tertiary/captions ≥14px only (4.8:1) |
@@ -136,11 +137,12 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 |---|---|---|
 | `brand` | `#818CF8` | 7.0:1 on surface |
 | `onBrand` | `#1E1B4B` | Dark text on light-indigo buttons |
-| `brandSubtle` | `#312E81` (40% opacity fill: `#312E8166`) | Selected fills |
+| `brandSubtle` | `#312E81` (40% opacity fill: `#312E8166`) | Active/tinted fills |
 | `onBrandSubtle` | `#C7D2FE` | |
 | `bg` | `#0B1220` | Page background (slightly warm-navy; not pure black) |
 | `surface` | `#151E2E` | Cards — one visible step above bg |
-| `surfaceSunken` | `#0F1726` | Wells, inputs |
+| `surfaceSunken` | `#0F1726` | Wells |
+| `field` | `#0F1726` | Editable field fill (same as surfaceSunken) |
 | `text` | `#F1F5F9` | 15.5:1 |
 | `textMuted` | `#94A3B8` | 6.4:1 |
 | `textFaint` | `#7C8BA1` | ≥14px only |
@@ -162,7 +164,7 @@ Rules:
 - **Delete** the `brandGradient` token and every `filter: drop-shadow(...)` glow. The only permitted gradient is an optional subtle `surface → brandSubtle` wash on the single hero KPI card.
 - **Ban** alpha-suffix color math (`color + '15'`). Every fill must be a named `*Subtle` token.
 - `household`/`personal` colors may only appear inside chips that also carry an icon (`home` / `person`) and a text label.
-- **Colour roles are decoupled (2026-09 colour audit).** `brand` is interaction only (buttons, active nav, selection, focus). `income`/`expense`/`danger`/`warning` are semantic. `household`, `personal` and the debt hues (`mortgage` purple, `loan` cyan, `creditCard` pink) are a separate categorical set that must not reuse a brand or semantic hue. Avatar hues (`lightAvatarHues` / `darkAvatarHues` in tokens) are violet, teal, fuchsia, lime, slate, stone: none of them a brand, semantic or household/personal hue. Non-interactive icon chips with no category (e.g. an untoned StatCard) are neutral (`textMuted` on `surfaceSunken`), not brand.
+- **Colour roles are decoupled (2026-09 colour audit).** `brand` is interaction only (buttons, active nav, selection, focus). `income`/`expense`/`danger`/`warning` are semantic. `household`, `personal` and the debt hues (`mortgage` purple, `loan` cyan, `creditCard` pink) are a separate categorical set that must not reuse a brand or semantic hue. Avatar hues (`lightAvatarHues` / `darkAvatarHues` in tokens) are violet, teal, fuchsia, lime, slate, stone: none of them a brand, semantic or household/personal hue. A person's hue (`avatarHue(person.id)`) also tags their personal expenses, so a person reads as one colour; household stays `household`. Non-interactive icon chips with no category (e.g. an untoned StatCard) are neutral (`textMuted` on `surfaceSunken`), not brand.
 - **Series in one chart need hue *and* lightness separation** (target ΔE ≥ 40 between adjacent segments, checked under deuteranopia/protanopia simulation), and stacked bars put a `space.s1` surface gap between segments.
 
 ## 2.2 Typography
@@ -207,6 +209,7 @@ Rules:
 | `base` | 220ms, ease-out enter / ease-in exit (~150ms) — crossfades, accordion, tab content |
 | `sheet` | spring (damping 28, stiffness 260) — bottom sheets, dialogs (scale 0.96→1 + fade) |
 | `stagger` | 40ms/item, max 6 items — dashboard cards & list entrance |
+| `theme` | 320ms, ease-in-out — light/dark switch cross-fades the whole screen (web: View Transitions; native: a veil in the old background fades out). Instant under reduced motion |
 
 Rules: animate transform/opacity only; exactly one attention animation per screen; **respect `prefers-reduced-motion` / `AccessibilityInfo.isReduceMotionEnabled`** globally (disable stagger, springs → 150ms fades); delete the auth screen's infinite floating circles (replace with static radial tint); press feedback within 100ms on all touchables (opacity 0.85 or scale 0.98).
 
@@ -281,11 +284,11 @@ Every screen keeps its exact current capabilities; only presentation changes.
 | Component | Spec |
 |---|---|
 | **Button** | Variants: `primary` (brand fill, onBrand text), `secondary` (`surfaceSunken` fill, text), `outline` (1.5px borderStrong), `ghost` (text-only), `destructive` (danger fill). Sizes: `md` 44px, `lg` 52px; radius `rMd`; `bodyMed` label. States: hover = 8% darken (no scale/translate); press = 0.98 scale + 12% darken; focus-visible = 2px `brand` ring offset 2 (web); disabled = 40% opacity fill + `textFaint` label (no color math); loading = spinner replaces label, width locked. Icon+label spacing 8. **No gradients, no glow.** |
-| **Input** | 48px min height, `surfaceSunken` fill, 1px borderStrong, radius `rSm`; label above (`caption`, textMuted) — never placeholder-only; focus = `brand` border + ring; error = `danger` border + caption below with icon; helper text slot; correct `keyboardType`/`autoComplete` per field. CurrencyInput: prefix symbol slot, tabular numerals, `decimal-pad`. |
+| **Input** | 48px min height, `field` fill, 1px borderStrong, radius `rSm`; label above (`caption`, textMuted) — never placeholder-only; focus = `brand` border + ring; error = `danger` border + caption below with icon; helper text slot; correct `keyboardType`/`autoComplete` per field. CurrencyInput: prefix symbol slot, tabular numerals, `decimal-pad`. |
 | **Card** | `surface`, radius `rLg`, e1, padding per §2.3. Optional header row (title `h3` + action slot). No colored borders except 3px **left accent strip** variant for warning/expired states (paired with icon+label). |
 | **StatCard** | Overline label + icon chip (20px, subtle fill) · `h1`-sized tabular amount · optional caption delta. Semantic coloring only on the amount, never the card bg (except hero). |
 | **ListRow** | 64px min, leading glyph circle 36, primary+caption text block, trailing value/chevron; hairline separators inset to text; pressed = `surfaceSunken`; entire row is one target — inner actions only via swipe (compact) or hover-revealed 36px labeled icon buttons (pointer devices). |
-| **Chip** | 28px height, radius `rFull`, icon 14 + `caption` label; selected = `brandSubtle`/`onBrandSubtle`; filter chips get a 16px ✕ (whole chip is the dismiss target, ≥44px with hitSlop). |
+| **Chip** | 28px height, radius `rFull`, icon 14 + `caption` label; selected = `brand`/`onBrand` + checkmark (also ChoicePills and filter pills); filter chips get a 16px ✕ (whole chip is the dismiss target, ≥44px with hitSlop). |
 | **SegmentedControl** | Track `surfaceSunken` radius `rMd` padding 2; active segment `surface` + e1 + `bodyMed`; animates position 220ms; keyboard arrows on web. |
 | **FormSheet** | See §2.5. Sheet: radius `rXl` top corners, drag handle 36×4, title `h2` + close (44px, labeled), footer sticky: primary + ghost cancel, safe-area padded, e3, `overlay` scrim (tap-outside dismiss w/ dirty confirm). |
 | **Dialog (confirm)** | Max 400, title `h3`, body `body` textMuted, actions right-aligned (ghost cancel + primary/destructive). Destructive delete of budget requires typing budget name. |

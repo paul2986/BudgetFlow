@@ -1,20 +1,12 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
-import { font, radius, lightAvatarHues, darkAvatarHues } from '../../styles/tokens';
+import { font, radius, avatarHue } from '../../styles/tokens';
 
 /**
  * Avatar per DESIGN.md §2.8: initial on a deterministic per-person hue from
  * the accessible avatar hue set in styles/tokens.ts.
  */
-
-const hashString = (s: string): number => {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (h * 31 + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-};
 
 interface AvatarProps {
   name: string;
@@ -25,8 +17,7 @@ interface AvatarProps {
 
 export default function Avatar({ name, seed, size = 36 }: AvatarProps) {
   const { tokens } = useTheme();
-  const hues = tokens.isDark ? darkAvatarHues : lightAvatarHues;
-  const hue = hues[hashString(seed || name) % hues.length];
+  const hue = avatarHue(seed || name, tokens.isDark);
   const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
 
   return (
