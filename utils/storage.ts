@@ -1,6 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppDataV2, Budget, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings } from '../types/budget';
+import { AppDataV2, Budget, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
 
 // Storage keys for versions
 const STORAGE_KEYS = {
@@ -372,12 +372,15 @@ const validateAppData = (data: any): AppDataV2 => {
     // Ensure all expenses have valid categoryTag, properly sanitized endDate, household constraint, and debtRepayment tag
     const sanitizedExpenses = (legacyShape.expenses || []).map((e: Expense) => {
       const isHousehold = e.category === 'household';
+      const categoryTag = sanitizeCategoryTag((e as any).categoryTag || 'Misc');
       const drRaw = (e as any).debtRepayment;
-      const debtRepayment = ['loan', 'mortgage', 'credit_card'].includes(drRaw) ? drRaw : undefined;
+      // A debt category decides the tag; other categories keep any legacy tag.
+      const debtRepayment =
+        debtRepaymentForCategory(categoryTag) ?? (['loan', 'mortgage', 'credit_card'].includes(drRaw) ? drRaw : undefined);
       return {
         ...e,
         personId: isHousehold ? undefined : e.personId,
-        categoryTag: sanitizeCategoryTag((e as any).categoryTag || 'Misc'),
+        categoryTag,
         endDate: sanitizeEndDate((e as any).frequency, (e as any).endDate),
         debtRepayment,
       };
