@@ -3,10 +3,12 @@ import { View, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
-import { bottomClearance } from '../../hooks/useBreakpoint';
+import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
+import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import { useCurrency } from '../../hooks/useCurrency';
-import { Alert } from '../../utils/alert';
+import { Alert, confirmDiscard } from '../../utils/alert';
 import Button from '../Button';
+import StandardHeader from '../StandardHeader';
 import IncomeModal from '../IncomeModal';
 import { AmountText, Input, ListGroup, ListRow, Skeleton } from '../ui';
 import { Income } from '../../types/budget';
@@ -31,6 +33,7 @@ interface PersonFormProps {
 export default function PersonForm({ personId, onClose, onSuccess }: PersonFormProps) {
     const { data, updatePerson, removePerson, addIncome, saving } = useBudgetData();
     const { tokens } = useTheme();
+    const scrollBottomPadding = useScrollBottomPadding();
     const { formatCurrency } = useCurrency();
 
     const person = data.people.find(p => p.id === personId) || null;
@@ -46,10 +49,14 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
         }
     }, [person, nameLoaded]);
 
+    // Hooks run before the loading return below, so derive dirty from the raw
+    // person, and only once the name has loaded (it starts empty).
+    const leave = useDiscardGuard(nameLoaded && !!person && name.trim() !== person.name);
+
     const handleSavePerson = async () => {
         if (!person || !name.trim()) return;
         const result = await updatePerson({ ...person, name: name.trim() });
-        if (result.success) onSuccess?.() || onClose();
+        if (result.success) leave(() => onSuccess?.() || onClose());
         else Alert.alert('Couldn’t save', 'Please try again.');
     };
 
@@ -67,7 +74,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                         setIsDeletingPerson(true);
                         const result = await removePerson(person.id);
                         setIsDeletingPerson(false);
-                        if (result.success) onSuccess?.() || onClose();
+                        if (result.success) leave(() => onSuccess?.() || onClose());
                     },
                 },
             ]
@@ -88,10 +95,13 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
 
     if (!person) {
         return (
-            <View style={{ padding: space.s5, gap: space.s3 }}>
-                <Skeleton height={48} />
-                <Skeleton height={160} />
-            </View>
+            <>
+                <StandardHeader title="Edit person" onLeftPress={onClose} confirm={{ onPress: () => {}, disabled: true }} />
+                <View style={{ padding: space.s5, gap: space.s3 }}>
+                    <Skeleton height={48} />
+                    <Skeleton height={160} />
+                </View>
+            </>
         );
     }
 
@@ -100,9 +110,19 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
 
     return (
         <>
+            <StandardHeader
+                title="Edit person"
+                onLeftPress={() => confirmDiscard(nameChanged, () => leave(onClose))}
+                confirm={{
+                    onPress: handleSavePerson,
+                    disabled: !name.trim() || !nameChanged,
+                    loading: saving && !isDeletingPerson,
+                    accessibilityLabel: 'Save changes',
+                }}
+            />
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: space.s5, paddingBottom: bottomClearance(space.s10) }}
+                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding }}
                 keyboardShouldPersistTaps="handled"
             >
                 <Input label="Name" value={name} onChangeText={setName} placeholder="Name" maxLength={50} />
@@ -137,20 +157,12 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                 </ListGroup>
 
                 <Button
-                    text="Save changes"
-                    onPress={handleSavePerson}
-                    size="lg"
-                    loading={saving && !isDeletingPerson}
-                    disabled={!name.trim() || !nameChanged}
-                    style={{ marginTop: 0 }}
-                />
-                <Button
                     text="Delete person"
                     variant="ghost"
                     onPress={handleDeletePerson}
                     loading={isDeletingPerson}
                     textStyle={{ color: tokens.colors.danger }}
-                    style={{ marginTop: space.s2 }}
+                    style={{ marginTop: 0 }}
                 />
             </ScrollView>
 

@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useTheme } from '../../hooks/useTheme';
-import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB, useBottomInset } from '../../hooks/useBreakpoint';
+import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB, useBottomInset, tabBarBottomOffset } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import { space, radius, elevation } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -68,9 +68,7 @@ export default function BottomTabBar() {
   const pathname = usePathname();
   const bottomInset = useBottomInset();
 
-  // Sit inside the home-indicator zone rather than above it; devices without
-  // an inset still get a small float gap.
-  const bottom = Math.max(bottomInset - space.s3, space.s3);
+  const bottom = tabBarBottomOffset(bottomInset);
 
   const tabs = (
     <View

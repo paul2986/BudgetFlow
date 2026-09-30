@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Text, View, ScrollView } from 'react-native';
-import { Alert } from '../utils/alert';
+import { Alert, confirmDiscard } from '../utils/alert';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useBudgetData } from '../hooks/useBudgetData';
@@ -13,7 +13,8 @@ import CurrencyInput from '../components/CurrencyInput';
 import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
 import { type, space } from '../styles/tokens';
-import { bottomClearance } from '../hooks/useBreakpoint';
+import { useScrollBottomPadding } from '../hooks/useBreakpoint';
+import { useDiscardGuard } from '../hooks/useDiscardGuard';
 
 export default function EditIncomeScreen() {
   const [income, setIncome] = useState<Income | null>(null);
@@ -26,11 +27,27 @@ export default function EditIncomeScreen() {
 
   const { formatCurrency } = useCurrency();
   const { tokens } = useTheme();
+  const scrollBottomPadding = useScrollBottomPadding();
   const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
   const params = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const { personId, incomeId } = params;
 
   const { data, updateIncome, removeIncome, saving, loading } = useBudgetData();
+
+  const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
+  const changed =
+    !!income &&
+    (editedIncome.label.trim() !== income.label ||
+      parseFloat(editedIncome.amount) !== income.amount ||
+      editedIncome.frequency !== income.frequency);
+  const canSave = changed && !!editedIncome.label.trim() && amountValid;
+  const leave = useDiscardGuard(changed);
+
+  // Back to wherever this was opened from (Edit person or People); a direct
+  // link has nowhere to go back to, so it lands on People.
+  const handleGoBack = useCallback(() => {
+    leave(() => (router.canGoBack() ? router.back() : router.replace('/people')));
+  }, [leave]);
 
   // Use ref to track if we've already refreshed on this focus
   const hasRefreshedOnFocus = useRef(false);
@@ -142,7 +159,7 @@ export default function EditIncomeScreen() {
       if (result && result.success) {
         console.log('EditIncomeScreen: Income saved successfully, navigating to people page');
         // Navigate specifically to the people page to show the updated data
-        router.replace('/people');
+        handleGoBack();
       } else {
         console.error('EditIncomeScreen: Income save failed:', result?.error);
         Alert.alert('Error', result?.error?.message || 'Failed to update income. Please try again.');
@@ -151,7 +168,7 @@ export default function EditIncomeScreen() {
       console.error('EditIncomeScreen: Error updating income:', error);
       Alert.alert('Error', 'Failed to update income. Please try again.');
     }
-  }, [income, personId, editedIncome, updateIncome, data.people, data.expenses]);
+  }, [income, personId, editedIncome, updateIncome, handleGoBack, data.people, data.expenses]);
 
   const handleDeleteIncome = useCallback(() => {
     if (!income || !personId) return;
@@ -179,7 +196,7 @@ export default function EditIncomeScreen() {
               if (result && result.success) {
                 console.log('EditIncomeScreen: Income deleted successfully, navigating to people page');
                 // Navigate specifically to the people page to show the updated data
-                router.replace('/people');
+                handleGoBack();
               } else {
                 console.error('EditIncomeScreen: Income delete failed:', result?.error);
                 Alert.alert('Error', result?.error?.message || 'Failed to delete income. Please try again.');
@@ -192,13 +209,10 @@ export default function EditIncomeScreen() {
         },
       ]
     );
-  }, [income, personId, removeIncome, data.people, data.expenses]);
-
-  const handleGoBack = useCallback(() => {
-    router.back();
-  }, []);
+  }, [income, personId, removeIncome, handleGoBack, data.people, data.expenses]);
 
   const person = data.people.find(p => p.id === personId);
+
 
   const renderBody = () => {
     if (!isDataLoaded || loading) {
@@ -222,16 +236,10 @@ export default function EditIncomeScreen() {
       );
     }
 
-    const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
-    const changed =
-      editedIncome.label.trim() !== income.label ||
-      parseFloat(editedIncome.amount) !== income.amount ||
-      editedIncome.frequency !== income.frequency;
-
     return (
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.s5, paddingBottom: bottomClearance(space.s10), gap: space.s5 }}
+        contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5 }}
         keyboardShouldPersistTaps="handled"
       >
         <Input
@@ -265,24 +273,14 @@ export default function EditIncomeScreen() {
           />
         </View>
 
-        <View style={{ marginTop: space.s2 }}>
-          <Button
-            text="Save changes"
-            onPress={handleSaveIncome}
-            size="lg"
-            loading={saving}
-            disabled={!editedIncome.label.trim() || !amountValid || !changed}
-            style={{ marginTop: 0 }}
-          />
-          <Button
-            text="Delete income"
-            variant="ghost"
-            onPress={handleDeleteIncome}
-            disabled={saving}
-            textStyle={{ color: tokens.colors.danger }}
-            style={{ marginTop: space.s2 }}
-          />
-        </View>
+        <Button
+          text="Delete income"
+          variant="ghost"
+          onPress={handleDeleteIncome}
+          disabled={saving}
+          textStyle={{ color: tokens.colors.danger }}
+          style={{ marginTop: space.s2 }}
+        />
       </ScrollView>
     );
   };
@@ -290,7 +288,16 @@ export default function EditIncomeScreen() {
   return (
     <View style={themedStyles.container}>
       <FormScreen>
-        <StandardHeader title="Edit income" onLeftPress={handleGoBack} showRightIcon={false} loading={saving} />
+        <StandardHeader
+          title="Edit income"
+          onLeftPress={() => confirmDiscard(changed, handleGoBack)}
+          confirm={{
+            onPress: handleSaveIncome,
+            disabled: !canSave,
+            loading: saving,
+            accessibilityLabel: 'Save changes',
+          }}
+        />
         {renderBody()}
       </FormScreen>
     </View>

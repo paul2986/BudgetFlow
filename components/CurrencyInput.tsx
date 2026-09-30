@@ -4,7 +4,7 @@ import { TextInput, View, Text, TextInputProps, Platform } from 'react-native';
 import { useCurrency } from '../hooks/useCurrency';
 import { useTheme } from '../hooks/useTheme';
 import Icon from './Icon';
-import { type, space, radius, tabularNums } from '../styles/tokens';
+import { type, space, radius, tabularNums, font } from '../styles/tokens';
 
 interface CurrencyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText'> {
   value: string;
@@ -141,7 +141,9 @@ export default function CurrencyInput({
         <TextInput
           ref={inputRef}
           style={[
-            type.bodyMed,
+            // No lineHeight (same as ui/Input): on a native TextInput it
+            // offsets the text vertically, so the value sat below the symbol.
+            { fontSize: type.bodyMed.fontSize, letterSpacing: type.bodyMed.letterSpacing, ...font(500) },
             tabularNums,
             {
               flex: 1,
