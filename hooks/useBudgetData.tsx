@@ -173,6 +173,74 @@ const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
   };
 };
 
+// JSON.stringify with object keys sorted, for comparing app data by content.
+// Postgres jsonb stores keys in its own order, so a plain stringify of the
+// cloud copy never matches an identical local copy.
+const stableStringify = (value: unknown): string =>
+  JSON.stringify(value, (_key, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]]))
+      : v
+  );
+
+type CloudWriteResult =
+  | { ok: true; data: AppDataV2; revision: number }
+  | { ok: false; error: unknown };
+
+// Write app data to the user's cloud row without overwriting a newer copy.
+// The database bumps `revision` on every write, and the update only lands if
+// the row is still at `baseRevision`. If another device wrote in between (or
+// the revision isn't known yet), fetch the cloud copy, merge, and retry.
+// `data` in the result is what was actually written, which differs from the
+// input when a merge happened.
+const writeCloudData = async (
+  userId: string,
+  data: AppDataV2,
+  baseRevision: number | null
+): Promise<CloudWriteResult> => {
+  let toWrite = data;
+  let base = baseRevision;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (base === null) {
+      const { data: row, error } = await supabase
+        .from('user_data')
+        .select('app_data, revision')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (error) return { ok: false, error };
+
+      if (!row) {
+        const { data: inserted, error: insertError } = await supabase
+          .from('user_data')
+          .insert({ user_id: userId, app_data: toWrite })
+          .select('revision')
+          .single();
+        if (!insertError) return { ok: true, data: toWrite, revision: inserted.revision };
+        // 23505: another device created the row first; fetch it and merge.
+        if (insertError.code !== '23505') return { ok: false, error: insertError };
+        continue;
+      }
+
+      toWrite = mergeAppData(toWrite, row.app_data as AppDataV2);
+      base = row.revision;
+    }
+
+    const { data: updated, error } = await supabase
+      .from('user_data')
+      .update({ app_data: toWrite })
+      .eq('user_id', userId)
+      .eq('revision', base)
+      .select('revision');
+    if (error) return { ok: false, error };
+    if (updated.length === 1) return { ok: true, data: toWrite, revision: updated[0].revision };
+    // No row matched: another device wrote since we last read.
+    base = null;
+  }
+
+  return { ok: false, error: new Error('Cloud data kept changing during save') };
+};
+
 // Context Type definition
 type BudgetDataContextType = ReturnType<typeof useBudgetDataInternal>;
 
@@ -215,6 +283,35 @@ const useBudgetDataInternal = () => {
   const isLoadingRef = useRef(false);
   const lastRefreshTimeRef = useRef<number>(0);
   const justClearedData = useRef(false); // Flag to prevent immediate Supabase sync after clear
+  // Cloud row revision this device last read or wrote; null means unknown, so
+  // the next write fetches and merges first.
+  const cloudRevisionRef = useRef<number | null>(null);
+
+  // Push app data to the cloud. If another device had written in the meantime,
+  // the merged result is adopted locally too.
+  const pushToCloud = useCallback(async (local: AppDataV2) => {
+    if (!user) return;
+    const result = await writeCloudData(user.id, local, cloudRevisionRef.current);
+    if (!result.ok) {
+      cloudRevisionRef.current = null;
+      console.error('useBudgetData: Cloud write failed:', result.error);
+      return;
+    }
+    cloudRevisionRef.current = result.revision;
+    if (result.data !== local) {
+      console.log('useBudgetData: Cloud had newer changes, adopting merged data');
+      setAppData(result.data);
+      const active = getActiveBudget(result.data);
+      if (active) {
+        setData({
+          people: active.people || [],
+          expenses: active.expenses || [],
+          householdSettings: active.householdSettings || { distributionMethod: 'even' }
+        });
+      }
+      await saveAppData(result.data);
+    }
+  }, [user]);
 
   // Stable refresh function that avoids overwriting local state if Supabase has less data
   const refreshFromStorage = useCallback(async () => {
@@ -235,21 +332,22 @@ const useBudgetDataInternal = () => {
         console.log('useBudgetData: User present, syncing from Supabase...');
         const { data: supabaseData, error } = await supabase
           .from('user_data')
-          .select('app_data')
+          .select('app_data, revision')
           .eq('user_id', user.id)
           .single();
 
         if (error) {
           console.error('useBudgetData: Supabase fetch error:', error);
         }
+        cloudRevisionRef.current = supabaseData?.revision ?? null;
 
         if (!error && supabaseData?.app_data) {
           const remoteData = supabaseData.app_data as AppDataV2;
 
           const merged = mergeAppData(localApp, remoteData);
-          const localJson = JSON.stringify(localApp);
-          const remoteJson = JSON.stringify(remoteData);
-          const mergedJson = JSON.stringify(merged);
+          const localJson = stableStringify(localApp);
+          const remoteJson = stableStringify(remoteData);
+          const mergedJson = stableStringify(merged);
 
           const hasLocalUpdates = mergedJson !== remoteJson;
           const hasRemoteUpdates = mergedJson !== localJson;
@@ -289,30 +387,14 @@ const useBudgetDataInternal = () => {
 
           if (hasLocalUpdates) {
             console.log('useBudgetData: Local data has newer/different budgets, pushing merged state to cloud...');
-            const { error: pushError } = await supabase.from('user_data').upsert(
-              {
-                user_id: user.id,
-                app_data: merged,
-                updated_at: new Date().toISOString()
-              },
-              { onConflict: 'user_id' }
-            );
-            if (pushError) console.error('useBudgetData: Failed to push merged state to cloud:', pushError);
-            else console.log('useBudgetData: Successfully pushed merged state to cloud');
+            await pushToCloud(merged);
           }
           return;
         } else if (error && error.code === 'PGRST116') {
           // No cloud data yet, push local if it exists and has real data (unless we just cleared)
           if (localApp.budgets.length > 0 && !justClearedData.current) {
             console.log('useBudgetData: No cloud data, pushing local state to cloud');
-            await supabase.from('user_data').upsert(
-              {
-                user_id: user.id,
-                app_data: localApp,
-                updated_at: new Date().toISOString()
-              },
-              { onConflict: 'user_id' }
-            );
+            await pushToCloud(localApp);
           } else if (justClearedData.current) {
             console.log('useBudgetData: Skipping cloud push - data was just cleared');
           }
@@ -335,7 +417,7 @@ const useBudgetDataInternal = () => {
     } catch (error) {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
     }
-  }, [user, saving]);
+  }, [user, saving, pushToCloud]);
 
   // Function to get the most current data - ALWAYS load from AsyncStorage for operations
   const getCurrentData = useCallback(async (): Promise<BudgetSlice> => {
@@ -438,6 +520,7 @@ const useBudgetDataInternal = () => {
       // cache are already wiped by signOut). Guarded so we don't clear during the
       // initial unauthenticated load.
       hadUserRef.current = false;
+      cloudRevisionRef.current = null;
       setAppData({ version: 2, budgets: [], activeBudgetId: '' });
       setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
     }
@@ -585,16 +668,7 @@ const useBudgetDataInternal = () => {
             console.log('useBudgetData: User logged in, syncing mutation to Supabase...');
             setIsSyncing(true);
             try {
-              const { error } = await supabase.from('user_data').upsert(
-                {
-                  user_id: user.id,
-                  app_data: updatedAppData,
-                  updated_at: new Date().toISOString()
-                },
-                { onConflict: 'user_id' }
-              );
-              if (error) throw error;
-              console.log('useBudgetData: Supabase mutation sync successful');
+              await pushToCloud(updatedAppData);
             } catch (error) {
               console.error('useBudgetData: Supabase mutation sync error:', error);
             } finally {
@@ -619,7 +693,7 @@ const useBudgetDataInternal = () => {
         return { success: false, error: error as Error };
       }
     },
-    [user]
+    [user, pushToCloud]
   );
 
   const syncFullAppData = useCallback(async (updatedAppData: AppDataV2) => {
@@ -646,16 +720,7 @@ const useBudgetDataInternal = () => {
       setIsSyncing(true);
       try {
         console.log('useBudgetData: Pushing full app data update to Supabase...');
-        const { error } = await supabase.from('user_data').upsert(
-          {
-            user_id: user.id,
-            app_data: updatedAppData,
-            updated_at: new Date().toISOString()
-          },
-          { onConflict: 'user_id' }
-        );
-        if (error) throw error;
-        console.log('useBudgetData: Full app data Supabase sync successful');
+        await pushToCloud(updatedAppData);
       } catch (error) {
         console.error('useBudgetData: Supabase sync error:', error);
       } finally {
@@ -666,7 +731,7 @@ const useBudgetDataInternal = () => {
     // Trigger a refresh for components
     setRefreshTrigger(prev => prev + 1);
     return { success: true };
-  }, [user]);
+  }, [user, pushToCloud]);
 
   const addBudget = useCallback(
     async (name: string) => queueSave(async () => {
@@ -1142,21 +1207,25 @@ const useBudgetDataInternal = () => {
         console.log('useBudgetData: Clearing cloud data for user:', user.id);
         try {
           const emptyCloudData = { version: 2 as const, budgets: [], activeBudgetId: '' };
-          const { error } = await supabase
+          // A deliberate overwrite, so no revision check or merge.
+          const { data: cleared, error } = await supabase
             .from('user_data')
             .upsert(
               {
                 user_id: user.id,
-                app_data: emptyCloudData,
-                updated_at: new Date().toISOString()
+                app_data: emptyCloudData
               },
               { onConflict: 'user_id' }
-            );
+            )
+            .select('revision')
+            .single();
 
           if (error) {
             console.error('useBudgetData: Supabase clear error:', error);
+            cloudRevisionRef.current = null;
           } else {
             console.log('useBudgetData: Cloud data cleared successfully (set to empty)');
+            cloudRevisionRef.current = cleared.revision;
           }
         } catch (error) {
           console.error('useBudgetData: Error clearing Supabase data:', error);
