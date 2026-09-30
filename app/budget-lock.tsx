@@ -176,9 +176,9 @@ export default function BudgetLockScreen() {
                 disabled={saving || !canLock}
                 accessibilityLabel="Lock this budget"
                 trackColor={{ false: tokens.colors.borderStrong, true: tokens.colors.brand }}
-                thumbColor={Platform.OS === 'android' ? tokens.colors.surface : undefined}
+                thumbColor={tokens.colors.switchThumb}
                 // @ts-ignore web-only prop on react-native-web's Switch
-                activeThumbColor={tokens.colors.onBrand}
+                activeThumbColor={tokens.colors.switchThumb}
               />
             </View>
           </ListGroup>

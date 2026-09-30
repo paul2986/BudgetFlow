@@ -74,7 +74,8 @@ export default function ListRow({
             alignItems: 'center',
             paddingVertical: space.s3,
             paddingHorizontal: space.s4,
-            backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : 'transparent',
+            // Only tappable rows highlight; static rows (e.g. a switch row) stay flat.
+            backgroundColor: onPress && (pressed || hovered) ? tokens.colors.surfaceSunken : 'transparent',
             flex: 1,
             paddingRight: accessory ? space.s2 : space.s4,
             // @ts-ignore web transition

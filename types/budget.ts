@@ -3,6 +3,7 @@ export interface Person {
   id: string;
   name: string;
   income: Income[];
+  excludeFromHouseholdShare?: boolean; // pays nothing toward household expenses; the others split them
   updatedAt?: number; // epoch millis; bumped on any change to this person (incl. their income) for sync merging
 }
 
