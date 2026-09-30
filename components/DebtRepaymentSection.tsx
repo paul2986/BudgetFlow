@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { Expense, Person } from '../types/budget';
@@ -159,6 +160,9 @@ export default function DebtRepaymentSection({ expenses, people = [] }: DebtRepa
                 trailing={
                   <AmountText value={calculateMonthlyAmount(expense.amount, expense.frequency)} role="bodyMed" suffix="/mo" />
                 }
+                onPress={() => router.push({ pathname: '/add-expense', params: { id: expense.id } })}
+                accessibilityLabel={`Edit ${expense.description}`}
+                chevron
                 showSeparator={idx < filteredDebtExpenses.length - 1}
                 style={{ minHeight: 56 } as any}
               />
