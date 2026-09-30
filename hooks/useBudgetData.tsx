@@ -313,8 +313,8 @@ const useBudgetDataInternal = () => {
     }
   }, [user]);
 
-  // Stable refresh function that avoids overwriting local state if Supabase has less data
-  const refreshFromStorage = useCallback(async () => {
+  // One sync pass: avoids overwriting local state if Supabase has less data
+  const syncOnce = useCallback(async () => {
     // DO NOT refresh if we are currently saving or if the queue is running
     // This prevents overwriting the user's just-saved data with stale data from Supabase/Disk
     if (saving || isQueueRunning.current) {
@@ -418,6 +418,33 @@ const useBudgetDataInternal = () => {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
     }
   }, [user, saving, pushToCloud]);
+  const syncOnceRef = useRef(syncOnce);
+  syncOnceRef.current = syncOnce;
+
+  // Mount, sign-in and focus all ask for a refresh, often at once. Run one sync
+  // at a time: parallel passes each push to the cloud and bump the revision
+  // under one another until a write gives up. A call made mid-sync joins it and
+  // gets one more pass afterwards, so changes made meanwhile still sync.
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const refreshAgainRef = useRef(false);
+  const refreshFromStorage = useCallback((): Promise<void> => {
+    if (refreshInFlightRef.current) {
+      refreshAgainRef.current = true;
+      return refreshInFlightRef.current;
+    }
+    const run = (async () => {
+      try {
+        do {
+          refreshAgainRef.current = false;
+          await syncOnceRef.current();
+        } while (refreshAgainRef.current);
+      } finally {
+        refreshInFlightRef.current = null;
+      }
+    })();
+    refreshInFlightRef.current = run;
+    return run;
+  }, []);
 
   // Function to get the most current data - ALWAYS load from AsyncStorage for operations
   const getCurrentData = useCallback(async (): Promise<BudgetSlice> => {
