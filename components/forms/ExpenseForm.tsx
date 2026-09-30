@@ -2,10 +2,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { View, Text, ScrollView } from 'react-native';
-import { Alert } from '../../utils/alert';
+import { Alert, confirmDiscard } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
-import { bottomClearance } from '../../hooks/useBreakpoint';
+import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
 import Button from '../Button';
+import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
 import { ChoicePills, DateField, Input, SegmentedControl, Sheet } from '../ui';
 import { type, space } from '../../styles/tokens';
@@ -39,6 +40,18 @@ const safeAsync = async <T,>(
     }
 };
 
+type FormValues = {
+    description: string;
+    amount: string;
+    category: 'household' | 'personal';
+    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
+    personId: string;
+    categoryTag: ExpenseCategory;
+    debtRepayment: 'loan' | 'mortgage' | 'credit_card' | undefined;
+    startDateYMD: string;
+    endDate: Date | null;
+};
+
 interface ExpenseFormProps {
     id?: string;
     onClose: () => void;
@@ -48,6 +61,7 @@ interface ExpenseFormProps {
 export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps) {
     const { data, addExpense, updateExpense, removeExpense, addPerson, saving, refreshTrigger } = useBudgetData();
     const { tokens } = useTheme();
+    const scrollBottomPadding = useScrollBottomPadding();
 
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
@@ -73,6 +87,28 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [showEndPicker, setShowEndPicker] = useState(false);
     const [showStartPicker, setShowStartPicker] = useState(false);
+
+    // What the form held when it opened, to tell whether Cancel would lose edits.
+    const snapshotOf = (v: FormValues) =>
+        JSON.stringify({
+            ...v,
+            description: v.description.trim(),
+            amount: v.amount ? parseFloat(v.amount) : null,
+            endDate: v.endDate ? toYMD(v.endDate) : null,
+        });
+    const [baseline, setBaseline] = useState<string>(() =>
+        snapshotOf({
+            description: '',
+            amount: '',
+            category: 'household',
+            frequency: 'monthly',
+            personId: '',
+            categoryTag: 'Misc',
+            debtRepayment: undefined,
+            startDateYMD: toYMD(new Date()),
+            endDate: null,
+        })
+    );
 
     const [customCategories, setCustomCategories] = useState<string[]>([]);
     const [showCustomModal, setShowCustomModal] = useState(false);
@@ -103,29 +139,43 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
 
     useEffect(() => {
         if (isEditMode && expenseToEdit) {
-            setDescription(expenseToEdit.description || '');
-            setAmount(expenseToEdit.amount?.toString() || '');
-            setCategory(expenseToEdit.category || 'household');
-            setFrequency((expenseToEdit.frequency as any) || 'monthly');
-            setPersonId(expenseToEdit.personId || '');
-            setCategoryTag(normalizeCategoryName((expenseToEdit.categoryTag as any) || 'Misc') as any);
-            setDebtRepayment(expenseToEdit.debtRepayment || undefined);
+            const loaded: FormValues = {
+                description: expenseToEdit.description || '',
+                amount: expenseToEdit.amount?.toString() || '',
+                category: expenseToEdit.category || 'household',
+                frequency: (expenseToEdit.frequency as any) || 'monthly',
+                personId: expenseToEdit.personId || '',
+                categoryTag: normalizeCategoryName((expenseToEdit.categoryTag as any) || 'Misc') as any,
+                debtRepayment: expenseToEdit.debtRepayment || undefined,
+                startDateYMD,
+                endDate: null,
+            };
 
             try {
                 const d = new Date(expenseToEdit.date);
-                if (!isNaN(d.getTime())) setStartDateYMD(toYMD(d));
+                if (!isNaN(d.getTime())) loaded.startDateYMD = toYMD(d);
             } catch (e) { }
 
             const endDateValue = (expenseToEdit as any).endDate;
             if (endDateValue) {
                 try {
                     const endDateObj = new Date(endDateValue + 'T00:00:00');
-                    if (!isNaN(endDateObj.getTime())) setEndDate(endDateObj);
+                    if (!isNaN(endDateObj.getTime())) loaded.endDate = endDateObj;
                 } catch (e) { }
-            } else {
-                setEndDate(null);
             }
+
+            setDescription(loaded.description);
+            setAmount(loaded.amount);
+            setCategory(loaded.category);
+            setFrequency(loaded.frequency);
+            setPersonId(loaded.personId);
+            setCategoryTag(loaded.categoryTag);
+            setDebtRepayment(loaded.debtRepayment);
+            setStartDateYMD(loaded.startDateYMD);
+            setEndDate(loaded.endDate);
+            setBaseline(snapshotOf(loaded));
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditMode, expenseToEdit]);
 
     const handleSaveExpense = async () => {
@@ -194,6 +244,11 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
         ]);
     };
 
+    const isDirty =
+        snapshotOf({ description, amount, category, frequency, personId, categoryTag, debtRepayment, startDateYMD, endDate }) !==
+        baseline;
+    const handleCancel = () => confirmDiscard(isDirty, onClose);
+
     const canSave = !!description.trim() && !!amount && parseFloat(amount) > 0 && (category === 'household' || !!personId);
     const closeAddPerson = () => {
         setShowAddPersonModal(false);
@@ -209,10 +264,21 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
 
     return (
         <>
+        <StandardHeader
+            title={isEditMode ? 'Edit expense' : 'New expense'}
+            onLeftPress={handleCancel}
+            confirm={{
+                onPress: handleSaveExpense,
+                // Editing: nothing to save until something changes (matches person/income).
+                disabled: !canSave || (isEditMode && !isDirty),
+                loading: isSaving,
+                accessibilityLabel: isEditMode ? 'Save changes' : 'Add expense',
+            }}
+        />
         <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: space.s5, paddingBottom: bottomClearance(space.s10), gap: space.s5 }}
+            contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5 }}
             keyboardShouldPersistTaps="handled"
         >
             <Input
@@ -297,26 +363,16 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 />
             ) : null}
 
-            <View style={{ marginTop: space.s2 }}>
+            {isEditMode ? (
                 <Button
-                    text={isEditMode ? 'Save changes' : 'Add expense'}
-                    onPress={handleSaveExpense}
-                    size="lg"
-                    loading={isSaving}
-                    disabled={!canSave}
-                    style={{ marginTop: 0 }}
+                    text="Delete expense"
+                    onPress={handleDeleteExpense}
+                    variant="ghost"
+                    loading={deleting}
+                    textStyle={{ color: tokens.colors.danger }}
+                    style={{ marginTop: space.s2 }}
                 />
-                {isEditMode ? (
-                    <Button
-                        text="Delete expense"
-                        onPress={handleDeleteExpense}
-                        variant="ghost"
-                        loading={deleting}
-                        textStyle={{ color: tokens.colors.danger }}
-                        style={{ marginTop: space.s2 }}
-                    />
-                ) : null}
-            </View>
+            ) : null}
         </ScrollView>
 
         <Sheet

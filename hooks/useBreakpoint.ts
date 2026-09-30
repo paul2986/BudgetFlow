@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { space } from '../styles/tokens';
 
 /**
  * Single source of truth for responsive layout classes.
@@ -113,4 +114,23 @@ export const useBreakpoint = (): BreakpointInfo => {
       gutter: LAYOUT.gutter[breakpoint],
     };
   }, [width, height]);
+};
+
+/**
+ * Gap between the floating tab bar and the shell bottom: it sits inside the
+ * home-indicator zone, and devices without an inset get a small float gap.
+ */
+export const tabBarBottomOffset = (bottomInset: number): number =>
+  Math.max(bottomInset - space.s3, space.s3);
+
+/**
+ * Bottom padding for a scroll view so its last control scrolls clear of the
+ * floating tab bar (compact only; medium+ has no bar, just a comfortable end).
+ */
+export const useScrollBottomPadding = (gap: number = space.s6): number => {
+  const { isCompact } = useBreakpoint();
+  const bottomInset = useBottomInset();
+  return bottomClearance(
+    isCompact ? tabBarBottomOffset(bottomInset) + LAYOUT.tabBarHeight + gap : space.s10
+  );
 };

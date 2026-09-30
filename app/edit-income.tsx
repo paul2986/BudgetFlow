@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Text, View, ScrollView } from 'react-native';
-import { Alert } from '../utils/alert';
+import { Alert, confirmDiscard } from '../utils/alert';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useBudgetData } from '../hooks/useBudgetData';
@@ -13,7 +13,7 @@ import CurrencyInput from '../components/CurrencyInput';
 import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
 import { type, space } from '../styles/tokens';
-import { bottomClearance } from '../hooks/useBreakpoint';
+import { useScrollBottomPadding } from '../hooks/useBreakpoint';
 
 export default function EditIncomeScreen() {
   const [income, setIncome] = useState<Income | null>(null);
@@ -26,6 +26,7 @@ export default function EditIncomeScreen() {
 
   const { formatCurrency } = useCurrency();
   const { tokens } = useTheme();
+  const scrollBottomPadding = useScrollBottomPadding();
   const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
   const params = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const { personId, incomeId } = params;
@@ -200,6 +201,14 @@ export default function EditIncomeScreen() {
 
   const person = data.people.find(p => p.id === personId);
 
+  const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
+  const changed =
+    !!income &&
+    (editedIncome.label.trim() !== income.label ||
+      parseFloat(editedIncome.amount) !== income.amount ||
+      editedIncome.frequency !== income.frequency);
+  const canSave = changed && !!editedIncome.label.trim() && amountValid;
+
   const renderBody = () => {
     if (!isDataLoaded || loading) {
       return (
@@ -222,16 +231,10 @@ export default function EditIncomeScreen() {
       );
     }
 
-    const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
-    const changed =
-      editedIncome.label.trim() !== income.label ||
-      parseFloat(editedIncome.amount) !== income.amount ||
-      editedIncome.frequency !== income.frequency;
-
     return (
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.s5, paddingBottom: bottomClearance(space.s10), gap: space.s5 }}
+        contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5 }}
         keyboardShouldPersistTaps="handled"
       >
         <Input
@@ -265,24 +268,14 @@ export default function EditIncomeScreen() {
           />
         </View>
 
-        <View style={{ marginTop: space.s2 }}>
-          <Button
-            text="Save changes"
-            onPress={handleSaveIncome}
-            size="lg"
-            loading={saving}
-            disabled={!editedIncome.label.trim() || !amountValid || !changed}
-            style={{ marginTop: 0 }}
-          />
-          <Button
-            text="Delete income"
-            variant="ghost"
-            onPress={handleDeleteIncome}
-            disabled={saving}
-            textStyle={{ color: tokens.colors.danger }}
-            style={{ marginTop: space.s2 }}
-          />
-        </View>
+        <Button
+          text="Delete income"
+          variant="ghost"
+          onPress={handleDeleteIncome}
+          disabled={saving}
+          textStyle={{ color: tokens.colors.danger }}
+          style={{ marginTop: space.s2 }}
+        />
       </ScrollView>
     );
   };
@@ -290,7 +283,16 @@ export default function EditIncomeScreen() {
   return (
     <View style={themedStyles.container}>
       <FormScreen>
-        <StandardHeader title="Edit income" onLeftPress={handleGoBack} showRightIcon={false} loading={saving} />
+        <StandardHeader
+          title="Edit income"
+          onLeftPress={() => confirmDiscard(changed, handleGoBack)}
+          confirm={{
+            onPress: handleSaveIncome,
+            disabled: !canSave,
+            loading: saving,
+            accessibilityLabel: 'Save changes',
+          }}
+        />
         {renderBody()}
       </FormScreen>
     </View>

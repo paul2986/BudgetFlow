@@ -47,3 +47,18 @@ export const Alert = {
     }
   },
 };
+
+/**
+ * Cancel on a form with unsaved edits: ask before throwing them away
+ * (iOS "Discard changes?" pattern). Closes straight away when nothing changed.
+ */
+export const confirmDiscard = (dirty: boolean, onDiscard: () => void) => {
+  if (!dirty) {
+    onDiscard();
+    return;
+  }
+  Alert.alert('Discard changes?', 'Your edits won’t be saved.', [
+    { text: 'Keep editing', style: 'cancel' },
+    { text: 'Discard', style: 'destructive', onPress: onDiscard },
+  ]);
+};

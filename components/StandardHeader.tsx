@@ -22,6 +22,18 @@ interface HeaderButton {
   accessibilityLabel?: string;
 }
 
+/**
+ * Trailing "done" action for edit/create forms: a filled green circle with a
+ * checkmark (iOS 26 confirm button), so saving never needs a scroll to the
+ * bottom. Greys out while disabled; shows a spinner while saving.
+ */
+interface HeaderConfirm {
+  onPress: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  accessibilityLabel?: string;
+}
+
 interface StandardHeaderProps {
   title: string;
   subtitle?: string;
@@ -37,6 +49,7 @@ interface StandardHeaderProps {
   rightButtons?: HeaderButton[];
   leftButtons?: HeaderButton[];
   backgroundColor?: string;
+  confirm?: HeaderConfirm;
 }
 
 // Fallback spoken labels for common icon-only header buttons.
@@ -58,7 +71,7 @@ const ICON_LABELS: Record<string, string> = {
 export default function StandardHeader({
   title,
   subtitle,
-  leftIcon = 'arrow-back',
+  leftIcon,
   rightIcon = 'add',
   onLeftPress,
   onRightPress,
@@ -70,6 +83,7 @@ export default function StandardHeader({
   rightButtons,
   leftButtons,
   backgroundColor,
+  confirm,
 }: StandardHeaderProps) {
   const { tokens } = useTheme();
   const bp = useBreakpoint();
@@ -112,14 +126,53 @@ export default function StandardHeader({
     );
   };
 
+  const renderConfirm = (c: HeaderConfirm) => {
+    const inactive = !!c.disabled || !!c.loading;
+    const fg = c.disabled ? tokens.colors.textFaint : tokens.colors.onIncome;
+    return (
+      <Pressable
+        onPress={c.onPress}
+        disabled={inactive}
+        accessibilityRole="button"
+        accessibilityLabel={c.accessibilityLabel || 'Save'}
+        accessibilityState={{ disabled: !!c.disabled, busy: !!c.loading }}
+        style={({ pressed }) => ({
+          width: buttonSize,
+          height: buttonSize,
+          borderRadius: radius.full,
+          backgroundColor: c.disabled ? tokens.colors.surfaceSunken : tokens.colors.income,
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginLeft: right.length ? space.s2 : 0,
+          opacity: pressed ? 0.85 : 1,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+          // @ts-ignore web transition
+          transitionDuration: '150ms',
+        })}
+      >
+        {c.loading ? (
+          <ActivityIndicator size="small" color={fg} />
+        ) : (
+          <Icon name="checkmark" size={iconSize + 2} color={fg} />
+        )}
+      </Pressable>
+    );
+  };
+
   const left = leftButtons && leftButtons.length > 0
     ? leftButtons
     : showLeftIcon && onLeftPress
-      ? [{ icon: leftIcon, onPress: onLeftPress, iconColor: leftIconColor }]
+      ? [
+          // Forms with a confirm tick pair it with ✕ (cancel), iOS-style, so
+          // leaving reads as "discard changes" rather than plain navigation.
+          confirm && !leftIcon
+            ? { icon: 'close', onPress: onLeftPress, iconColor: leftIconColor, accessibilityLabel: 'Cancel' }
+            : { icon: leftIcon ?? 'arrow-back', onPress: onLeftPress, iconColor: leftIconColor },
+        ]
       : [];
   const right = rightButtons && rightButtons.length > 0
     ? rightButtons
-    : showRightIcon && onRightPress
+    : !confirm && showRightIcon && onRightPress
       ? [{ icon: rightIcon, onPress: onRightPress, iconColor: rightIconColor }]
       : [];
 
@@ -167,6 +220,7 @@ export default function StandardHeader({
       </View>
 
       {right.map((btn, idx) => renderButton(btn, 'right', idx))}
+      {confirm ? renderConfirm(confirm) : null}
     </View>
   );
 }
