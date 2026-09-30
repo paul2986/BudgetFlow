@@ -15,8 +15,17 @@ import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../co
 import { type, space } from '../styles/tokens';
 import { useScrollBottomPadding } from '../hooks/useBreakpoint';
 import { useDiscardGuard } from '../hooks/useDiscardGuard';
+import { useFormSessionKey } from '../hooks/useFormSessionKey';
 
+// Fresh form per income and per visit: the screen stays mounted after it
+// blurs, so without a new key a reopened income shows discarded edits.
 export default function EditIncomeScreen() {
+  const { personId, incomeId } = useLocalSearchParams<{ personId: string; incomeId: string }>();
+  const session = useFormSessionKey();
+  return <EditIncomeForm key={`${personId}:${incomeId}:${session}`} />;
+}
+
+function EditIncomeForm() {
   const [income, setIncome] = useState<Income | null>(null);
   const [editedIncome, setEditedIncome] = useState({
     amount: '',
@@ -68,6 +77,8 @@ export default function EditIncomeScreen() {
     }, [data.expenses, data.people.length])
   );
 
+  const fieldsLoaded = useRef(false);
+
   // Find the income and person when data changes
   useEffect(() => {
     console.log('EditIncomeScreen: Data effect triggered', {
@@ -102,11 +113,16 @@ export default function EditIncomeScreen() {
 
         if (foundIncome) {
           setIncome(foundIncome);
-          setEditedIncome({
-            amount: foundIncome.amount.toString(),
-            label: foundIncome.label,
-            frequency: foundIncome.frequency,
-          });
+          // Fill the fields once per form; a later data refresh (focus, sync)
+          // must not overwrite what the user is typing.
+          if (!fieldsLoaded.current) {
+            fieldsLoaded.current = true;
+            setEditedIncome({
+              amount: foundIncome.amount.toString(),
+              label: foundIncome.label,
+              frequency: foundIncome.frequency,
+            });
+          }
           setIsDataLoaded(true);
           console.log('EditIncomeScreen: Updated income state with fresh data');
         } else {
