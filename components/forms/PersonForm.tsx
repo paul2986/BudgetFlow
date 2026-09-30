@@ -115,6 +115,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                 onLeftPress={() => confirmDiscard(nameChanged, () => leave(onClose))}
                 confirm={{
                     onPress: handleSavePerson,
+                    dirty: nameChanged,
                     disabled: !name.trim() || !nameChanged,
                     loading: saving && !isDeletingPerson,
                     accessibilityLabel: 'Save changes',

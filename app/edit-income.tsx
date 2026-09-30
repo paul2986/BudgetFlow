@@ -309,6 +309,7 @@ function EditIncomeForm() {
           onLeftPress={() => confirmDiscard(changed, handleGoBack)}
           confirm={{
             onPress: handleSaveIncome,
+            dirty: changed,
             disabled: !canSave,
             loading: saving,
             accessibilityLabel: 'Save changes',

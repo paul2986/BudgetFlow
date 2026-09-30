@@ -29,6 +29,8 @@ interface HeaderButton {
  */
 interface HeaderConfirm {
   onPress: () => void;
+  /** Unsaved edits: the leading button turns from ← (back) into ✕ (discard). */
+  dirty?: boolean;
   disabled?: boolean;
   loading?: boolean;
   accessibilityLabel?: string;
@@ -163,9 +165,10 @@ export default function StandardHeader({
     ? leftButtons
     : showLeftIcon && onLeftPress
       ? [
-          // Forms with a confirm tick pair it with ✕ (cancel), iOS-style, so
-          // leaving reads as "discard changes" rather than plain navigation.
-          confirm && !leftIcon
+          // Forms with a confirm tick lead with ← until something changes,
+          // then ✕ (cancel), iOS-style, so leaving reads as "discard changes"
+          // only when there is something to discard.
+          confirm?.dirty && !leftIcon
             ? { icon: 'close', onPress: onLeftPress, iconColor: leftIconColor, accessibilityLabel: 'Cancel' }
             : { icon: leftIcon ?? 'arrow-back', onPress: onLeftPress, iconColor: leftIconColor },
         ]
