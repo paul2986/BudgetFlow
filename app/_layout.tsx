@@ -12,6 +12,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Tabs } from 'expo-router';
 import Head from 'expo-router/head';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Analytics } from '@vercel/analytics/react';
 
 import { useTheme, ThemeProvider } from '../hooks/useTheme';
@@ -252,8 +253,11 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <AppContent />
-    </SafeAreaProvider>
+    // Swipeable rows (e.g. swipe-to-delete on expenses) need the gesture root.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <AppContent />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
