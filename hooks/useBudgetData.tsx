@@ -173,6 +173,16 @@ const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
   };
 };
 
+// JSON.stringify with object keys sorted, for comparing app data by content.
+// Postgres jsonb stores keys in its own order, so a plain stringify of the
+// cloud copy never matches an identical local copy.
+const stableStringify = (value: unknown): string =>
+  JSON.stringify(value, (_key, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]]))
+      : v
+  );
+
 type CloudWriteResult =
   | { ok: true; data: AppDataV2; revision: number }
   | { ok: false; error: unknown };
@@ -335,9 +345,9 @@ const useBudgetDataInternal = () => {
           const remoteData = supabaseData.app_data as AppDataV2;
 
           const merged = mergeAppData(localApp, remoteData);
-          const localJson = JSON.stringify(localApp);
-          const remoteJson = JSON.stringify(remoteData);
-          const mergedJson = JSON.stringify(merged);
+          const localJson = stableStringify(localApp);
+          const remoteJson = stableStringify(remoteData);
+          const mergedJson = stableStringify(merged);
 
           const hasLocalUpdates = mergedJson !== remoteJson;
           const hasRemoteUpdates = mergedJson !== localJson;
