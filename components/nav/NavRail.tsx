@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
 import { LAYOUT, bottomClearance, useBottomInset } from '../../hooks/useBreakpoint';
+import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
 import { type, space, radius } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -41,7 +42,7 @@ export default function NavRail() {
           return (
             <Pressable
               key={tab.route}
-              onPress={() => router.navigate(tab.route as any)}
+              onPress={() => releaseDiscardGuard(() => router.navigate(tab.route as any))}
               accessibilityRole="tab"
               accessibilityLabel={tab.label}
               accessibilityState={{ selected: active }}
@@ -70,7 +71,7 @@ export default function NavRail() {
       </View>
 
       <Pressable
-        onPress={() => router.push('/add-expense')}
+        onPress={() => releaseDiscardGuard(() => router.push('/add-expense'))}
         accessibilityRole="button"
         accessibilityLabel="Add expense"
         style={({ pressed, hovered }: any) => ({

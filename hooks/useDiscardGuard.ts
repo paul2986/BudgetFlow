@@ -28,6 +28,20 @@ const onGuardEntry = () => !!window.history.state?.[GUARD];
 type PopHandler = (e: PopStateEvent) => boolean;
 const handlers = new Set<PopHandler>();
 
+// The armed guard's drop function, if any (only the focused form arms one).
+let armedDrop: ((then: () => void) => void) | null = null;
+
+/**
+ * Navigate away from wherever the user is (tab bar, sidebar, rail) without
+ * leaving a form's guard entry buried in history: drop it first, then run
+ * `navigate`. The drop has to finish before the router pushes, since
+ * history.back() is async and would otherwise rewind the router's new entry.
+ */
+export function releaseDiscardGuard(navigate: () => void): void {
+  if (armedDrop) armedDrop(navigate);
+  else navigate();
+}
+
 // Registered when this module loads (app/_layout imports it), i.e. before
 // expo-router adds its own popstate listener in an effect after first render.
 // Listeners on window fire in registration order (capture: true does not jump
@@ -55,6 +69,11 @@ export function useDiscardGuard(dirty: boolean): (then: () => void) => void {
   const guardedAt = useRef<{ href: string; id: unknown } | null>(null);
   // Set while we pop our own guard; that popstate is ours, not the user's.
   const pendingPop = useRef<(() => void) | null>(null);
+  // This instance's dropGuard, for the module-level releaseDiscardGuard.
+  const dropRef = useRef<((then?: () => void) => void) | null>(null);
+  // Whether the screen is focused as of the latest render (read in cleanup).
+  const focusedRef = useRef(isFocused);
+  focusedRef.current = isFocused;
 
   const pushGuard = useCallback(() => {
     if (!onGuardEntry()) {
@@ -62,11 +81,13 @@ export function useDiscardGuard(dirty: boolean): (then: () => void) => void {
     }
     guardedAt.current = { href: window.location.href, id: window.history.state?.id };
     guarded.current = true;
+    armedDrop = dropRef.current;
   }, []);
 
   const dropGuard = useCallback((then?: () => void) => {
     const done = then ?? (() => {});
     guarded.current = false;
+    if (armedDrop === dropRef.current) armedDrop = null;
     // Already popping (e.g. a save cleared `dirty` just as it navigates):
     // wait for that pop rather than going back a second step.
     const inFlight = pendingPop.current;
@@ -93,6 +114,8 @@ export function useDiscardGuard(dirty: boolean): (then: () => void) => void {
     }, 500);
   }, []);
 
+  dropRef.current = dropGuard;
+
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const onPop: PopHandler = () => {
@@ -104,6 +127,7 @@ export function useDiscardGuard(dirty: boolean): (then: () => void) => void {
       }
       if (!guarded.current) return false;
       guarded.current = false;
+      if (armedDrop === dropRef.current) armedDrop = null;
       // One step back from the guard lands on the same URL and router id, so
       // the router has nothing to do. Anything else (a multi-step jump from
       // the history menu) is a real navigation: let the router handle it.
@@ -127,7 +151,18 @@ export function useDiscardGuard(dirty: boolean): (then: () => void) => void {
     const timer = setTimeout(pushGuard, 0);
     return () => {
       clearTimeout(timer);
-      if (guarded.current) dropGuard();
+      if (!guarded.current) return;
+      if (focusedRef.current) {
+        // Still on screen, just no longer dirty (edits undone): drop it.
+        dropGuard();
+      } else {
+        // Lost focus to a navigation we didn't route through leave() or
+        // releaseDiscardGuard. The router is about to push its own entry, and
+        // an async back() now would rewind that instead, so leave the guard
+        // buried: at worst back needs one extra press.
+        guarded.current = false;
+        if (armedDrop === dropGuard) armedDrop = null;
+      }
     };
   }, [active, pushGuard, dropGuard]);
 

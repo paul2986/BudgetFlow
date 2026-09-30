@@ -1,7 +1,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBudgetData } from '../../hooks/useBudgetData';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, TextInput } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
 import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
@@ -123,6 +124,16 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const scrollViewRef = useRef<ScrollView>(null);
     const isEditMode = !!id;
     const expenseToEdit = isEditMode ? data.expenses.find(e => e.id === id) : null;
+    const descriptionRef = useRef<TextInput>(null);
+
+    // New expense: focus the description when the screen appears, not on
+    // mount (autoFocus). A fresh form mounts while its screen is still hidden
+    // (see useFormSessionKey), and autoFocus there would grab the keyboard.
+    useFocusEffect(
+        useCallback(() => {
+            if (!isEditMode) descriptionRef.current?.focus();
+        }, [isEditMode])
+    );
 
     const getAllPeople = useCallback(() => [...data.people, ...tempPeople], [data.people, tempPeople]);
     const getAllCategories = useCallback(() => {
@@ -138,8 +149,12 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
         loadCustomCategories();
     }, []);
 
+    // Load the expense once per form (the screen keys the form per visit).
+    // Reloading whenever `data` refreshes (focus, sync) would overwrite edits.
+    const loadedRef = useRef(false);
     useEffect(() => {
-        if (isEditMode && expenseToEdit) {
+        if (isEditMode && expenseToEdit && !loadedRef.current) {
+            loadedRef.current = true;
             const loaded: FormValues = {
                 description: expenseToEdit.description || '',
                 amount: expenseToEdit.amount?.toString() || '',
@@ -289,7 +304,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 onChangeText={setDescription}
                 placeholder="e.g. Council tax"
                 returnKeyType="next"
-                autoFocus={!isEditMode}
+                ref={descriptionRef}
             />
 
             <CurrencyInput label="Amount" value={amount} onChangeText={setAmount} />

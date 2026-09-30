@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useTheme } from '../../hooks/useTheme';
 import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB, useBottomInset, tabBarBottomOffset } from '../../hooks/useBreakpoint';
+import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
 import { space, radius, elevation } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
@@ -80,7 +81,7 @@ export default function BottomTabBar() {
           key={tab.route}
           {...tab}
           active={isTabActive(pathname, tab.route)}
-          onPress={() => router.navigate(tab.route as any)}
+          onPress={() => releaseDiscardGuard(() => router.navigate(tab.route as any))}
         />
       ))}
     </View>

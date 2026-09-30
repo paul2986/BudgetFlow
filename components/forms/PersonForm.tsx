@@ -142,7 +142,8 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                             trailing={<AmountText value={income.amount} role="bodyMed" />}
                             chevron
                             onPress={() =>
-                                router.push({ pathname: '/edit-income', params: { personId: person.id, incomeId: income.id } })
+                                // Drop the discard guard first; it re-arms on return if the name is still edited.
+                                leave(() => router.push({ pathname: '/edit-income', params: { personId: person.id, incomeId: income.id } }))
                             }
                             accessibilityLabel={`${income.label}, ${formatCurrency(income.amount)} ${income.frequency}. Edit`}
                         />

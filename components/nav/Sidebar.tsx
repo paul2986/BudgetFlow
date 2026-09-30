@@ -6,6 +6,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { LAYOUT, bottomClearance, useBottomInset } from '../../hooks/useBreakpoint';
+import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
 import Button from '../Button';
 import { Avatar, ConfirmDialog } from '../ui';
@@ -94,7 +95,7 @@ export default function Sidebar() {
         </View>
 
         <Pressable
-          onPress={() => router.push('/budgets')}
+          onPress={() => releaseDiscardGuard(() => router.push('/budgets'))}
           accessibilityRole="button"
           accessibilityLabel={`Switch budget. Current budget: ${activeBudget?.name || 'none'}`}
           style={({ pressed, hovered }: any) => ({
@@ -126,14 +127,14 @@ export default function Sidebar() {
             key={tab.route}
             tab={tab}
             active={isTabActive(pathname, tab.route)}
-            onPress={() => router.navigate(tab.route as any)}
+            onPress={() => releaseDiscardGuard(() => router.navigate(tab.route as any))}
           />
         ))}
 
         <View style={{ marginTop: space.s5, paddingHorizontal: space.s1 }}>
           <Button
             text="Add expense"
-            onPress={() => router.push('/add-expense')}
+            onPress={() => releaseDiscardGuard(() => router.push('/add-expense'))}
             variant="primary"
             icon={<Icon name="add" size={18} color={tokens.colors.onBrand} />}
           />
