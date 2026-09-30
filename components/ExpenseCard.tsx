@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, Platform, ViewStyle, StyleSheet } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Pressable, ViewStyle, StyleSheet } from 'react-native';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import Icon from './Icon';
@@ -8,18 +9,24 @@ import { normalizeCategoryName } from '../utils/storage';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import { debtMeta as getDebtMeta } from '../utils/debtMeta';
 import { Person, Expense } from '../types/budget';
-import { type, radius, space, avatarHue } from '../styles/tokens';
+import { type, space, avatarHue } from '../styles/tokens';
 
 /**
  * Expense row (DESIGN.md §2.7 Expenses). Renders inside a ListGroup: the group
  * supplies the surface, the row draws only an inset hairline separator.
  * - No text below 12px (fixes the old 10–11px metadata).
  * - Household/personal and debt carry icon + label chips, never color alone.
- * - Delete stays out of the scan path: mouse/trackpad devices get a muted
- *   trash that turns red on hover (still keyboard-reachable); touch devices
- *   (native and touch web) use long-press or the VoiceOver/TalkBack "Delete"
- *   action. The edit screen also offers delete.
+ * - No meta line: category (or the debt chip in its place) and frequency are
+ *   neutral chips beside the owner chip.
+ * - Delete stays out of the scan path: swipe left to reveal a Delete action
+ *   (Mail-style, one open row at a time), or use the VoiceOver/TalkBack
+ *   "Delete" action; the edit screen also offers delete.
  */
+
+const DELETE_ACTION_WIDTH = 88;
+
+// The row whose Delete action is showing, so opening another closes it.
+let openRow: SwipeableMethods | null = null;
 
 interface ExpenseCardProps {
     expense: Expense;
@@ -63,13 +70,9 @@ export default function ExpenseCard({
     const { tokens } = useTheme();
     const { formatCurrency } = useCurrency();
     const [hovered, setHovered] = useState(false);
-    const [trashHovered, setTrashHovered] = useState(false);
-    // Inline trash only where hover exists (mouse/trackpad). Touch devices,
-    // including the PWA on a phone, use long-press like native.
-    const showTrash =
-        Platform.OS === 'web' &&
-        typeof window !== 'undefined' &&
-        !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+    const swipeRef = useRef<SwipeableMethods>(null);
+    const isOpen = useRef(false);
+    const closedAt = useRef(0);
     const requestDelete = () => onDelete(expense.id, expense.description);
 
     const monthlyAmount = calculateMonthlyAmount(expense.amount, expense.frequency);
@@ -84,155 +87,163 @@ export default function ExpenseCard({
     const ownerHue = !isHousehold && person ? avatarHue(person.id, tokens.isDark) : null;
     const debtMeta = expense.debtRepayment ? getDebtMeta(expense.debtRepayment, tokens.colors) : null;
 
-    // A personal expense's owner is its chip, so the meta line doesn't repeat it.
-    const metaLine = [
-        expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1),
-        isHousehold ? (person ? person.name : 'Shared') : null,
-    ]
-        .filter(Boolean)
-        .join(' · ');
+    // Neutral chips sit one step darker than surfaceSunken so they stay
+    // visible when the row itself turns sunken on hover or press.
+    const neutralChipBg = tokens.colors.border;
+    const frequencyLabel = expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1);
 
     const a11ySummary = `${expense.description}, ${formatCurrency(expense.amount)} ${expense.frequency}, ${
         isHousehold ? 'household' : person ? `personal, ${person.name}` : 'personal'
-    }${debtMeta ? `, ${debtMeta.label}` : ''}${expirationInfo ? `, ${expirationInfo.text}` : ''}`;
+    }, ${debtMeta ? debtMeta.label : tag}${expirationInfo ? `, ${expirationInfo.text}` : ''}`;
 
-    // The row and the delete button are siblings inside a hover wrapper, so
-    // web never nests one <button> inside another.
     return (
-        <Pressable
-            accessible={false}
-            focusable={false}
-            onHoverIn={() => setHovered(true)}
-            onHoverOut={() => setHovered(false)}
-            style={[
-                {
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    backgroundColor: hovered ? tokens.colors.surfaceSunken : 'transparent',
-                    opacity: isDeleting ? 0.5 : 1,
-                    // @ts-ignore web transition
-                    transitionDuration: '150ms',
-                },
-                style,
-            ]}
-        >
-            <Pressable
-                onPress={onPress}
-                onLongPress={showTrash ? undefined : requestDelete}
-                disabled={isDeleting}
-                accessibilityRole="button"
-                accessibilityLabel={a11ySummary}
-                accessibilityHint="Opens this expense for editing"
-                accessibilityActions={[{ name: 'delete', label: 'Delete' }]}
-                onAccessibilityAction={(e) => {
-                    if (e.nativeEvent.actionName === 'delete') requestDelete();
+        <View style={[{ opacity: isDeleting ? 0.5 : 1 }, style]}>
+            <ReanimatedSwipeable
+                ref={swipeRef}
+                enabled={!isDeleting}
+                friction={1.5}
+                rightThreshold={DELETE_ACTION_WIDTH / 2}
+                overshootRight={false}
+                onSwipeableWillOpen={() => {
+                    isOpen.current = true;
+                    // One open row at a time, like Mail.
+                    if (openRow && openRow !== swipeRef.current) openRow.close();
+                    openRow = swipeRef.current;
                 }}
-                style={({ pressed }) => ({
-                    flex: 1,
-                    flexDirection: 'row',
-                    alignItems: 'flex-start',
-                    paddingLeft: space.s4,
-                    paddingRight: showTrash ? space.s2 : space.s4,
-                    paddingVertical: space.s3,
-                    backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
-                })}
+                onSwipeableWillClose={() => {
+                    isOpen.current = false;
+                    closedAt.current = Date.now();
+                    if (openRow === swipeRef.current) openRow = null;
+                }}
+                renderRightActions={(_progress, _translation, methods) => (
+                    <Pressable
+                        onPress={() => {
+                            methods.close();
+                            requestDelete();
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${expense.description}`}
+                        style={({ pressed }) => ({
+                            width: DELETE_ACTION_WIDTH,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: space.s1,
+                            backgroundColor: tokens.colors.danger,
+                            opacity: pressed ? 0.8 : 1,
+                        })}
+                    >
+                        <Icon name="trash-outline" size={20} color={tokens.colors.onDanger} />
+                        <Text style={[type.caption, { color: tokens.colors.onDanger }]}>Delete</Text>
+                    </Pressable>
+                )}
             >
-                {/* Info */}
-                <View style={{ flex: 1, marginRight: space.s3 }}>
-                    <Text style={[type.bodyMed, { color: tokens.colors.text, marginBottom: space.s1 }]} numberOfLines={1}>
-                        {expense.description}
-                    </Text>
-
-                    <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s2 }]} numberOfLines={1}>
-                        {metaLine} · {tag}
-                    </Text>
-
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s1 }}>
-                        <Chip
-                            label={isHousehold ? 'Household' : person?.name || 'Personal'}
-                            icon={isHousehold ? 'home-outline' : 'person-outline'}
-                            color={isHousehold ? tokens.colors.household : ownerHue?.fg ?? tokens.colors.personal}
-                            backgroundColor={isHousehold ? tokens.colors.householdSubtle : ownerHue?.bg ?? tokens.colors.personalSubtle}
-                        />
-                        {debtMeta ? (
-                            <Chip
-                                label={debtMeta.label}
-                                icon={debtMeta.icon}
-                                color={debtMeta.color}
-                                backgroundColor={debtMeta.subtle}
-                            />
-                        ) : null}
-                        {expirationInfo ? (
-                            <Chip
-                                label={expirationInfo.text}
-                                icon={expirationInfo.isExpired ? 'time-outline' : 'timer-outline'}
-                                color={
-                                    expirationInfo.isExpired
-                                        ? tokens.colors.danger
-                                        : expirationInfo.isExpiringSoon
-                                            ? tokens.colors.warning
-                                            : tokens.colors.textMuted
-                                }
-                                backgroundColor={
-                                    expirationInfo.isExpired
-                                        ? tokens.colors.dangerSubtle
-                                        : expirationInfo.isExpiringSoon
-                                            ? tokens.colors.warningSubtle
-                                            : tokens.colors.surfaceSunken
-                                }
-                            />
-                        ) : null}
-                    </View>
-                </View>
-
-                {/* Amount */}
-                <View style={{ alignItems: 'flex-end' }}>
-                    <AmountText value={expense.amount} role="bodyMed" />
-                    {shouldShowMonthlyValue && (
-                        <AmountText value={monthlyAmount} role="caption" tone="muted" suffix="/mo" />
-                    )}
-                </View>
-            </Pressable>
-
-            {showTrash ? (
                 <Pressable
-                    onPress={requestDelete}
+                    onPress={() => {
+                        // A tap on an open row only closes it. The swipeable
+                        // closes on touch-down (before onPress on web), so
+                        // swallow a press that lands just after a close.
+                        if (isOpen.current || Date.now() - closedAt.current < 500) {
+                            swipeRef.current?.close();
+                            return;
+                        }
+                        onPress();
+                    }}
+                    onHoverIn={() => setHovered(true)}
+                    onHoverOut={() => setHovered(false)}
                     disabled={isDeleting}
-                    onHoverIn={() => setTrashHovered(true)}
-                    onHoverOut={() => setTrashHovered(false)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Delete ${expense.description}`}
+                    accessibilityLabel={a11ySummary}
+                    accessibilityHint="Opens this expense for editing"
+                    accessibilityActions={[{ name: 'delete', label: 'Delete' }]}
+                    onAccessibilityAction={(e) => {
+                        if (e.nativeEvent.actionName === 'delete') requestDelete();
+                    }}
                     style={({ pressed }) => ({
-                        width: 36,
-                        height: 36,
-                        borderRadius: radius.md,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: space.s2,
-                        opacity: hovered || trashHovered || pressed ? 1 : 0.4,
-                        backgroundColor: pressed || trashHovered ? tokens.colors.dangerSubtle : 'transparent',
+                        paddingHorizontal: space.s4,
+                        paddingVertical: space.s3,
+                        // Opaque so the delete action stays hidden until swiped.
+                        backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : tokens.colors.surface,
+                        // @ts-ignore web transition
+                        transitionDuration: '150ms',
                     })}
                 >
-                    <Icon
-                        name="trash-outline"
-                        size={18}
-                        color={trashHovered ? tokens.colors.danger : tokens.colors.textFaint}
-                    />
-                </Pressable>
-            ) : null}
+                    {/* Name and amount */}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                        <Text style={[type.bodyMed, { flex: 1, color: tokens.colors.text, marginRight: space.s3 }]} numberOfLines={1}>
+                            {expense.description}
+                        </Text>
+                        <AmountText value={expense.amount} role="bodyMed" />
+                    </View>
 
-            {showSeparator ? (
-                <View
-                    style={{
-                        position: 'absolute',
-                        left: space.s4,
-                        right: 0,
-                        bottom: 0,
-                        height: StyleSheet.hairlineWidth,
-                        backgroundColor: tokens.colors.borderStrong,
-                    }}
-                />
-            ) : null}
-        </Pressable>
+                    {/* Chips span the full row so owner, category and frequency fit
+                        on one line; the monthly equivalent sits at the right. */}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: space.s2 }}>
+                        <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: space.s1 }}>
+                            <Chip
+                                label={isHousehold ? 'Household' : person?.name || 'Personal'}
+                                icon={isHousehold ? 'home-outline' : 'person-outline'}
+                                color={isHousehold ? tokens.colors.household : ownerHue?.fg ?? tokens.colors.personal}
+                                backgroundColor={isHousehold ? tokens.colors.householdSubtle : ownerHue?.bg ?? tokens.colors.personalSubtle}
+                            />
+                            {debtMeta ? (
+                                <Chip
+                                    label={debtMeta.label}
+                                    icon={debtMeta.icon}
+                                    color={debtMeta.color}
+                                    backgroundColor={debtMeta.subtle}
+                                />
+                            ) : (
+                                // A debt chip already names what this is, so the
+                                // category only shows when there isn't one.
+                                <Chip label={tag} backgroundColor={neutralChipBg} />
+                            )}
+                            <Chip label={frequencyLabel} backgroundColor={neutralChipBg} />
+                            {expirationInfo ? (
+                                <Chip
+                                    label={expirationInfo.text}
+                                    icon={expirationInfo.isExpired ? 'time-outline' : 'timer-outline'}
+                                    color={
+                                        expirationInfo.isExpired
+                                            ? tokens.colors.danger
+                                            : expirationInfo.isExpiringSoon
+                                                ? tokens.colors.warning
+                                                : tokens.colors.textMuted
+                                    }
+                                    backgroundColor={
+                                        expirationInfo.isExpired
+                                            ? tokens.colors.dangerSubtle
+                                            : expirationInfo.isExpiringSoon
+                                                ? tokens.colors.warningSubtle
+                                                : neutralChipBg
+                                    }
+                                />
+                            ) : null}
+                        </View>
+                        {shouldShowMonthlyValue && (
+                            <AmountText
+                                value={monthlyAmount}
+                                role="caption"
+                                tone="muted"
+                                suffix="/mo"
+                                style={{ marginLeft: space.s3 }}
+                            />
+                        )}
+                    </View>
+
+                    {showSeparator ? (
+                        <View
+                            style={{
+                                position: 'absolute',
+                                left: space.s4,
+                                right: 0,
+                                bottom: 0,
+                                height: StyleSheet.hairlineWidth,
+                                backgroundColor: tokens.colors.borderStrong,
+                            }}
+                        />
+                    ) : null}
+                </Pressable>
+            </ReanimatedSwipeable>
+        </View>
     );
 }
