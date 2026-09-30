@@ -1,15 +1,16 @@
 import { useToast } from '../hooks/useToast';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, TextInput, StyleSheet } from 'react-native';
 import { Alert } from '../utils/alert';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router, useFocusEffect } from 'expo-router';
 import StandardHeader from '../components/StandardHeader';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { Budget } from '../types/budget';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from '../components/Icon';
-import { EmptyState, IconButton, Input, ListGroup, ListRow, Sheet } from '../components/ui';
+import Button from '../components/Button';
+import { EmptyState, IconButton, Input, ListGroup, ListRow, Menu, Sheet, type MenuAnchor, type MenuSection } from '../components/ui';
 import { space } from '../styles/tokens';
 
 const formatDate = (timestamp: number): string => {
@@ -29,6 +30,15 @@ export default function BudgetsScreen() {
   const [editingBudgetId, setEditingBudgetId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [actionBudgetId, setActionBudgetId] = useState<string | null>(null);
+  const [actionAnchor, setActionAnchor] = useState<MenuAnchor | null>(null);
+  // Each row's ⋯ button, measured so the actions menu drops from it.
+  const moreButtons = useRef<Record<string, View | null>>({});
+  const openActions = (budgetId: string) => {
+    moreButtons.current[budgetId]?.measureInWindow((x, y, width, height) => {
+      setActionAnchor({ x, y, width, height });
+      setActionBudgetId(budgetId);
+    });
+  };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [operationInProgress, setOperationInProgress] = useState(false);
 
@@ -170,9 +180,74 @@ export default function BudgetsScreen() {
     setEditingBudgetId(null);
     setEditingName('');
   };
+  // Focus the rename field once the actions menu has closed; closing it hands
+  // focus back to the ⋯ button, which would otherwise win over autoFocus.
+  const renameInput = useRef<TextInput>(null);
+  useEffect(() => {
+    if (!editingBudgetId) return;
+    const t = setTimeout(() => renameInput.current?.focus(), 50);
+    return () => clearTimeout(t);
+  }, [editingBudgetId]);
+  // Inline rename: Return or ✓ saves, Escape or ✕ cancels. An unchanged name just closes.
+  const commitRename = (budget: Budget) => {
+    const next = editingName.trim();
+    if (!next || next === budget.name) closeRename();
+    else handleRenameBudget(budget.id);
+  };
 
   const actionBudget = budgets.find((b) => b.id === actionBudgetId) || null;
-  const renamingBudget = budgets.find((b) => b.id === editingBudgetId) || null;
+
+  const budgetActions = (budget: Budget): MenuSection[] => {
+    const isActive = activeBudget?.id === budget.id;
+    const run = (fn: () => void) => () => {
+      setActionBudgetId(null);
+      fn();
+    };
+    const sections: MenuSection[] = [
+      {
+        items: [
+          {
+            key: 'rename',
+            label: 'Rename',
+            icon: 'create-outline',
+            onPress: run(() => {
+              setEditingBudgetId(budget.id);
+              setEditingName(budget.name);
+            }),
+          },
+          {
+            key: 'duplicate',
+            label: 'Duplicate',
+            icon: 'copy-outline',
+            onPress: run(() => handleDuplicateBudget(budget.id, budget.name)),
+          },
+          {
+            key: 'lock',
+            label: 'Budget lock',
+            detail: budget.lock?.locked ? 'On' : 'Off',
+            icon: 'lock-closed-outline',
+            onPress: run(() => router.push({ pathname: '/budget-lock', params: { budgetId: budget.id } })),
+          },
+        ],
+      },
+    ];
+    if (budgets.length > 1) {
+      sections.push({
+        items: [
+          {
+            key: 'delete',
+            label: 'Delete budget',
+            detail: isActive ? 'Switch to another budget first' : undefined,
+            icon: 'trash-outline',
+            destructive: true,
+            disabled: isActive,
+            onPress: run(() => handleDeleteBudget(budget.id, budget.name)),
+          },
+        ],
+      });
+    }
+    return sections;
+  };
 
   const describe = (budget: Budget) => {
     const people = budget.people?.length || 0;
@@ -215,6 +290,53 @@ export default function BudgetsScreen() {
               {budgets.map((budget, i) => {
                 const isActive = activeBudget?.id === budget.id;
                 const locked = !!budget.lock?.locked;
+                const renaming = editingBudgetId === budget.id;
+                if (renaming) {
+                  // Rename takes over the row: a labelled field and text actions,
+                  // so nothing reads as the active-budget tick. Other rows dim.
+                  return (
+                    <View
+                      key={budget.id}
+                      style={{
+                        padding: space.s4,
+                        borderBottomWidth: i < budgets.length - 1 ? StyleSheet.hairlineWidth : 0,
+                        borderBottomColor: tokens.colors.border,
+                      }}
+                    >
+                      <Input
+                        ref={renameInput}
+                        label="Budget name"
+                        value={editingName}
+                        onChangeText={setEditingName}
+                        selectTextOnFocus
+                        maxLength={50}
+                        editable={!operationInProgress}
+                        returnKeyType="done"
+                        onSubmitEditing={() => commitRename(budget)}
+                        onKeyPress={(e) => {
+                          if (e.nativeEvent.key === 'Escape') closeRename();
+                        }}
+                      />
+                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space.s2, marginTop: space.s3 }}>
+                        <Button
+                          text="Cancel"
+                          variant="secondary"
+                          onPress={closeRename}
+                          disabled={operationInProgress}
+                          style={{ width: 'auto', marginTop: 0, paddingHorizontal: space.s5 }}
+                        />
+                        <Button
+                          text="Save"
+                          onPress={() => commitRename(budget)}
+                          disabled={!editingName.trim() || operationInProgress}
+                          loading={operationInProgress}
+                          style={{ width: 'auto', marginTop: 0, paddingHorizontal: space.s5 }}
+                        />
+                      </View>
+                    </View>
+                  );
+                }
+                const dimmed = !!editingBudgetId;
                 return (
                   <ListRow
                     key={budget.id}
@@ -223,17 +345,20 @@ export default function BudgetsScreen() {
                     icon={locked ? 'lock-closed-outline' : 'folder-outline'}
                     iconColor={isActive ? tokens.colors.brand : undefined}
                     trailing={isActive ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
-                    onPress={isActive || operationInProgress ? undefined : () => handleSetActiveBudget(budget.id)}
+                    onPress={isActive || operationInProgress || dimmed ? undefined : () => handleSetActiveBudget(budget.id)}
                     accessibilityLabel={`${budget.name}${isActive ? ', active budget' : ', switch to this budget'}${locked ? ', locked' : ''}`}
                     accessory={
-                      <IconButton
-                        icon="ellipsis-horizontal"
-                        accessibilityLabel={`More actions for ${budget.name}`}
-                        onPress={() => setActionBudgetId(budget.id)}
-                        disabled={operationInProgress}
-                      />
+                      <View ref={(el) => { moreButtons.current[budget.id] = el; }} collapsable={false}>
+                        <IconButton
+                          icon="ellipsis-horizontal"
+                          accessibilityLabel={`More actions for ${budget.name}`}
+                          onPress={() => openActions(budget.id)}
+                          disabled={operationInProgress || dimmed}
+                        />
+                      </View>
                     }
                     showSeparator={i < budgets.length - 1}
+                    style={dimmed ? { opacity: 0.4 } : undefined}
                   />
                 );
               })}
@@ -243,71 +368,13 @@ export default function BudgetsScreen() {
       </ScrollView>
 
       {/* Per-budget actions */}
-      <Sheet
+      <Menu
         visible={!!actionBudget}
         onClose={() => setActionBudgetId(null)}
-        title={actionBudget?.name || 'Budget'}
-        leadingAction={{ label: 'Done', onPress: () => setActionBudgetId(null) }}
-        width={420}
-        grouped
-      >
-        {actionBudget ? (
-          <ScrollView contentContainerStyle={{ padding: space.s4 }}>
-            <ListGroup style={{ marginBottom: space.s4 }}>
-              <ListRow
-                title="Rename"
-                icon="create-outline"
-                onPress={() => {
-                  setActionBudgetId(null);
-                  setEditingBudgetId(actionBudget.id);
-                  setEditingName(actionBudget.name);
-                }}
-              />
-              <ListRow
-                title="Duplicate"
-                icon="copy-outline"
-                onPress={() => {
-                  setActionBudgetId(null);
-                  handleDuplicateBudget(actionBudget.id, actionBudget.name);
-                }}
-              />
-              <ListRow
-                title="Budget lock"
-                caption={actionBudget.lock?.locked ? 'On' : 'Off'}
-                icon="lock-closed-outline"
-                chevron
-                onPress={() => {
-                  setActionBudgetId(null);
-                  router.push({ pathname: '/budget-lock', params: { budgetId: actionBudget.id } });
-                }}
-                showSeparator={false}
-              />
-            </ListGroup>
-            {budgets.length > 1 ? (
-              <ListGroup
-                style={{ marginBottom: 0 }}
-                footer={activeBudget?.id === actionBudget.id ? 'Switch to another budget before deleting this one.' : undefined}
-              >
-                <ListRow
-                  title="Delete budget"
-                  icon="trash-outline"
-                  destructive
-                  onPress={
-                    activeBudget?.id === actionBudget.id
-                      ? undefined
-                      : () => {
-                          setActionBudgetId(null);
-                          handleDeleteBudget(actionBudget.id, actionBudget.name);
-                        }
-                  }
-                  style={activeBudget?.id === actionBudget.id ? { opacity: 0.45 } : undefined}
-                  showSeparator={false}
-                />
-              </ListGroup>
-            ) : null}
-          </ScrollView>
-        ) : null}
-      </Sheet>
+        anchor={actionAnchor}
+        label={actionBudget ? `Actions for ${actionBudget.name}` : 'Budget actions'}
+        sections={actionBudget ? budgetActions(actionBudget) : []}
+      />
 
       {/* Create */}
       <Sheet
@@ -333,32 +400,6 @@ export default function BudgetsScreen() {
         </View>
       </Sheet>
 
-      {/* Rename */}
-      <Sheet
-        visible={!!renamingBudget}
-        onClose={closeRename}
-        title="Rename budget"
-        leadingAction={{ label: 'Cancel', onPress: closeRename, disabled: operationInProgress }}
-        trailingAction={{
-          label: 'Save',
-          onPress: () => renamingBudget && handleRenameBudget(renamingBudget.id),
-          disabled: !editingName.trim() || editingName.trim() === renamingBudget?.name || operationInProgress,
-        }}
-        width={420}
-      >
-        <View style={{ padding: space.s5 }}>
-          <Input
-            label="Name"
-            value={editingName}
-            onChangeText={setEditingName}
-            autoFocus
-            selectTextOnFocus
-            maxLength={50}
-            returnKeyType="done"
-            onSubmitEditing={() => renamingBudget && handleRenameBudget(renamingBudget.id)}
-          />
-        </View>
-      </Sheet>
     </View>
   );
 }

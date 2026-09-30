@@ -110,7 +110,7 @@ export default function StandardHeader({
           width: buttonSize,
           height: buttonSize,
           borderRadius: radius.md,
-          backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : bg,
+          backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : bg,
           justifyContent: 'center',
           alignItems: 'center',
           marginLeft: kind === 'right' && idx > 0 ? space.s2 : 0,

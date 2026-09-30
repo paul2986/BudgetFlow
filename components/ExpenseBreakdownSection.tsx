@@ -305,7 +305,7 @@ export default function ExpenseBreakdownSection({
             flexDirection: 'row',
             alignItems: 'center',
             padding: space.s4,
-            backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
+            backgroundColor: pressed ? tokens.colors.surfaceHover : 'transparent',
           })}
         >
           <View
@@ -351,7 +351,7 @@ export default function ExpenseBreakdownSection({
                 style={({ pressed }) => ({
                   paddingHorizontal: space.s4,
                   paddingVertical: space.s3,
-                  backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
+                  backgroundColor: pressed ? tokens.colors.surfaceHover : 'transparent',
                   borderBottomWidth: i < breakdown.categories.length - 1 ? StyleSheet.hairlineWidth : 0,
                   borderBottomColor: tokens.colors.border,
                 })}

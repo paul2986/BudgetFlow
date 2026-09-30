@@ -17,7 +17,7 @@ import { type, space, avatarHue } from '../styles/tokens';
  * - No text below 12px (fixes the old 10–11px metadata).
  * - Household/personal and debt carry icon + label chips, never color alone.
  * - No meta line: category (or the debt chip in its place) and frequency are
- *   neutral chips beside the owner chip.
+ *   neutral outlined chips (grey stroke, clear fill) beside the owner chip.
  * - Delete stays out of the scan path: swipe left to reveal a Delete action
  *   (Mail-style, one open row at a time), or use the VoiceOver/TalkBack
  *   "Delete" action; the edit screen also offers delete.
@@ -87,9 +87,6 @@ export default function ExpenseCard({
     const ownerHue = !isHousehold && person ? avatarHue(person.id, tokens.isDark) : null;
     const debtMeta = expense.debtRepayment ? getDebtMeta(expense.debtRepayment, tokens.colors) : null;
 
-    // Neutral chips sit one step darker than surfaceSunken so they stay
-    // visible when the row itself turns sunken on hover or press.
-    const neutralChipBg = tokens.colors.border;
     const frequencyLabel = expense.frequency.charAt(0).toUpperCase() + expense.frequency.slice(1);
 
     const a11ySummary = `${expense.description}, ${formatCurrency(expense.amount)} ${expense.frequency}, ${
@@ -162,7 +159,7 @@ export default function ExpenseCard({
                         paddingHorizontal: space.s4,
                         paddingVertical: space.s3,
                         // Opaque so the delete action stays hidden until swiped.
-                        backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : tokens.colors.surface,
+                        backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : tokens.colors.surface,
                         // @ts-ignore web transition
                         transitionDuration: '150ms',
                     })}
@@ -195,9 +192,9 @@ export default function ExpenseCard({
                             ) : (
                                 // A debt chip already names what this is, so the
                                 // category only shows when there isn't one.
-                                <Chip label={tag} backgroundColor={neutralChipBg} />
+                                <Chip label={tag} outlined />
                             )}
-                            <Chip label={frequencyLabel} backgroundColor={neutralChipBg} />
+                            <Chip label={frequencyLabel} outlined />
                             {expirationInfo ? (
                                 <Chip
                                     label={expirationInfo.text}
@@ -212,10 +209,9 @@ export default function ExpenseCard({
                                     backgroundColor={
                                         expirationInfo.isExpired
                                             ? tokens.colors.dangerSubtle
-                                            : expirationInfo.isExpiringSoon
-                                                ? tokens.colors.warningSubtle
-                                                : neutralChipBg
+                                            : tokens.colors.warningSubtle
                                     }
+                                    outlined={!expirationInfo.isExpired && !expirationInfo.isExpiringSoon}
                                 />
                             ) : null}
                         </View>
@@ -234,11 +230,11 @@ export default function ExpenseCard({
                         <View
                             style={{
                                 position: 'absolute',
-                                left: space.s4,
+                                left: 0,
                                 right: 0,
                                 bottom: 0,
                                 height: StyleSheet.hairlineWidth,
-                                backgroundColor: tokens.colors.borderStrong,
+                                backgroundColor: tokens.colors.border,
                             }}
                         />
                     ) : null}

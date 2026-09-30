@@ -106,7 +106,7 @@ export default function Sidebar() {
             borderRadius: radius.md,
             borderWidth: 1,
             borderColor: tokens.colors.border,
-            backgroundColor: hovered || pressed ? tokens.colors.surfaceSunken : 'transparent',
+            backgroundColor: hovered || pressed ? tokens.colors.surfaceHover : 'transparent',
           })}
         >
           <Icon name="wallet-outline" size={18} color={tokens.colors.textMuted} />

@@ -43,7 +43,7 @@ export default function IconButton({
           borderRadius: radius.md,
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: pressed || hovered ? tokens.colors.surfaceSunken : 'transparent',
+          backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : 'transparent',
           opacity: disabled ? 0.4 : 1,
         },
         style,

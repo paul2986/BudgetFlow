@@ -35,7 +35,7 @@ export default function Card({ children, title, action, accent, style, padded = 
 
   const cardStyle = (active = false) => [
     {
-      backgroundColor: active ? tokens.colors.surfaceSunken : tokens.colors.surface,
+      backgroundColor: active ? tokens.colors.surfaceHover : tokens.colors.surface,
       borderRadius: radius.lg,
       padding: padded ? padding : 0,
       ...(tokens.isDark ? null : elevation.e1),

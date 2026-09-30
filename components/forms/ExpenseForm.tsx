@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { View, Text, ScrollView, TextInput } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
 import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
@@ -10,18 +10,13 @@ import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import Button from '../Button';
 import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
-import { ChoicePills, DateField, Input, SegmentedControl, Sheet } from '../ui';
+import { ChoicePills, DateField, Input, SegmentedControl } from '../ui';
 import { type, space } from '../../styles/tokens';
-import { Expense, ExpenseCategory, DEFAULT_CATEGORIES, Person, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
+import { Expense, ExpenseCategory, DEFAULT_CATEGORIES, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName } from '../../utils/storage';
+import { newPersonHandoff } from '../../utils/newPersonHandoff';
 
 const EXPENSE_CATEGORIES: ExpenseCategory[] = DEFAULT_CATEGORIES;
-
-type TempPerson = {
-    id: string;
-    name: string;
-    isTemp: true;
-};
 
 type TempCategory = {
     name: string;
@@ -60,7 +55,7 @@ interface ExpenseFormProps {
 }
 
 export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps) {
-    const { data, addExpense, updateExpense, removeExpense, addPerson, saving, refreshTrigger } = useBudgetData();
+    const { data, addExpense, updateExpense, removeExpense, saving, refreshTrigger } = useBudgetData();
     const { tokens } = useTheme();
     const scrollBottomPadding = useScrollBottomPadding();
 
@@ -73,7 +68,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [deleting, setDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const [tempPeople, setTempPeople] = useState<TempPerson[]>([]);
     const [tempCategories, setTempCategories] = useState<TempCategory[]>([]);
 
     const toYMD = (d: Date): string => {
@@ -114,9 +108,9 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [newCustomName, setNewCustomName] = useState('');
     const [customError, setCustomError] = useState<string | null>(null);
 
-    const [showAddPersonModal, setShowAddPersonModal] = useState(false);
-    const [newPersonName, setNewPersonName] = useState('');
-    const [addingPerson, setAddingPerson] = useState(false);
+    // Set while Add person is open over this form, so returning to it selects
+    // the person just added (see newPersonHandoff).
+    const awaitingNewPerson = useRef(false);
 
     const scrollViewRef = useRef<ScrollView>(null);
     const isEditMode = !!id;
@@ -134,7 +128,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
         }, [isEditMode])
     );
 
-    const getAllPeople = useCallback(() => [...data.people, ...tempPeople], [data.people, tempPeople]);
     const getAllCategories = useCallback(() => {
         const tempCategoryNames = tempCategories.map(tc => tc.name);
         return [...EXPENSE_CATEGORIES, ...customCategories, ...tempCategoryNames];
@@ -209,28 +202,13 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
 
         try {
             setIsSaving(true);
-            let actualPersonId = personId;
-
-            // Handle temp person creation
-            for (const tempPerson of tempPeople) {
-                if (tempPerson.id === personId) {
-                    const newPerson: Person = {
-                        id: `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                        name: tempPerson.name,
-                        income: [],
-                    };
-                    await addPerson(newPerson);
-                    actualPersonId = newPerson.id;
-                }
-            }
-
             const expenseData: Expense = {
                 id: isEditMode ? id! : `expense_${Date.now()}`,
                 description: description.trim(),
                 amount: parseFloat(amount),
                 category,
                 frequency,
-                personId: category === 'household' ? undefined : (actualPersonId || undefined),
+                personId: category === 'household' ? undefined : (personId || undefined),
                 date: new Date(startDateYMD + 'T00:00:00Z').toISOString(),
                 notes: '',
                 categoryTag: categoryTag || 'Misc',
@@ -274,17 +252,24 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const handleCancel = () => confirmDiscard(isDirty, () => leave(onClose));
 
     const canSave = !!description.trim() && !!amount && parseFloat(amount) > 0 && (category === 'household' || !!personId);
-    const closeAddPerson = () => {
-        setShowAddPersonModal(false);
-        setNewPersonName('');
+    // New person: the Add person screen slides in over this form; on save it
+    // hands the id back and the focus effect below selects them.
+    const openAddPerson = () => {
+        newPersonHandoff.take(); // drop anything stale
+        awaitingNewPerson.current = true;
+        leave(() => router.push({ pathname: '/edit-person', params: { pick: '1' } }));
     };
-    const confirmAddPerson = () => {
-        if (!newPersonName.trim()) return;
-        const temp: TempPerson = { id: `temp_${Date.now()}`, name: newPersonName.trim(), isTemp: true };
-        setTempPeople(prev => [...prev, temp]);
-        setPersonId(temp.id);
-        closeAddPerson();
-    };
+    useFocusEffect(
+        useCallback(() => {
+            if (!awaitingNewPerson.current) return;
+            awaitingNewPerson.current = false;
+            const newId = newPersonHandoff.take();
+            if (newId) {
+                setCategory('personal');
+                setPersonId(newId);
+            }
+        }, [])
+    );
 
     return (
         <>
@@ -353,9 +338,9 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                     label="Person"
                     value={personId || undefined}
                     onChange={setPersonId}
-                    options={getAllPeople().map(p => ({ value: p.id, label: p.name, icon: 'person-outline' }))}
+                    options={data.people.map(p => ({ value: p.id, label: p.name, icon: 'person-outline' }))}
                     addLabel="New person"
-                    onAdd={() => setShowAddPersonModal(true)}
+                    onAdd={openAddPerson}
                 />
             ) : null}
 
@@ -388,27 +373,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             ) : null}
         </ScrollView>
 
-        <Sheet
-            visible={showAddPersonModal}
-            onClose={closeAddPerson}
-            title="New person"
-            leadingAction={{ label: 'Cancel', onPress: closeAddPerson }}
-            trailingAction={{ label: 'Add', onPress: confirmAddPerson, disabled: !newPersonName.trim() }}
-            width={420}
-        >
-            <View style={{ padding: space.s5 }}>
-                <Input
-                    label="Name"
-                    value={newPersonName}
-                    onChangeText={setNewPersonName}
-                    autoFocus
-                    maxLength={50}
-                    returnKeyType="done"
-                    onSubmitEditing={confirmAddPerson}
-                    helperText="They'll be added to this budget when you save the expense."
-                />
-            </View>
-        </Sheet>
         </>
     );
 }

@@ -17,6 +17,8 @@ interface ChipProps {
   /** Explicit fg/bg pair; defaults to neutral. */
   color?: string;
   backgroundColor?: string;
+  /** Neutral tag look: clear fill with a grey stroke (ignores backgroundColor). */
+  outlined?: boolean;
   selected?: boolean;
   onPress?: () => void;
   /** Renders a trailing ✕ and makes the chip announce as removable. */
@@ -29,6 +31,7 @@ export default function Chip({
   icon,
   color,
   backgroundColor,
+  outlined,
   selected,
   onPress,
   onDismiss,
@@ -49,7 +52,8 @@ export default function Chip({
           height: 28,
           paddingHorizontal: space.s3,
           borderRadius: radius.full,
-          backgroundColor: bg,
+          backgroundColor: outlined ? 'transparent' : bg,
+          ...(outlined ? { borderWidth: 1, borderColor: tokens.colors.border } : null),
           alignSelf: 'flex-start',
           // Never spill out of a narrow cell: shrink and truncate instead.
           maxWidth: '100%',

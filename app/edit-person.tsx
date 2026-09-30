@@ -7,9 +7,11 @@ import NewPersonForm from '../components/forms/NewPersonForm';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { FormScreen } from '../components/ui';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
+import { newPersonHandoff } from '../utils/newPersonHandoff';
 
 export default function EditPersonScreen() {
-  const params = useLocalSearchParams<{ personId: string }>();
+  // pick=1: opened from another form to choose someone; hand the new person back.
+  const params = useLocalSearchParams<{ personId: string; pick?: string }>();
   const { themedStyles } = useThemedStyles();
   const session = useFormSessionKey();
 
@@ -28,7 +30,11 @@ export default function EditPersonScreen() {
         {params.personId ? (
           <PersonForm key={`${params.personId}:${session}`} personId={params.personId} onClose={handleClose} />
         ) : (
-          <NewPersonForm key={`new:${session}`} onClose={handleClose} />
+          <NewPersonForm
+            key={`new:${session}`}
+            onClose={handleClose}
+            onCreated={params.pick === '1' ? newPersonHandoff.put : undefined}
+          />
         )}
       </FormScreen>
     </View>

@@ -26,6 +26,8 @@ export interface ColorTokens {
   /** One visible lightness step above `surface`; used instead of bigger shadows in dark mode. */
   surfaceRaised: string;
   surfaceSunken: string;
+  /** Hover/press fill for tappable surfaces. Distinct from both `surface` and `bg`, so a hovered card or row never melts into the page. */
+  surfaceHover: string;
   /** Editable field fill (inputs, date fields). White in light mode so fields don't read as read-only on the grey page. */
   field: string;
   text: string;
@@ -78,6 +80,7 @@ export const lightColors: ColorTokens = {
   surface: '#FFFFFF',
   surfaceRaised: '#FFFFFF',
   surfaceSunken: '#F1F5F9',
+  surfaceHover: '#E8EDF3',
   field: '#FFFFFF',
   text: '#0F172A',
   textMuted: '#475569',
@@ -120,6 +123,7 @@ export const darkColors: ColorTokens = {
   surface: '#151E2E',
   surfaceRaised: '#1B2537',
   surfaceSunken: '#0F1726',
+  surfaceHover: '#222D40',
   field: '#0F1726',
   text: '#F1F5F9',
   textMuted: '#94A3B8',
