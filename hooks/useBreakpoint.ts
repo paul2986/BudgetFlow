@@ -61,6 +61,13 @@ export function bottomClearance(px: number): number {
     : px;
 }
 
+/**
+ * Web: height of the status-bar band at the top of the compact shell (the
+ * safe-area inset, plus the iOS home-screen app's --status-gap, index.html).
+ * A CSS value, so only for web styles.
+ */
+export const STATUS_BAND = 'calc(env(safe-area-inset-top) + var(--status-gap, 0px))' as unknown as number;
+
 /** Layout chrome dimensions — derive scroll insets from these, never magic numbers. */
 export const LAYOUT = {
   /** Bottom tab bar height, excluding safe-area inset. */

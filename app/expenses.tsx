@@ -2,14 +2,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { Text, View, ScrollView, AccessibilityInfo, Pressable } from 'react-native';
+import { Text, View, Animated, AccessibilityInfo, Pressable } from 'react-native';
 import { Alert } from '../utils/alert';
 import { useTheme } from '../hooks/useTheme';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useCurrency } from '../hooks/useCurrency';
 import Icon from '../components/Icon';
-import StandardHeader from '../components/StandardHeader';
+import StandardHeader, { LargeTitle } from '../components/StandardHeader';
+import { useLargeTitle } from '../hooks/useLargeTitle';
 import ExpenseFilterModal from '../components/ExpenseFilterModal';
 import ExpenseCard from '../components/ExpenseCard';
 import ExpenseFilterBar from '../components/ExpenseFilterBar';
@@ -56,6 +57,7 @@ const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; l
 export default function ExpensesScreen() {
   const { data, removeExpense, saving, refreshData } = useBudgetData();
   const { tokens } = useTheme();
+  const largeTitle = useLargeTitle();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { formatCurrency } = useCurrency();
   const params = useLocalSearchParams<{
@@ -592,6 +594,7 @@ export default function ExpensesScreen() {
       <StandardHeader
         title="Expenses"
         subtitle={data.expenses.length > 0 ? subtitle : undefined}
+        largeTitle={largeTitle}
         showLeftIcon={false}
         showRightIcon={false}
         loading={busy}
@@ -607,15 +610,17 @@ export default function ExpensesScreen() {
         ]}
       />
 
-      <ScrollView
+      <Animated.ScrollView
+        {...largeTitle.scrollProps}
         style={{ flex: 1 }}
         contentContainerStyle={[
           themedStyles.scrollContent,
-          { paddingHorizontal: breakpoint.gutter, paddingTop: space.s4 },
+          { paddingHorizontal: breakpoint.gutter, paddingTop: largeTitle.enabled ? 0 : space.s4 },
         ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
+          <LargeTitle largeTitle={largeTitle} />
           {data.expenses.length > 0 ? (
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s2 }}>
@@ -743,7 +748,7 @@ export default function ExpensesScreen() {
             </ListGroup>
           )}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <Menu
         visible={showSortMenu}

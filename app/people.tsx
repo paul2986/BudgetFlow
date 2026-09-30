@@ -1,5 +1,5 @@
 
-import { Text, View, ScrollView } from 'react-native';
+import { Text, View, Animated } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -15,7 +15,8 @@ import {
   calculateHouseholdExpenses
 } from '../utils/calculations';
 import Icon from '../components/Icon';
-import StandardHeader from '../components/StandardHeader';
+import StandardHeader, { LargeTitle } from '../components/StandardHeader';
+import { useLargeTitle } from '../hooks/useLargeTitle';
 import { AmountText, Avatar, EmptyState, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
 
@@ -80,20 +81,27 @@ export default function PeopleScreen() {
   };
 
   const ready = isDataLoaded || !loading;
+  const largeTitle = useLargeTitle();
 
   return (
     <View style={themedStyles.container}>
       <StandardHeader
         title="People"
+        largeTitle={largeTitle}
         showLeftIcon={false}
         loading={saving}
         rightButtons={[{ icon: 'add', onPress: handleNavigateToAddPerson, accessibilityLabel: 'Add person' }]}
       />
 
-      <ScrollView
+      <Animated.ScrollView
+        {...largeTitle.scrollProps}
         style={{ flex: 1 }}
-        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+        contentContainerStyle={[
+          themedStyles.scrollContent,
+          { paddingHorizontal: breakpoint.gutter, paddingTop: largeTitle.enabled ? 0 : space.s6 },
+        ]}
       >
+        <LargeTitle largeTitle={largeTitle} />
         <View
           style={{
             width: '100%',
@@ -173,7 +181,7 @@ export default function PeopleScreen() {
             })
           )}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

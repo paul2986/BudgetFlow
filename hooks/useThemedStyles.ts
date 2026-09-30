@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Platform } from 'react-native';
 import { useTheme } from './useTheme';
-import { useBreakpoint, LAYOUT, bottomClearance } from './useBreakpoint';
+import { useBreakpoint, LAYOUT, bottomClearance, STATUS_BAND } from './useBreakpoint';
 import { type, space, radius, elevation, font } from '../styles/tokens';
 
 /**
@@ -28,6 +28,11 @@ export const useThemedStyles = () => {
       width: '100%',
       height: '100%',
       position: 'relative',
+      // Web compact: signed-in screens hold the status-bar band themselves
+      // (the shell only draws it for the auth screens), so a screen's header
+      // can paint its fill up behind the status bar; the tab view clips
+      // anything drawn above a screen.
+      ...(Platform.OS === 'web' && bp.isCompact ? { paddingTop: STATUS_BAND } : null),
     },
     content: {
       flex: 1,

@@ -19,7 +19,7 @@ import { useTheme, ThemeProvider } from '../hooks/useTheme';
 import { useToast, ToastProvider } from '../hooks/useToast';
 import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
 import { useAuth } from '../hooks/useAuth';
-import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import { useEditorTransitions } from '../hooks/useEditorTransitions';
 import { setupErrorLogging } from '../utils/errorLogger';
 
@@ -133,18 +133,14 @@ function RootLayoutContent() {
         paddingTop: Platform.OS === 'web' ? 0 : bp.isCompact ? insets.top : 0,
       }}
     >
-      {Platform.OS === 'web' && bp.isCompact ? (
-        // Status-bar band, painted in the header's surface so status bar
-        // and header read as one bar; the auth screens have no header, so
-        // they keep the page bg. In the iOS home-screen app it also holds a
-        // small --status-gap (index.html) so header text sits below the
-        // iOS 27 status-bar blur.
-        <View
-          style={{
-            height: 'calc(env(safe-area-inset-top) + var(--status-gap, 0px))' as any,
-            backgroundColor: user ? tokens.colors.surface : 'transparent',
-          }}
-        />
+      {Platform.OS === 'web' && bp.isCompact && !user ? (
+        // Status-bar band for the auth screens. Signed-in screens hold it
+        // themselves (useThemedStyles `container`) so their header can paint
+        // its fill up behind the status bar: status bar and header read as
+        // one bar, and a large-title screen at rest stays page bg. In the
+        // iOS home-screen app it also holds a small --status-gap
+        // (index.html) so header text sits below the iOS 27 status-bar blur.
+        <View style={{ height: STATUS_BAND }} />
       ) : null}
       {/* Web only: these are document tags, and on iOS expo-router's Head is a
           Handoff/Spotlight API that requires a configured origin. */}
