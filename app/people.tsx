@@ -1,13 +1,12 @@
 
 import { Text, View, ScrollView } from 'react-native';
-import { Alert } from '../utils/alert';
 import { router, useFocusEffect } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
-import { Person, Income } from '../types/budget';
+import { Person } from '../types/budget';
 import {
   calculatePersonIncome,
   calculateMonthlyAmount,
@@ -17,19 +16,14 @@ import {
 } from '../utils/calculations';
 import Icon from '../components/Icon';
 import StandardHeader from '../components/StandardHeader';
-import IncomeModal from '../components/IncomeModal';
-import { AmountText, Avatar, EmptyState, Input, ListGroup, ListRow, Sheet, Skeleton } from '../components/ui';
+import { AmountText, Avatar, EmptyState, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
 
 export default function PeopleScreen() {
-  const { data, addPerson, removePerson, addIncome, removeIncome, saving, refreshData, loading } = useBudgetData();
+  const { data, saving, refreshData, loading } = useBudgetData();
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { formatCurrency } = useCurrency();
-  const [showAddPerson, setShowAddPerson] = useState(false);
-  const [newPersonName, setNewPersonName] = useState('');
-  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
-  const [showIncomeModal, setShowIncomeModal] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Track when data has been loaded to prevent flicker
@@ -54,40 +48,6 @@ export default function PeopleScreen() {
     }, [loading, isDataLoaded])
   );
 
-  const handleAddPerson = useCallback(async () => {
-    console.log('PeopleScreen: Add person button pressed');
-    console.log('PeopleScreen: New person name:', newPersonName);
-
-    if (!newPersonName.trim()) {
-      Alert.alert('Error', 'Please enter a name');
-      return;
-    }
-
-    try {
-      const person: Person = {
-        id: `person_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        name: newPersonName.trim(),
-        income: [],
-      };
-
-      console.log('PeopleScreen: Adding new person:', person);
-      const result = await addPerson(person);
-      console.log('PeopleScreen: Person added result:', result);
-
-      if (result.success) {
-        setNewPersonName('');
-        setShowAddPerson(false);
-        console.log('PeopleScreen: Person added successfully');
-      } else {
-        Alert.alert('Error', 'Failed to add person. Please try again.');
-      }
-    } catch (error) {
-      console.error('PeopleScreen: Error adding person:', error);
-      Alert.alert('Error', 'Failed to add person. Please try again.');
-    }
-  }, [newPersonName, addPerson]);
-
-
   // Route-driven on every form factor (DESIGN.md §2.5): deep-linkable, one path.
   const handleEditPerson = useCallback((person: Person) => {
     router.push({
@@ -95,39 +55,6 @@ export default function PeopleScreen() {
       params: { personId: person.id, origin: 'people' }
     });
   }, []);
-
-  const handleAddIncomeFromModal = useCallback(async (personId: string, incomeData: Omit<Income, 'id' | 'personId'>) => {
-    console.log('PeopleScreen: Add income from modal');
-    console.log('PeopleScreen: Income data:', incomeData);
-    console.log('PeopleScreen: Person ID:', personId);
-
-    try {
-      const income: Income = {
-        id: `income_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        amount: incomeData.amount,
-        label: incomeData.label,
-        frequency: incomeData.frequency,
-        personId: personId,
-      };
-
-      console.log('PeopleScreen: Adding new income:', income);
-      const result = await addIncome(personId, income);
-      console.log('PeopleScreen: Income added result:', result);
-
-      if (result.success) {
-        console.log('PeopleScreen: Income added successfully');
-        return { success: true };
-      } else {
-        Alert.alert('Error', 'Failed to add income. Please try again.');
-        return { success: false, error: result.error };
-      }
-    } catch (error) {
-      console.error('PeopleScreen: Error adding income:', error);
-      Alert.alert('Error', 'Failed to add income. Please try again.');
-      return { success: false, error };
-    }
-  }, [addIncome]);
-
 
   const calculateRemainingIncome = useCallback((person: Person) => {
     const totalIncome = calculatePersonIncome(person);
@@ -143,17 +70,13 @@ export default function PeopleScreen() {
     return totalIncome - personalExpenses - householdShare;
   }, [data.expenses, data.people, data.householdSettings.distributionMethod]);
 
+  // Slides in like Edit person; the same screen, without a personId.
   const handleNavigateToAddPerson = useCallback(() => {
-    setShowAddPerson(true);
+    router.push('/edit-person');
   }, []);
 
-  const closeAddPerson = () => {
-    setShowAddPerson(false);
-    setNewPersonName('');
-  };
   const openIncome = (personId: string) => {
-    setSelectedPersonId(personId);
-    setShowIncomeModal(true);
+    router.push({ pathname: '/edit-income', params: { personId } });
   };
 
   const ready = isDataLoaded || !loading;
@@ -250,40 +173,6 @@ export default function PeopleScreen() {
           )}
         </View>
       </ScrollView>
-
-      <Sheet
-        visible={showAddPerson}
-        onClose={closeAddPerson}
-        title="Add person"
-        leadingAction={{ label: 'Cancel', onPress: closeAddPerson, disabled: saving }}
-        trailingAction={{ label: 'Add', onPress: handleAddPerson, disabled: !newPersonName.trim() || saving }}
-        width={420}
-      >
-        <View style={{ padding: space.s5 }}>
-          <Input
-            label="Name"
-            value={newPersonName}
-            onChangeText={setNewPersonName}
-            placeholder="e.g. Sam"
-            maxLength={50}
-            autoFocus
-            returnKeyType="done"
-            onSubmitEditing={handleAddPerson}
-          />
-        </View>
-      </Sheet>
-
-      <IncomeModal
-        visible={showIncomeModal}
-        onClose={() => {
-          setShowIncomeModal(false);
-          setSelectedPersonId(null);
-        }}
-        onAddIncome={handleAddIncomeFromModal}
-        people={data.people}
-        selectedPersonId={selectedPersonId}
-        saving={saving}
-      />
     </View>
   );
 }

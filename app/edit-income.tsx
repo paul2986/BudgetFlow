@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Text, View, ScrollView } from 'react-native';
+import { Text, View, ScrollView, TextInput } from 'react-native';
 import { Alert, confirmDiscard } from '../utils/alert';
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -17,8 +17,10 @@ import { useScrollBottomPadding } from '../hooks/useBreakpoint';
 import { useDiscardGuard } from '../hooks/useDiscardGuard';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
 
-// Fresh form per income and per visit: the screen stays mounted after it
-// blurs, so without a new key a reopened income shows discarded edits.
+// Edits an income, or adds one when there's no incomeId (the "Add income"
+// rows on People and Edit person push here, so it slides in like the other
+// editors). Fresh form per income and per visit: the screen stays mounted
+// after it blurs, so without a new key a reopened income shows discarded edits.
 export default function EditIncomeScreen() {
   const { personId, incomeId } = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const session = useFormSessionKey();
@@ -40,16 +42,27 @@ function EditIncomeForm() {
   const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
   const params = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const { personId, incomeId } = params;
+  const isNew = !incomeId;
 
-  const { data, updateIncome, removeIncome, saving, loading } = useBudgetData();
+  const { data, addIncome, updateIncome, removeIncome, saving, loading } = useBudgetData();
 
   const amountValid = !!editedIncome.amount && parseFloat(editedIncome.amount) > 0;
-  const changed =
-    !!income &&
-    (editedIncome.label.trim() !== income.label ||
-      parseFloat(editedIncome.amount) !== income.amount ||
-      editedIncome.frequency !== income.frequency);
+  const changed = isNew
+    ? !!editedIncome.label.trim() || !!editedIncome.amount
+    : !!income &&
+      (editedIncome.label.trim() !== income.label ||
+        parseFloat(editedIncome.amount) !== income.amount ||
+        editedIncome.frequency !== income.frequency);
   const canSave = changed && !!editedIncome.label.trim() && amountValid;
+
+  // New income: focus the source when the screen appears, not on mount; see
+  // ExpenseForm for why (hidden mount, and scrolling would cancel the slide).
+  const labelRef = useRef<TextInput>(null);
+  useFocusEffect(
+    useCallback(() => {
+      if (isNew) (labelRef.current as unknown as { focus: (o?: FocusOptions) => void } | null)?.focus({ preventScroll: true });
+    }, [isNew])
+  );
   const leave = useDiscardGuard(changed);
 
   // Back to wherever this was opened from (Edit person or People); a direct
@@ -142,7 +155,7 @@ function EditIncomeForm() {
   }, [personId, incomeId, data.people, data.expenses, loading, isDataLoaded]);
 
   const handleSaveIncome = useCallback(async () => {
-    if (!income || !personId) return;
+    if (!personId || (!isNew && !income)) return;
 
     if (!editedIncome.amount || !editedIncome.label.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
@@ -169,7 +182,13 @@ function EditIncomeForm() {
         frequency: editedIncome.frequency,
       };
 
-      const result = await updateIncome(personId, income.id, updates);
+      const result = income
+        ? await updateIncome(personId, income.id, updates)
+        : await addIncome(personId, {
+            id: `income_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+            personId,
+            ...updates,
+          });
       console.log('EditIncomeScreen: Income save result:', result);
 
       if (result && result.success) {
@@ -178,13 +197,13 @@ function EditIncomeForm() {
         handleGoBack();
       } else {
         console.error('EditIncomeScreen: Income save failed:', result?.error);
-        Alert.alert('Error', result?.error?.message || 'Failed to update income. Please try again.');
+        Alert.alert('Error', result?.error?.message || `Failed to ${isNew ? 'add' : 'update'} income. Please try again.`);
       }
     } catch (error) {
-      console.error('EditIncomeScreen: Error updating income:', error);
-      Alert.alert('Error', 'Failed to update income. Please try again.');
+      console.error('EditIncomeScreen: Error saving income:', error);
+      Alert.alert('Error', `Failed to ${isNew ? 'add' : 'update'} income. Please try again.`);
     }
-  }, [income, personId, editedIncome, updateIncome, handleGoBack, data.people, data.expenses]);
+  }, [isNew, income, personId, editedIncome, addIncome, updateIncome, handleGoBack, data.people, data.expenses]);
 
   const handleDeleteIncome = useCallback(() => {
     if (!income || !personId) return;
@@ -231,7 +250,9 @@ function EditIncomeForm() {
 
 
   const renderBody = () => {
-    if (!isDataLoaded || loading) {
+    // A new income only needs its person, so it shows at once rather than
+    // after the load effect (which also lets the focus effect find the input).
+    if (isNew ? loading && !person : !isDataLoaded || loading) {
       return (
         <View style={{ padding: space.s5, gap: space.s4 }}>
           <Skeleton height={48} />
@@ -240,7 +261,18 @@ function EditIncomeForm() {
         </View>
       );
     }
-    if (!income) {
+    if (isNew && !person) {
+      return (
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Person not found"
+          caption="They may have been deleted on another device."
+          actionLabel="Back to people"
+          onAction={() => router.replace('/people')}
+        />
+      );
+    }
+    if (!isNew && !income) {
       return (
         <EmptyState
           icon="alert-circle-outline"
@@ -259,10 +291,11 @@ function EditIncomeForm() {
         keyboardShouldPersistTaps="handled"
       >
         <Input
+          ref={labelRef}
           label="Source"
           value={editedIncome.label}
           onChangeText={(text) => setEditedIncome({ ...editedIncome, label: text })}
-          placeholder="e.g. Salary"
+          placeholder={isNew ? 'e.g. Salary, freelance, benefits' : 'e.g. Salary'}
           editable={!saving}
           helperText={person ? `Income for ${person.name}` : undefined}
         />
@@ -289,14 +322,16 @@ function EditIncomeForm() {
           />
         </View>
 
-        <Button
-          text="Delete income"
-          variant="ghost"
-          onPress={handleDeleteIncome}
-          disabled={saving}
-          textStyle={{ color: tokens.colors.danger }}
-          style={{ marginTop: space.s2 }}
-        />
+        {isNew ? null : (
+          <Button
+            text="Delete income"
+            variant="ghost"
+            onPress={handleDeleteIncome}
+            disabled={saving}
+            textStyle={{ color: tokens.colors.danger }}
+            style={{ marginTop: space.s2 }}
+          />
+        )}
       </ScrollView>
     );
   };
@@ -305,14 +340,14 @@ function EditIncomeForm() {
     <View style={themedStyles.container}>
       <FormScreen>
         <StandardHeader
-          title="Edit income"
+          title={isNew ? 'Add income' : 'Edit income'}
           onLeftPress={() => confirmDiscard(changed, handleGoBack)}
           confirm={{
             onPress: handleSaveIncome,
             dirty: changed,
             disabled: !canSave,
             loading: saving,
-            accessibilityLabel: 'Save changes',
+            accessibilityLabel: isNew ? 'Add income' : 'Save changes',
           }}
         />
         {renderBody()}
