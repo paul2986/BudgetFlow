@@ -221,13 +221,20 @@ export const calculateHouseholdShare = (
 
   const householdCents = toCents(householdExpenses);
 
-  if (distributionMethod === 'even') {
-    return fromCents(Math.round(householdCents / people.length));
-  } else {
-    const totalIncome = calculateTotalIncome(people);
-    if (totalIncome === 0) return fromCents(Math.round(householdCents / people.length));
+  // People excluded from the household share pay nothing toward it and the
+  // rest split it. If everyone is excluded, someone still has to cover the
+  // costs, so fall back to splitting between everyone.
+  const included = people.filter((p) => p && !p.excludeFromHouseholdShare);
+  const payers = included.length > 0 ? included : people;
+  if (!payers.some((p) => p && p.id === personId)) return 0;
 
-    const person = people.find((p) => p && p.id === personId);
+  if (distributionMethod === 'even') {
+    return fromCents(Math.round(householdCents / payers.length));
+  } else {
+    const totalIncome = calculateTotalIncome(payers);
+    if (totalIncome === 0) return fromCents(Math.round(householdCents / payers.length));
+
+    const person = payers.find((p) => p && p.id === personId);
     if (!person) return 0;
 
     const personIncome = calculatePersonIncome(person);

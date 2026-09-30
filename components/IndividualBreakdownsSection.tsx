@@ -137,7 +137,12 @@ export default function IndividualBreakdownsSection({
                 ))
               : null}
             <Line icon="person" iconColor={tokens.colors.personal} label="Personal spending" value={personal} />
-            <Line icon="home" iconColor={tokens.colors.household} label="Household share" value={share} />
+            <Line
+              icon="home"
+              iconColor={tokens.colors.household}
+              label={person.excludeFromHouseholdShare && personHouseholdShare === 0 ? 'Household share (not sharing)' : 'Household share'}
+              value={share}
+            />
 
             <View
               accessibilityLabel={`${Math.round(pct(personal))}% personal, ${Math.round(pct(share))}% household, ${Math.round(Math.abs(pct(remaining)))}% ${over ? 'over' : 'left'}`}

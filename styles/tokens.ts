@@ -59,6 +59,8 @@ export interface ColorTokens {
   loan: string;
   loanSubtle: string;
   overlay: string;
+  /** Switch knob, on and off; stays light in both modes so it reads against the brand track. */
+  switchThumb: string;
   /** Translucent material for floating chrome (tab bar, sticky headers); pair with a blur. */
   chrome: string;
 }
@@ -102,6 +104,7 @@ export const lightColors: ColorTokens = {
   loan: '#0E7490',
   loanSubtle: '#ECFEFF',
   overlay: 'rgba(15,23,42,0.5)',
+  switchThumb: '#FFFFFF',
   chrome: 'rgba(255,255,255,0.72)',
 };
 
@@ -142,6 +145,7 @@ export const darkColors: ColorTokens = {
   loan: '#67E8F9',
   loanSubtle: '#164E634D',
   overlay: 'rgba(2,6,23,0.65)',
+  switchThumb: '#F1F5F9',
   chrome: 'rgba(21,30,46,0.72)',
 };
 

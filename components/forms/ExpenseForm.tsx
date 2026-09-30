@@ -343,7 +343,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 />
                 <Text style={[type.caption, { color: tokens.colors.textFaint, marginTop: space.s1 }]}>
                     {category === 'household'
-                        ? 'Shared costs are split between everyone in the budget.'
+                        ? 'Shared costs are split between everyone who shares household costs.'
                         : 'Only counts against the person you choose.'}
                 </Text>
             </View>

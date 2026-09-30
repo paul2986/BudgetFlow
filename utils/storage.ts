@@ -268,6 +268,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
       .map((p: any) => ({
         id: p.id,
         name: p.name,
+        excludeFromHouseholdShare: p.excludeFromHouseholdShare === true ? true : undefined,
         updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : undefined,
         income: Array.isArray(p.income)
           ? p.income
