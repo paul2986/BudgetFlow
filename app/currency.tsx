@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { View, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
-import { useCurrency, CURRENCIES, Currency } from '../hooks/useCurrency';
+import { useCurrency, CURRENCIES, Currency, displaySymbol } from '../hooks/useCurrency';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
 import StandardHeader from '../components/StandardHeader';
@@ -59,7 +59,7 @@ export default function CurrencyScreen() {
                   <ListRow
                     key={curr.code}
                     title={curr.name}
-                    caption={`${curr.symbol} · ${curr.code}`}
+                    caption={`${displaySymbol(curr.symbol)} · ${curr.code}`}
                     trailing={selected ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
                     onPress={() => handleSelect(curr)}
                     accessibilityLabel={`${curr.name}${selected ? ', selected' : ''}`}
