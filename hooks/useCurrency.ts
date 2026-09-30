@@ -153,6 +153,14 @@ const notifyListeners = (currency: Currency) => {
   });
 };
 
+/**
+ * A currency symbol, safe to lead a left-to-right line. Some symbols are
+ * right-to-left (د.إ, ج.س.): the LRM keeps the line left-to-right instead of
+ * flipping it to the right edge, and the isolate keeps the symbol's own dots
+ * where they belong.
+ */
+export const displaySymbol = (symbol: string) => `\u200E\u2068${symbol}\u2069`;
+
 export const useCurrency = () => {
   const [currency, setCurrencyState] = useState<Currency>(globalCurrency);
   const [loading, setLoading] = useState(true);

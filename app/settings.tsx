@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Text, View, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
-import { useCurrency } from '../hooks/useCurrency';
+import { useCurrency, displaySymbol } from '../hooks/useCurrency';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
@@ -145,7 +145,7 @@ export default function SettingsScreen() {
               icon="cash-outline"
               trailing={
                 <Text style={[type.body, { color: tokens.colors.textMuted }]}>
-                  {currency.symbol} {currency.code}
+                  {displaySymbol(currency.symbol)} {currency.code}
                 </Text>
               }
               chevron
