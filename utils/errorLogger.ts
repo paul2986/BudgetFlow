@@ -101,6 +101,14 @@ const getCallerInfo = (): string => {
   return '';
 };
 
+const isSymbolicateRequest = (input: unknown): boolean => {
+  const url =
+    typeof input === 'string' ? input
+    : input instanceof URL ? input.href
+    : (input as { url?: unknown } | null)?.url;
+  return typeof url === 'string' && url.split('?')[0].endsWith('/symbolicate');
+};
+
 export const setupErrorLogging = () => {
   console.log('🔧 Setting up comprehensive error logging...');
 
@@ -247,6 +255,11 @@ export const setupErrorLogging = () => {
   if (originalFetch) {
     globalThis.fetch = (...args) => {
       return originalFetch(...args).catch((error) => {
+        // In development, LogBox resolves every console.error's stack through
+        // the dev server's /symbolicate. If Metro is down, logging that failure
+        // triggers another symbolicate request, and so on without end. It's
+        // dev-tool traffic, not an app error, so pass it through silently.
+        if (isSymbolicateRequest(args[0])) throw error;
         console.error('🚨 FETCH ERROR:', error);
         sendErrorToParent('error', 'Fetch Error', {
           url: args[0],
