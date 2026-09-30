@@ -293,6 +293,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             onLeftPress={handleCancel}
             confirm={{
                 onPress: handleSaveExpense,
+                dirty: isDirty,
                 // Editing: nothing to save until something changes (matches person/income).
                 disabled: !canSave || (isEditMode && !isDirty),
                 loading: isSaving,
