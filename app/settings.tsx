@@ -130,6 +130,14 @@ export default function SettingsScreen() {
                 />
               }
               accessibilityLabel={`${user?.email || 'Signed in'}, ${isSyncing ? 'syncing' : 'synced'}`}
+            />
+            {/* Sign out is reversible (data stays synced), so it lives with the
+                account it acts on and stays neutral; red is reserved for the
+                permanent actions in the danger zone. */}
+            <ListRow
+              title="Sign out"
+              icon="log-out-outline"
+              onPress={() => setConfirmSignOutVisible(true)}
               showSeparator={false}
             />
           </ListGroup>
@@ -204,29 +212,25 @@ export default function SettingsScreen() {
             </View>
           </ListGroup>
 
-          <ListGroup>
-            <ListRow
-              title="Sign out"
-              icon="log-out-outline"
-              destructive
-              onPress={() => setConfirmSignOutVisible(true)}
-              showSeparator={false}
-            />
-          </ListGroup>
-
-          <ListGroup footer="Permanently deletes every budget, person and expense in your account.">
+          {/* Irreversible actions sit apart at the bottom, after an extra gap,
+              so they're never mistaken for everyday controls. */}
+          <ListGroup
+            header="Danger zone"
+            footer="These actions are permanent and can’t be undone."
+            style={{ marginTop: space.s4 }}
+          >
             <ListRow
               title="Erase all data"
+              caption="Removes all budgets, people and expenses; keeps your account"
+              captionLines={2}
               icon="trash-outline"
               destructive
               onPress={handleClearAllData}
-              showSeparator={false}
             />
-          </ListGroup>
-
-          <ListGroup footer="Permanently deletes your account and everything in it, and signs you out.">
             <ListRow
               title="Delete account"
+              caption="Removes your account and everything in it"
+              captionLines={2}
               icon="person-remove-outline"
               destructive
               onPress={() => setConfirmDeleteVisible(true)}

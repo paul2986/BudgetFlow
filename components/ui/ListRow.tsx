@@ -14,6 +14,8 @@ import { type, radius, space } from '../../styles/tokens';
 interface ListRowProps {
   title: string;
   caption?: string;
+  /** Lines the caption may wrap to before truncating (default 1, for scannable lists). */
+  captionLines?: number;
   /** Ionicons name for the leading glyph. */
   icon?: string;
   iconColor?: string;
@@ -39,6 +41,7 @@ interface ListRowProps {
 export default function ListRow({
   title,
   caption,
+  captionLines = 1,
   icon,
   iconColor,
   leading,
@@ -104,7 +107,7 @@ export default function ListRow({
             {title}
           </Text>
           {caption ? (
-            <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: 2 }]} numberOfLines={1}>
+            <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: 2 }]} numberOfLines={captionLines}>
               {caption}
             </Text>
           ) : null}
