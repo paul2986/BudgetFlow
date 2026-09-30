@@ -18,6 +18,10 @@ import { useReducedMotion } from './useReducedMotion';
  *   hence the `sceneZIndex` option (patches/expo-router+*.patch). The same
  *   patch makes unfocused screens ignore touches, so the editor sliding out
  *   (and parked off-screen after, still on top) never blocks the screen below.
+ * - web keeps every visited tab screen in the page, stacked behind the focused
+ *   one in route order, so the screen being slid over is lifted above the
+ *   rest; otherwise the gap would show whichever hidden screen is highest
+ *   (e.g. a previously closed editor) instead of the one you came from.
  * - editor to editor: pushing (person → income) slides the new one in; going
  *   back slides the top one out.
  * Tab-to-tab switches stay instant. The static screens still get a spring so
@@ -42,7 +46,7 @@ const SPRING = {
 
 const FADE = { animation: 'timing', config: { duration: motion.exit } } as const;
 
-type Transition = { moving?: string; exiting?: boolean };
+type Transition = { moving?: string; under?: string };
 
 type Options = BottomTabNavigationOptions & { sceneZIndex?: number };
 
@@ -56,9 +60,9 @@ function nextTransition(prev: NavigationState['routes'][number] | undefined, sta
   // Pushed on top: from a non-editor, or from an editor that is still in the
   // history beneath (person → income).
   if (isEditor(focused.name) && (!isEditor(prev.name) || history.includes(prev.key))) {
-    return { moving: focused.key };
+    return { moving: focused.key, under: prev.key };
   }
-  if (isEditor(prev.name)) return { moving: prev.key, exiting: true };
+  if (isEditor(prev.name)) return { moving: prev.key };
   return {};
 }
 
@@ -95,9 +99,17 @@ export function useEditorTransitions(width: number, enabled: boolean) {
             : nextTransition(state.routes.find((r) => r.key === memo.focusKey), state);
         last.current = { state, focusKey, transition };
       }
-      const { moving, exiting } = last.current.transition;
+      const { moving, under } = last.current.transition;
 
       const options: Options = { transitionSpec: reduced ? FADE : SPRING };
+      // Web only. Native detaches every screen not in the transition and
+      // stacks the rest in route order, which already puts the editors above
+      // the main tabs; a zIndex change there reorders the native views
+      // mid-slide, which drops the transform.
+      if (Platform.OS === 'web') {
+        if (route.key === moving) options.sceneZIndex = 2;
+        else if (route.key === under) options.sceneZIndex = 1;
+      }
       if (route.key !== moving) {
         if (Platform.OS !== 'web') {
           options.sceneStyleInterpolator = ({ current }: { current: { progress: Animated.Value } }) =>
@@ -107,10 +119,6 @@ export function useEditorTransitions(width: number, enabled: boolean) {
         }
         return options;
       }
-      // Web only. Native stacks tab screens in route order, which already puts
-      // the editors above the main tabs, and a zIndex change there reorders the
-      // native views mid-slide, which drops the transform.
-      if (exiting && Platform.OS === 'web') options.sceneZIndex = 1;
       options.sceneStyleInterpolator = ({ current }: { current: { progress: Animated.Value } }) =>
         cachedStyle(current.progress, `${reduced}:${width}`, () => ({
           sceneStyle: reduced
