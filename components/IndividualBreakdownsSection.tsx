@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { View, Text } from 'react-native';
+import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
 import { AmountText, Avatar, Card, EmptyState } from './ui';
 import { type, space, radius, tabularNums } from '../styles/tokens';
@@ -94,7 +95,12 @@ export default function IndividualBreakdownsSection({
         const leftColor = over ? tokens.colors.danger : tokens.colors.income;
 
         return (
-          <Card key={person.id} style={{ flexGrow: 1, flexBasis: 300 } as any}>
+          <Card
+            key={person.id}
+            style={{ flexGrow: 1, flexBasis: 300 } as any}
+            onPress={() => router.push({ pathname: '/edit-person', params: { personId: person.id } })}
+            accessibilityLabel={`Edit ${person.name}`}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.s4 }}>
               <Avatar name={person.name} seed={person.id} size={44} />
               <View style={{ flex: 1, marginLeft: space.s3 }}>
@@ -112,6 +118,7 @@ export default function IndividualBreakdownsSection({
                   </Text>
                 </View>
               </View>
+              <Icon name="chevron-forward" size={16} color={tokens.colors.textFaint} style={{ marginLeft: space.s2 }} />
             </View>
 
             <Line icon="trending-up" iconColor={tokens.colors.income} label="Income" value={income} />

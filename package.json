@@ -10,7 +10,8 @@
     "build:web": "expo export -p web && npx workbox generateSW workbox-config.js",
     "build:android": "expo prebuild -p android",
     "lint": "eslint .",
-    "check:native": "expo install --check && expo export -p ios --output-dir .expo/check-native"
+    "check:native": "expo install --check && expo export -p ios --output-dir .expo/check-native",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.3",
@@ -76,6 +77,7 @@
     "babel-preset-expo": "~57.0.0",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~57.0.2",
+    "patch-package": "^8.0.1",
     "playwright": "^1.60.0",
     "typescript": "~6.0.3",
     "webpack-cli": "^6.0.1"

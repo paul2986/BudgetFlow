@@ -126,9 +126,11 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     // New expense: focus the description when the screen appears, not on
     // mount (autoFocus). A fresh form mounts while its screen is still hidden
     // (see useFormSessionKey), and autoFocus there would grab the keyboard.
+    // preventScroll (web): the screen is still sliding in, and scrolling the
+    // input into view would shift the clipped container and cancel the slide.
     useFocusEffect(
         useCallback(() => {
-            if (!isEditMode) descriptionRef.current?.focus();
+            if (!isEditMode) (descriptionRef.current as unknown as { focus: (o?: FocusOptions) => void } | null)?.focus({ preventScroll: true });
         }, [isEditMode])
     );
 
