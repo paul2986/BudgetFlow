@@ -1,7 +1,8 @@
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
-import StandardHeader from '../components/StandardHeader';
+import { View, Text, Animated, StyleSheet } from 'react-native';
+import StandardHeader, { LargeTitle } from '../components/StandardHeader';
+import { useLargeTitle } from '../hooks/useLargeTitle';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
@@ -18,6 +19,7 @@ import { type, space, radius, tabularNums } from '../styles/tokens';
 export default function ToolsScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { tokens } = useTheme();
+  const largeTitle = useLargeTitle();
   const { formatCurrency, currency } = useCurrency();
   const { showToast } = useToast();
 
@@ -400,13 +402,18 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Tools" showLeftIcon={false} showRightIcon={false} />
-      <ScrollView
+      <StandardHeader title="Tools" largeTitle={largeTitle} showLeftIcon={false} showRightIcon={false} />
+      <Animated.ScrollView
+        {...largeTitle.scrollProps}
         style={{ flex: 1 }}
-        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+        contentContainerStyle={[
+          themedStyles.scrollContent,
+          { paddingHorizontal: breakpoint.gutter, paddingTop: largeTitle.enabled ? 0 : space.s6 },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
+          <LargeTitle largeTitle={largeTitle} />
           <Text accessibilityRole="header" style={[type.h2, { color: tokens.colors.text }]}>
             Credit card payoff
           </Text>
@@ -425,7 +432,7 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
             <View style={breakpoint.isExpanded ? { flex: 1.2 } : undefined}>{resultsCard()}</View>
           </View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

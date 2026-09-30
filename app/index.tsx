@@ -6,7 +6,7 @@ import {
 } from '../utils/calculations';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Text, View, ScrollView, AppState, KeyboardAvoidingView, Platform, AppStateStatus, Image } from 'react-native';
+import { Text, View, Animated, AppState, KeyboardAvoidingView, Platform, AppStateStatus, Image } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '../hooks/useTheme';
@@ -16,7 +16,8 @@ import { useToast } from '../hooks/useToast';
 import { useBudgetLock } from '../hooks/useBudgetLock';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
-import StandardHeader from '../components/StandardHeader';
+import StandardHeader, { LargeTitle } from '../components/StandardHeader';
+import { useLargeTitle } from '../hooks/useLargeTitle';
 import OverviewSection from '../components/OverviewSection';
 import IndividualBreakdownsSection from '../components/IndividualBreakdownsSection';
 import ExpiringSection from '../components/ExpiringSection';
@@ -451,6 +452,8 @@ export default function HomeScreen() {
   // The rail and sidebar already name the budget on medium+; the first-budget
   // screen is a welcome, so it has no header at all.
   const showHeader = breakpoint.isCompact && state !== 'noBudget';
+  const largeTitle = useLargeTitle();
+  const headerTitle = state === 'loading' ? '' : budgetTitle;
 
   return (
     <KeyboardAvoidingView
@@ -460,7 +463,9 @@ export default function HomeScreen() {
     >
       {showHeader ? (
         <StandardHeader
-          title={state === 'loading' ? '' : budgetTitle}
+          title={headerTitle}
+          // Setup opens with its own "Set up …" intro, so a plain header.
+          largeTitle={state === 'setup' ? undefined : largeTitle}
           showLeftIcon={false}
           showRightIcon={state !== 'loading'}
           rightIcon="wallet-outline"
@@ -468,20 +473,29 @@ export default function HomeScreen() {
         />
       ) : null}
 
-      <ScrollView
+      <Animated.ScrollView
+        {...largeTitle.scrollProps}
         style={{ flex: 1 }}
         contentContainerStyle={[
           themedStyles.scrollContent,
           {
             paddingHorizontal: breakpoint.gutter,
-            paddingTop: state === 'noBudget' || state === 'setup' ? space.s9 : space.s4,
+            paddingTop:
+              state === 'noBudget' || state === 'setup'
+                ? space.s9
+                : showHeader && largeTitle.enabled
+                  ? 0
+                  : space.s4,
           },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>{renderBody()}</View>
-      </ScrollView>
+        <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
+          {showHeader && state !== 'setup' ? <LargeTitle largeTitle={largeTitle} /> : null}
+          {renderBody()}
+        </View>
+      </Animated.ScrollView>
     </KeyboardAvoidingView>
   );
 }

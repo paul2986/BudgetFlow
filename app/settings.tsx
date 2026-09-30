@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Text, View, ScrollView, Platform } from 'react-native';
+import { Text, View, ScrollView, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency, CURRENCIES, Currency } from '../hooks/useCurrency';
@@ -8,7 +8,8 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { Alert } from '../utils/alert';
-import StandardHeader from '../components/StandardHeader';
+import StandardHeader, { LargeTitle } from '../components/StandardHeader';
+import { useLargeTitle } from '../hooks/useLargeTitle';
 import Icon from '../components/Icon';
 import {
   Avatar,
@@ -36,6 +37,7 @@ const SETTINGS_MAX_WIDTH = 680;
 
 export default function SettingsScreen() {
   const { tokens, themeMode, setThemeMode } = useTheme();
+  const largeTitle = useLargeTitle();
   const { currency, setCurrency } = useCurrency();
   const { appData, activeBudget, clearAllData, user, isSyncing } = useBudgetData();
   const { themedStyles, breakpoint } = useThemedStyles();
@@ -107,16 +109,18 @@ export default function SettingsScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Settings" showLeftIcon={false} showRightIcon={false} />
+      <StandardHeader title="Settings" largeTitle={largeTitle} showLeftIcon={false} showRightIcon={false} />
 
-      <ScrollView
+      <Animated.ScrollView
+        {...largeTitle.scrollProps}
         style={{ flex: 1 }}
         contentContainerStyle={[
           themedStyles.scrollContent,
-          { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 },
+          { paddingHorizontal: breakpoint.gutter, paddingTop: largeTitle.enabled ? 0 : space.s6 },
         ]}
       >
         <View style={{ width: '100%', maxWidth: SETTINGS_MAX_WIDTH, alignSelf: 'center' }}>
+          <LargeTitle largeTitle={largeTitle} />
           <ListGroup header="Account">
             <ListRow
               title={user?.email || 'Signed in'}
@@ -242,7 +246,7 @@ export default function SettingsScreen() {
             Budget Flow 1.0.0
           </Text>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <Sheet
         visible={showCurrencySheet}
