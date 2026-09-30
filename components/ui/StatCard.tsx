@@ -21,9 +21,11 @@ interface StatCardProps {
   tone?: 'default' | 'income' | 'expense' | 'household' | 'personal';
   caption?: string;
   style?: ViewStyle | ViewStyle[];
+  /** Count the amount up/down when `value` changes. */
+  animate?: boolean;
 }
 
-export default function StatCard({ label, value, icon, tone = 'default', caption, style }: StatCardProps) {
+export default function StatCard({ label, value, icon, tone = 'default', caption, style, animate }: StatCardProps) {
   const { tokens } = useTheme();
   const bp = useBreakpoint();
 
@@ -65,6 +67,7 @@ export default function StatCard({ label, value, icon, tone = 'default', caption
         role={bp.isCompact ? 'h2' : 'h1'}
         tone={tone === 'income' || tone === 'expense' ? tone : 'default'}
         numberOfLines={1}
+        animate={animate}
       />
       {caption ? (
         <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1 }]} numberOfLines={1}>

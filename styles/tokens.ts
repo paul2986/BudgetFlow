@@ -315,6 +315,8 @@ export const motion = {
   /** Crossfades, accordion, tab content (enter; exits ~150ms). */
   base: 220,
   exit: 150,
+  /** Amounts counting up/down to a new value (ease-out), e.g. a period switch. */
+  count: 420,
   /** Bottom sheets & dialogs (scale 0.96 -> 1 + fade). */
   spring: { damping: 28, stiffness: 260 },
   /** List/dashboard entrance stagger; cap at 6 items. */

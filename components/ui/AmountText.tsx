@@ -2,6 +2,7 @@ import React from 'react';
 import { Text, TextStyle } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useCurrency } from '../../hooks/useCurrency';
+import { useCountUp } from '../../hooks/useCountUp';
 import { type, tabularNums } from '../../styles/tokens';
 
 /**
@@ -19,6 +20,8 @@ interface AmountTextProps {
   suffix?: string;
   style?: TextStyle | TextStyle[];
   numberOfLines?: number;
+  /** Count up/down to a new value instead of swapping it (see useCountUp). */
+  animate?: boolean;
 }
 
 export default function AmountText({
@@ -28,9 +31,11 @@ export default function AmountText({
   suffix,
   style,
   numberOfLines,
+  animate = false,
 }: AmountTextProps) {
   const { tokens } = useTheme();
   const { formatCurrency } = useCurrency();
+  const shown = useCountUp(value, animate);
 
   const resolvedTone = tone === 'auto' ? (value < 0 ? 'expense' : 'income') : tone;
   const color =
@@ -47,7 +52,7 @@ export default function AmountText({
       style={[type[role], tabularNums, { color }, style]}
       numberOfLines={numberOfLines}
     >
-      {formatCurrency(value)}
+      {formatCurrency(shown)}
       {suffix ? (
         <Text style={[type.caption, tabularNums, { color: tokens.colors.textMuted }]}>
           {suffix}
