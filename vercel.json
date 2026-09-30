@@ -1,5 +1,5 @@
 {
-    "framework": "create-react-app",
+    "framework": null,
     "rewrites": [
         {
             "source": "/((?!_expo/|assets/).*)",
