@@ -169,7 +169,10 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             } catch (e) { }
 
             // Older expenses could carry a debt tag under any category. Show them
-            // under the matching debt category so saving keeps the tag.
+            // under the matching debt category so saving keeps the tag. The
+            // baseline keeps the stored category, so the switch reads as an edit
+            // the user can save.
+            const storedCategoryTag = loaded.categoryTag;
             const legacyDebt = expenseToEdit.debtRepayment;
             if (legacyDebt && debtRepaymentForCategory(loaded.categoryTag) !== legacyDebt) {
                 loaded.categoryTag = CATEGORY_BY_DEBT_REPAYMENT[legacyDebt];
@@ -191,7 +194,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             setCategoryTag(loaded.categoryTag);
             setStartDateYMD(loaded.startDateYMD);
             setEndDate(loaded.endDate);
-            setBaseline(snapshotOf(loaded));
+            setBaseline(snapshotOf({ ...loaded, categoryTag: storedCategoryTag }));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isEditMode, expenseToEdit]);
