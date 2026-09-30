@@ -55,14 +55,14 @@ export default function Button({
         };
       case 'outline':
         return {
-          bg: hovered ? tokens.colors.surfaceSunken : 'transparent',
+          bg: hovered ? tokens.colors.surfaceHover : 'transparent',
           label: tokens.colors.text,
           borderColor: tokens.colors.borderStrong,
           borderWidth: 1.5,
         };
       case 'ghost':
         return {
-          bg: hovered ? tokens.colors.surfaceSunken : 'transparent',
+          bg: hovered ? tokens.colors.surfaceHover : 'transparent',
           label: tokens.colors.brand,
           borderColor: 'transparent',
           borderWidth: 0,

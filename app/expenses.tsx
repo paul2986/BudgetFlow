@@ -14,11 +14,44 @@ import ExpenseFilterModal from '../components/ExpenseFilterModal';
 import ExpenseCard from '../components/ExpenseCard';
 import ExpenseFilterBar from '../components/ExpenseFilterBar';
 import ExpenseTable, { SortOption, SortOrder } from '../components/ExpenseTable';
-import { AmountText, EmptyState, ListGroup, SearchField, SegmentedControl } from '../components/ui';
+import { AmountText, EmptyState, ListGroup, Menu, SearchField, type MenuAnchor } from '../components/ui';
+import { haptics } from '../utils/haptics';
 import { type, space, radius } from '../styles/tokens';
 import { DEFAULT_CATEGORIES } from '../types/budget';
 import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, normalizeCategoryName } from '../utils/storage';
 
+
+// Sort menu: each field offers both directions; the list defaults to newest first.
+const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; label: string }[] }[] = [
+  {
+    title: 'Date added',
+    options: [
+      { by: 'date', order: 'desc', label: 'Newest first' },
+      { by: 'date', order: 'asc', label: 'Oldest first' },
+    ],
+  },
+  {
+    title: 'Name',
+    options: [
+      { by: 'alphabetical', order: 'asc', label: 'A to Z' },
+      { by: 'alphabetical', order: 'desc', label: 'Z to A' },
+    ],
+  },
+  {
+    title: 'Amount',
+    options: [
+      { by: 'cost', order: 'desc', label: 'Highest first' },
+      { by: 'cost', order: 'asc', label: 'Lowest first' },
+    ],
+  },
+  {
+    title: 'Category',
+    options: [
+      { by: 'categoryTag', order: 'asc', label: 'A to Z' },
+      { by: 'categoryTag', order: 'desc', label: 'Z to A' },
+    ],
+  },
+];
 
 export default function ExpensesScreen() {
   const { data, removeExpense, saving, refreshData } = useBudgetData();
@@ -377,6 +410,22 @@ export default function ExpensesScreen() {
     }
   }, [sortBy, sortOrder]);
 
+  const sortButtonRef = useRef<View>(null);
+  const [sortMenuAnchor, setSortMenuAnchor] = useState<MenuAnchor | null>(null);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const openSortMenu = useCallback(() => {
+    sortButtonRef.current?.measureInWindow((x, y, width, height) => {
+      setSortMenuAnchor({ x, y, width, height });
+      setShowSortMenu(true);
+    });
+  }, []);
+  const chooseSort = useCallback((by: SortOption, order: SortOrder) => {
+    if (by !== sortBy || order !== sortOrder) haptics.selection();
+    setSortBy(by);
+    setSortOrder(order);
+    setShowSortMenu(false);
+  }, [sortBy, sortOrder]);
+
   // Apply filters with proper logic and error handling
   let filteredExpenses = [...data.expenses]; // Create a copy to avoid mutating original
 
@@ -532,7 +581,11 @@ export default function ExpensesScreen() {
 
   // The table needs expanded width; tablet widths read better as the list.
   const useTable = breakpoint.isExpanded;
-  const compactSort: SortOption = ['date', 'alphabetical', 'cost'].includes(sortBy) ? sortBy : 'date';
+  const isDefaultSort = sortBy === 'date' && sortOrder === 'desc';
+  const currentSortLabel =
+    SORT_MENU.flatMap((g) => g.options.map((o) => ({ ...o, group: g.title })))
+      .filter((o) => o.by === sortBy && o.order === sortOrder)
+      .map((o) => `${o.group}, ${o.label}`)[0] ?? 'custom order';
 
   return (
     <View style={themedStyles.container}>
@@ -565,7 +618,40 @@ export default function ExpensesScreen() {
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
           {data.expenses.length > 0 ? (
             <>
-              <SearchField value={searchQuery} onChangeText={setSearchQuery} placeholder="Search expenses" />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s2 }}>
+                <SearchField
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Search expenses"
+                  style={{ flex: 1 }}
+                />
+                <View ref={sortButtonRef} collapsable={false}>
+                  <Pressable
+                    onPress={openSortMenu}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Sort, ${currentSortLabel}`}
+                    accessibilityHint="Opens sort options"
+                    style={({ pressed }) => ({
+                      width: 44,
+                      height: 44,
+                      borderRadius: radius.md,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: pressed
+                        ? tokens.colors.surfaceHover
+                        : isDefaultSort
+                          ? tokens.colors.surface
+                          : tokens.colors.brandSubtle,
+                    })}
+                  >
+                    <Icon
+                      name="swap-vertical"
+                      size={20}
+                      color={isDefaultSort ? tokens.colors.text : tokens.colors.brand}
+                    />
+                  </Pressable>
+                </View>
+              </View>
 
               <ExpenseFilterBar
                 people={data.people}
@@ -583,38 +669,7 @@ export default function ExpensesScreen() {
                 onClearAll={handleClearFilters}
               />
 
-              {!useTable ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s2, marginBottom: space.s4 }}>
-                  <SegmentedControl<SortOption>
-                    label="Sort by"
-                    style={{ flex: 1 }}
-                    value={compactSort}
-                    onChange={(v) => handleSortPress(v)}
-                    options={[
-                      { value: 'date', label: 'Date' },
-                      { value: 'alphabetical', label: 'Name' },
-                      { value: 'cost', label: 'Amount' },
-                    ]}
-                  />
-                  <Pressable
-                    onPress={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    accessibilityRole="button"
-                    accessibilityLabel={sortOrder === 'asc' ? 'Sorted ascending. Reverse order' : 'Sorted descending. Reverse order'}
-                    style={({ pressed }) => ({
-                      width: 44,
-                      height: 40,
-                      borderRadius: radius.md,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: pressed ? tokens.colors.border : tokens.colors.surface,
-                    })}
-                  >
-                    <Icon name={sortOrder === 'asc' ? 'arrow-up' : 'arrow-down'} size={18} color={tokens.colors.text} />
-                  </Pressable>
-                </View>
-              ) : (
-                <View style={{ height: space.s2 }} />
-              )}
+              <View style={{ height: useTable ? space.s2 : space.s4 }} />
             </>
           ) : null}
 
@@ -689,6 +744,23 @@ export default function ExpensesScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Menu
+        visible={showSortMenu}
+        onClose={() => setShowSortMenu(false)}
+        anchor={sortMenuAnchor}
+        label="Sort expenses"
+        sections={SORT_MENU.map((group) => ({
+          title: group.title,
+          items: group.options.map((o) => ({
+            key: `${o.by}-${o.order}`,
+            label: o.label,
+            icon: o.order === 'asc' ? 'arrow-up' : 'arrow-down',
+            checked: sortBy === o.by && sortOrder === o.order,
+            onPress: () => chooseSort(o.by, o.order),
+          })),
+        }))}
+      />
 
       <ExpenseFilterModal
         visible={showFilterModal}

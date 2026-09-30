@@ -18,6 +18,8 @@ interface ListRowProps {
   captionLines?: number;
   /** Ionicons name for the leading glyph. */
   icon?: string;
+  /** Short text in the glyph circle instead of an icon (e.g. a currency symbol). */
+  glyphText?: string;
   iconColor?: string;
   /** Custom leading element (e.g. Avatar) — overrides icon. */
   leading?: React.ReactNode;
@@ -43,6 +45,7 @@ export default function ListRow({
   caption,
   captionLines = 1,
   icon,
+  glyphText,
   iconColor,
   leading,
   trailing,
@@ -57,6 +60,8 @@ export default function ListRow({
 }: ListRowProps) {
   const { tokens } = useTheme();
   const [hovered, setHovered] = useState(false);
+  const hasGlyph = !!(icon || glyphText);
+  const glyphColor = destructive ? tokens.colors.danger : iconColor || tokens.colors.textMuted;
 
   return (
     <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
@@ -75,7 +80,7 @@ export default function ListRow({
             paddingVertical: space.s3,
             paddingHorizontal: space.s4,
             // Only tappable rows highlight; static rows (e.g. a switch row) stay flat.
-            backgroundColor: onPress && (pressed || hovered) ? tokens.colors.surfaceSunken : 'transparent',
+            backgroundColor: onPress && (pressed || hovered) ? tokens.colors.surfaceHover : 'transparent',
             flex: 1,
             paddingRight: accessory ? space.s2 : space.s4,
             // @ts-ignore web transition
@@ -84,7 +89,7 @@ export default function ListRow({
         ]}
       >
         {leading ??
-          (icon ? (
+          (hasGlyph ? (
             <View
               style={{
                 width: 36,
@@ -95,15 +100,21 @@ export default function ListRow({
                 justifyContent: 'center',
               }}
             >
-              <Icon
-                name={icon as any}
-                size={18}
-                color={destructive ? tokens.colors.danger : iconColor || tokens.colors.textMuted}
-              />
+              {glyphText ? (
+                // Multi-character symbols (HK$, CHF) drop to caption to fit the circle.
+                <Text
+                  style={[glyphText.length > 2 ? type.caption : type.bodyMed, { color: glyphColor }]}
+                  numberOfLines={1}
+                >
+                  {glyphText}
+                </Text>
+              ) : (
+                <Icon name={icon as any} size={18} color={glyphColor} />
+              )}
             </View>
           ) : null)}
 
-        <View style={{ flex: 1, marginLeft: leading || icon ? space.s3 : 0, marginRight: space.s3 }}>
+        <View style={{ flex: 1, marginLeft: leading || hasGlyph ? space.s3 : 0, marginRight: space.s3 }}>
           <Text style={[type.bodyMed, { color: destructive ? tokens.colors.danger : tokens.colors.text }]} numberOfLines={1}>
             {title}
           </Text>
@@ -132,11 +143,13 @@ export default function ListRow({
         <View
           style={{
             position: 'absolute',
-            left: leading || icon ? space.s4 + 36 + space.s3 : space.s4,
+            // Edge to edge: rows in a group read as separate items, not an indented list.
+            left: 0,
             right: 0,
             bottom: 0,
             height: StyleSheet.hairlineWidth,
-            backgroundColor: tokens.colors.borderStrong,
+            // Quieter `border` grey: rows sit in one group, so the line only needs to hint.
+            backgroundColor: tokens.colors.border,
           }}
         />
       ) : null}

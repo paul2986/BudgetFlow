@@ -41,9 +41,11 @@ const newId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toStr
 
 interface NewPersonFormProps {
     onClose: () => void;
+    /** Called with the new person's id once saved, before closing. */
+    onCreated?: (personId: string) => void;
 }
 
-export default function NewPersonForm({ onClose }: NewPersonFormProps) {
+export default function NewPersonForm({ onClose, onCreated }: NewPersonFormProps) {
     const { data, addPerson, saving } = useBudgetData();
     const { tokens } = useTheme();
     const scrollBottomPadding = useScrollBottomPadding();
@@ -97,7 +99,10 @@ export default function NewPersonForm({ onClose }: NewPersonFormProps) {
             ...(sharesHousehold ? null : { excludeFromHouseholdShare: true }),
         };
         const result = await addPerson(person);
-        if (result.success) leave(onClose);
+        if (result.success) {
+            onCreated?.(personId);
+            leave(onClose);
+        }
         else Alert.alert('Couldn’t add person', 'Please try again.');
     };
 
@@ -175,7 +180,7 @@ export default function NewPersonForm({ onClose }: NewPersonFormProps) {
                                 padding: space.s4,
                                 gap: space.s4,
                                 borderBottomWidth: StyleSheet.hairlineWidth,
-                                borderBottomColor: tokens.colors.borderStrong,
+                                borderBottomColor: tokens.colors.border,
                             }}
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

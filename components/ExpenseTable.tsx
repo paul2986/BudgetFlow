@@ -137,9 +137,9 @@ function Row({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: space.s2,
-        backgroundColor: hovered ? tokens.colors.surfaceSunken : 'transparent',
+        backgroundColor: hovered ? tokens.colors.surfaceHover : 'transparent',
         borderBottomWidth: StyleSheet.hairlineWidth,
-        borderBottomColor: tokens.colors.borderStrong,
+        borderBottomColor: tokens.colors.border,
         opacity: isDeleting ? 0.5 : 1,
         // @ts-ignore web transition
         transitionDuration: '150ms',
@@ -154,7 +154,7 @@ function Row({
           flexDirection: 'row',
           alignItems: 'center',
           minHeight: 52,
-          backgroundColor: pressed ? tokens.colors.surfaceSunken : 'transparent',
+          backgroundColor: pressed ? tokens.colors.surfaceHover : 'transparent',
         })}
       >
         <View style={[cell, { flex: 2 }]}>

@@ -114,6 +114,7 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 | `bg` | `#F8FAFC` | Page background |
 | `surface` | `#FFFFFF` | Cards, sheets, bars |
 | `surfaceSunken` | `#F1F5F9` | Inset wells, segmented track |
+| `surfaceHover` | `#E8EDF3` | Hover/pressed fill on cards, rows and icon buttons; darker than both `surface` and the page grey so it never matches `bg` |
 | `field` | `#FFFFFF` | Editable field fill (inputs, date fields); white so fields never read as read-only on the grey page |
 | `text` | `#0F172A` | Primary text (16.9:1) |
 | `textMuted` | `#475569` | Secondary text (7.5:1 — replaces #6B7280) |
@@ -142,6 +143,7 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 | `bg` | `#0B1220` | Page background (slightly warm-navy; not pure black) |
 | `surface` | `#151E2E` | Cards — one visible step above bg |
 | `surfaceSunken` | `#0F1726` | Wells |
+| `surfaceHover` | `#222D40` | Hover/pressed fill; lifts above `surface` and `surfaceRaised` (dark hovers lighten, never sink toward `bg`) |
 | `field` | `#0F1726` | Editable field fill (same as surfaceSunken) |
 | `text` | `#F1F5F9` | 15.5:1 |
 | `textMuted` | `#94A3B8` | 6.4:1 |
@@ -287,7 +289,7 @@ Every screen keeps its exact current capabilities; only presentation changes.
 | **Input** | 48px min height, `field` fill, 1px borderStrong, radius `rSm`; label above (`caption`, textMuted) — never placeholder-only; focus = `brand` border + ring; error = `danger` border + caption below with icon; helper text slot; correct `keyboardType`/`autoComplete` per field. CurrencyInput: prefix symbol slot, tabular numerals, `decimal-pad`. |
 | **Card** | `surface`, radius `rLg`, e1, padding per §2.3. Optional header row (title `h3` + action slot). No colored borders except 3px **left accent strip** variant for warning/expired states (paired with icon+label). |
 | **StatCard** | Overline label + icon chip (20px, subtle fill) · `h1`-sized tabular amount · optional caption delta. Semantic coloring only on the amount, never the card bg (except hero). |
-| **ListRow** | 64px min, leading glyph circle 36, primary+caption text block, trailing value/chevron; hairline separators inset to text; pressed = `surfaceSunken`; entire row is one target — inner actions only via swipe (compact) or hover-revealed 36px labeled icon buttons (pointer devices). |
+| **ListRow** | 64px min, leading glyph circle 36, primary+caption text block, trailing value/chevron; hairline separators in `border` (the quieter grey) run edge to edge across the group (not inset to the text); pressed/hover = `surfaceHover`; entire row is one target — inner actions only via swipe (compact) or hover-revealed 36px labeled icon buttons (pointer devices). |
 | **Chip** | 28px height, radius `rFull`, icon 14 + `caption` label; selected = `brand`/`onBrand` + checkmark (also ChoicePills and filter pills); filter chips get a 16px ✕ (whole chip is the dismiss target, ≥44px with hitSlop). |
 | **SegmentedControl** | Track `surfaceSunken` radius `rMd` padding 2; active segment `surface` + e1 + `bodyMed`; animates position 220ms; keyboard arrows on web. |
 | **FormSheet** | See §2.5. Sheet: radius `rXl` top corners, drag handle 36×4, title `h2` + close (44px, labeled), footer sticky: primary + ghost cancel, safe-area padded, e3, `overlay` scrim (tap-outside dismiss w/ dirty confirm). |

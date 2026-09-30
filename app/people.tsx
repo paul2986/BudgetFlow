@@ -23,7 +23,7 @@ export default function PeopleScreen() {
   const { data, saving, refreshData, loading } = useBudgetData();
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency } = useCurrency();
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Track when data has been loaded to prevent flicker
@@ -152,7 +152,7 @@ export default function PeopleScreen() {
                       iconColor={tokens.colors.income}
                       trailing={<AmountText value={income.amount} role="bodyMed" />}
                       chevron
-                      onPress={() =>
+                        onPress={() =>
                         router.push({ pathname: '/edit-income', params: { personId: person.id, incomeId: income.id } })
                       }
                       accessibilityLabel={`${income.label}, ${formatCurrency(income.amount)} ${income.frequency}. Edit`}
@@ -161,8 +161,9 @@ export default function PeopleScreen() {
 
                   <ListRow
                     title="Add income"
-                    icon="add"
+                    glyphText={currency.symbol}
                     iconColor={tokens.colors.brand}
+                    chevron
                     onPress={saving ? undefined : () => openIncome(person.id)}
                     accessibilityLabel={`Add income for ${person.name}`}
                     showSeparator={false}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Chip } from './ui';
 import { Person } from '../types/budget';
@@ -8,7 +8,8 @@ import { type, space } from '../styles/tokens';
 /**
  * Expenses filter bar: quick toggles (Household, each person, Debt) plus a
  * removable chip for every other active filter, so applied state is always
- * visible without opening the sheet (UI_AUDIT §6). Selected chips carry a
+ * visible without opening the sheet (UI_AUDIT §6). Chips wrap onto new lines
+ * so nothing applied is ever hidden off screen. Selected chips carry a
  * checkmark, never color alone.
  */
 
@@ -66,10 +67,8 @@ export default function ExpenseFilterBar({
   );
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ alignItems: 'center', gap: space.s2, paddingVertical: space.s2 }}
+    <View
+      style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s2, paddingVertical: space.s2 }}
       accessibilityLabel="Expense filters"
     >
       {toggleChip(
@@ -135,7 +134,6 @@ export default function ExpenseFilterBar({
           <Text style={[type.caption, { color: tokens.colors.brand }]}>Clear all</Text>
         </Pressable>
       ) : null}
-      <View style={{ width: space.s2 }} />
-    </ScrollView>
+    </View>
   );
 }
