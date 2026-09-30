@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ViewStyle } from 'react-native';
+import { View, Text, ViewStyle, Pressable } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import { type, radius, space, elevation } from '../../styles/tokens';
@@ -10,6 +10,7 @@ import { type, radius, space, elevation } from '../../styles/tokens';
  * mode relies on the stepped surface alone (no shadow, no border).
  * The only colored-border variant allowed is the 3px left accent strip for
  * warning/expired states — always paired with an icon + label in content.
+ * With `onPress` the whole card is a button: sunken fill on press-down/hover.
  */
 
 interface CardProps {
@@ -21,29 +22,32 @@ interface CardProps {
   accent?: 'warning' | 'danger' | 'income' | 'expense' | 'brand';
   style?: ViewStyle | ViewStyle[];
   padded?: boolean;
+  onPress?: () => void;
+  /** Required with onPress: what the tap opens, for screen readers. */
+  accessibilityLabel?: string;
 }
 
-export default function Card({ children, title, action, accent, style, padded = true }: CardProps) {
+export default function Card({ children, title, action, accent, style, padded = true, onPress, accessibilityLabel }: CardProps) {
   const { tokens } = useTheme();
   const bp = useBreakpoint();
 
   const padding = bp.isExpanded ? space.s6 : bp.isMedium ? space.s5 : space.s4;
 
-  return (
-    <View
-      style={[
-        {
-          backgroundColor: tokens.colors.surface,
-          borderRadius: radius.lg,
-          padding: padded ? padding : 0,
-          ...(tokens.isDark ? null : elevation.e1),
-        },
-        accent
-          ? { borderLeftWidth: 3, borderLeftColor: tokens.colors[accent] }
-          : null,
-        style,
-      ]}
-    >
+  const cardStyle = (active = false) => [
+    {
+      backgroundColor: active ? tokens.colors.surfaceSunken : tokens.colors.surface,
+      borderRadius: radius.lg,
+      padding: padded ? padding : 0,
+      ...(tokens.isDark ? null : elevation.e1),
+    },
+    accent
+      ? { borderLeftWidth: 3, borderLeftColor: tokens.colors[accent] }
+      : null,
+    style,
+  ];
+
+  const content = (
+    <>
       {(title || action) && (
         <View
           style={{
@@ -70,6 +74,19 @@ export default function Card({ children, title, action, accent, style, padded = 
         </View>
       )}
       {children}
-    </View>
+    </>
+  );
+
+  if (!onPress) return <View style={cardStyle()}>{content}</View>;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => cardStyle(pressed || !!hovered)}
+    >
+      {content}
+    </Pressable>
   );
 }

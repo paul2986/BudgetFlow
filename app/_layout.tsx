@@ -7,7 +7,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
-import { View, Platform } from 'react-native';
+import { View, Platform, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Tabs } from 'expo-router';
 import Head from 'expo-router/head';
@@ -19,6 +19,7 @@ import { useToast, ToastProvider } from '../hooks/useToast';
 import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
 import { useAuth } from '../hooks/useAuth';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useEditorTransitions } from '../hooks/useEditorTransitions';
 import { setupErrorLogging } from '../utils/errorLogger';
 
 import AuthGuard from '../components/AuthGuard';
@@ -45,6 +46,9 @@ function RootLayoutContent() {
   const { user, loading: authLoading } = useAuth();
   const { loading: budgetLoading } = useBudgetData();
   const bp = useBreakpoint();
+  const { width: windowWidth } = useWindowDimensions();
+  const [contentWidth, setContentWidth] = useState(0);
+  const editorTransitions = useEditorTransitions(contentWidth || windowWidth, bp.isCompact);
 
   const loading = authLoading || (user && budgetLoading);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -164,7 +168,10 @@ function RootLayoutContent() {
       {showSidebar && <Sidebar />}
       {showRail && <NavRail />}
 
-      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      <View
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        onLayout={(e) => setContentWidth(e.nativeEvent.layout.width)}
+      >
         <AuthGuard user={user} loading={authLoading || isInitialLoad}>
           <Tabs
             // Back (browser, Android, router.back) returns to the previous
@@ -172,10 +179,11 @@ function RootLayoutContent() {
             // firstRoute, keeps only Home + current, so opening a form
             // replaced the list's browser history entry instead of pushing.
             backBehavior="history"
-            screenOptions={{
+            screenOptions={(props) => ({
               headerShown: false,
               tabBarStyle: { display: 'none' },
-            }}
+              ...editorTransitions(props),
+            })}
             tabBar={() => (showTabBar ? <BottomTabBar /> : null)}
           >
             <Tabs.Screen name="index" />
