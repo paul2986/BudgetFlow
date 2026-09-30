@@ -110,8 +110,7 @@ export default function Menu({ visible, onClose, anchor, sections, label, width 
       >
         {sections.map((section, si) => (
           <View key={section.title ?? si}>
-            {/* iOS menus split groups with a thick gap, not a hairline. */}
-            {si > 0 ? <View style={{ height: space.s2, backgroundColor: tokens.colors.surfaceSunken }} /> : null}
+            {si > 0 ? <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: tokens.colors.border }} /> : null}
             {section.title ? (
               <Text
                 accessibilityRole="header"

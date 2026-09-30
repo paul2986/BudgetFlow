@@ -194,6 +194,7 @@ function RootLayoutContent() {
             <Tabs.Screen name="tools" />
             <Tabs.Screen name="budget-lock" options={{ href: null }} />
             <Tabs.Screen name="manage-categories" options={{ href: null }} />
+            <Tabs.Screen name="currency" options={{ href: null }} />
             <Tabs.Screen name="auth/index" options={{ href: null }} />
             <Tabs.Screen name="auth/callback" options={{ href: null }} />
             <Tabs.Screen name="auth/debug" options={{ href: null }} />
