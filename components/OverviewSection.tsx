@@ -112,10 +112,11 @@ export default function OverviewSection({
                 value={displayValues.remaining}
                 role="display"
                 tone={negative ? 'expense' : 'default'}
+                animate
               />
               <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s2 }]}>
-                Income {formatCurrency(displayValues.totalIncome)} · Expenses{' '}
-                {formatCurrency(displayValues.totalExpenses)}
+                Income <AmountText value={displayValues.totalIncome} role="caption" tone="muted" animate /> · Expenses{' '}
+                <AmountText value={displayValues.totalExpenses} role="caption" tone="muted" animate />
               </Text>
               {negative && (
                 <Text style={[type.caption, { color: tokens.colors.expense, marginTop: space.s1 }]}>
@@ -147,6 +148,7 @@ export default function OverviewSection({
           icon="trending-up"
           tone="income"
           style={{ flexGrow: 1, flexBasis: statMinWidth as any, marginBottom: 0 }}
+          animate
         />
         <StatCard
           label="Expenses"
@@ -154,6 +156,7 @@ export default function OverviewSection({
           icon="trending-down"
           tone="expense"
           style={{ flexGrow: 1, flexBasis: statMinWidth as any, marginBottom: 0 }}
+          animate
         />
         <StatCard
           label="Household"
@@ -161,6 +164,7 @@ export default function OverviewSection({
           icon="home-outline"
           tone="household"
           style={{ flexGrow: 1, flexBasis: statMinWidth as any, marginBottom: 0 }}
+          animate
         />
         <StatCard
           label="Personal"
@@ -168,6 +172,7 @@ export default function OverviewSection({
           icon="person-outline"
           tone="personal"
           style={{ flexGrow: 1, flexBasis: statMinWidth as any, marginBottom: 0 }}
+          animate
         />
       </View>
     </View>
