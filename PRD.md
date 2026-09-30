@@ -94,7 +94,7 @@ An expense supports:
 - **Type:** `household` (shared) or `personal` (assigned to one person).
 - **Person assignment** — required for personal expenses.
 - **Frequency:** daily / weekly / monthly / yearly / one-time.
-- **Category tag** — from a managed list; defaults to "Misc". Default categories: Groceries, Rent, Mortgage, Loan, Utilities, Transport, Entertainment, Healthcare, Clothing, Takeaways, Eating Out, Savings, Investments, Misc.
+- **Category tag** — from a managed list; defaults to "Misc". Default categories: Groceries, Rent, Mortgage, Loan, Credit Card, Utilities, Transport, Entertainment, Healthcare, Clothing, Takeaways, Eating Out, Savings, Investments, Misc.
 - **Start date.**
 - **End date** — optional, for recurring expenses (when the recurrence stops).
 - **Debt repayment tag** — optional: `loan`, `mortgage`, or `credit_card`.

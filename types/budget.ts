@@ -21,6 +21,7 @@ export const DEFAULT_CATEGORIES: string[] = [
   'Rent',
   'Mortgage',
   'Loan',
+  'Credit Card',
   'Utilities',
   'Transport',
   'Entertainment',
@@ -33,7 +34,25 @@ export const DEFAULT_CATEGORIES: string[] = [
   'Misc',
 ];
 
-export type Frequency = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
+export type DebtRepaymentType = 'loan' | 'mortgage' | 'credit_card';
+
+// The debt categories drive the debt repayment tag; the form has no separate picker.
+const DEBT_REPAYMENT_BY_CATEGORY: Record<string, DebtRepaymentType> = {
+  Loan: 'loan',
+  Mortgage: 'mortgage',
+  'Credit Card': 'credit_card',
+};
+
+export const CATEGORY_BY_DEBT_REPAYMENT: Record<DebtRepaymentType, string> = {
+  loan: 'Loan',
+  mortgage: 'Mortgage',
+  credit_card: 'Credit Card',
+};
+
+export const debtRepaymentForCategory = (categoryTag: string | undefined): DebtRepaymentType | undefined =>
+  categoryTag ? DEBT_REPAYMENT_BY_CATEGORY[categoryTag] : undefined;
+
+export type Frequency ='daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
 
 export interface Expense {
   id: string;
@@ -46,7 +65,7 @@ export interface Expense {
   notes?: string; // Optional notes for additional context
   categoryTag?: ExpenseCategory; // Optional category tag for filtering/reporting (default 'Misc')
   endDate?: string; // YYYY-MM-DD, optional end date for recurring expenses (frequency != 'one-time')
-  debtRepayment?: 'loan' | 'mortgage' | 'credit_card'; // Optional tag for debt repayment
+  debtRepayment?: DebtRepaymentType; // Derived from categoryTag (Loan / Mortgage / Credit Card)
   updatedAt?: number; // epoch millis; bumped on add/update for sync merging
 }
 

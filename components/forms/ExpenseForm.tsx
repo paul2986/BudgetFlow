@@ -12,7 +12,7 @@ import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
 import { ChoicePills, DateField, Input, SegmentedControl, Sheet } from '../ui';
 import { type, space } from '../../styles/tokens';
-import { Expense, ExpenseCategory, DEFAULT_CATEGORIES, Person } from '../../types/budget';
+import { Expense, ExpenseCategory, DEFAULT_CATEGORIES, Person, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName } from '../../utils/storage';
 
 const EXPENSE_CATEGORIES: ExpenseCategory[] = DEFAULT_CATEGORIES;
@@ -49,7 +49,6 @@ type FormValues = {
     frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
     personId: string;
     categoryTag: ExpenseCategory;
-    debtRepayment: 'loan' | 'mortgage' | 'credit_card' | undefined;
     startDateYMD: string;
     endDate: Date | null;
 };
@@ -71,7 +70,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time'>('monthly');
     const [personId, setPersonId] = useState<string>('');
     const [categoryTag, setCategoryTag] = useState<ExpenseCategory>('Misc');
-    const [debtRepayment, setDebtRepayment] = useState<'loan' | 'mortgage' | 'credit_card' | undefined>(undefined);
     const [deleting, setDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -106,7 +104,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             frequency: 'monthly',
             personId: '',
             categoryTag: 'Misc',
-            debtRepayment: undefined,
             startDateYMD: toYMD(new Date()),
             endDate: null,
         })
@@ -162,7 +159,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 frequency: (expenseToEdit.frequency as any) || 'monthly',
                 personId: expenseToEdit.personId || '',
                 categoryTag: normalizeCategoryName((expenseToEdit.categoryTag as any) || 'Misc') as any,
-                debtRepayment: expenseToEdit.debtRepayment || undefined,
                 startDateYMD,
                 endDate: null,
             };
@@ -171,6 +167,13 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 const d = new Date(expenseToEdit.date);
                 if (!isNaN(d.getTime())) loaded.startDateYMD = toYMD(d);
             } catch (e) { }
+
+            // Older expenses could carry a debt tag under any category. Show them
+            // under the matching debt category so saving keeps the tag.
+            const legacyDebt = expenseToEdit.debtRepayment;
+            if (legacyDebt && debtRepaymentForCategory(loaded.categoryTag) !== legacyDebt) {
+                loaded.categoryTag = CATEGORY_BY_DEBT_REPAYMENT[legacyDebt];
+            }
 
             const endDateValue = (expenseToEdit as any).endDate;
             if (endDateValue) {
@@ -186,7 +189,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             setFrequency(loaded.frequency);
             setPersonId(loaded.personId);
             setCategoryTag(loaded.categoryTag);
-            setDebtRepayment(loaded.debtRepayment);
             setStartDateYMD(loaded.startDateYMD);
             setEndDate(loaded.endDate);
             setBaseline(snapshotOf(loaded));
@@ -228,7 +230,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 notes: '',
                 categoryTag: categoryTag || 'Misc',
                 endDate: endDate ? toYMD(endDate) : undefined,
-                debtRepayment: debtRepayment || undefined,
+                debtRepayment: debtRepaymentForCategory(categoryTag),
             };
 
             const result = isEditMode ? await updateExpense(expenseData) : await addExpense(expenseData);
@@ -261,7 +263,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     };
 
     const isDirty =
-        snapshotOf({ description, amount, category, frequency, personId, categoryTag, debtRepayment, startDateYMD, endDate }) !==
+        snapshotOf({ description, amount, category, frequency, personId, categoryTag, startDateYMD, endDate }) !==
         baseline;
     const leave = useDiscardGuard(isDirty);
     const handleCancel = () => confirmDiscard(isDirty, () => leave(onClose));
@@ -356,18 +358,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 value={categoryTag}
                 onChange={(tag) => setCategoryTag(tag as any)}
                 options={getAllCategories().map(tag => ({ value: tag, label: tag }))}
-            />
-
-            <ChoicePills<'none' | 'loan' | 'mortgage' | 'credit_card'>
-                label="Debt repayment"
-                value={debtRepayment ?? 'none'}
-                onChange={(v) => setDebtRepayment(v === 'none' ? undefined : v)}
-                options={[
-                    { value: 'none', label: 'Not a debt' },
-                    { value: 'loan', label: 'Loan', icon: 'cash-outline' },
-                    { value: 'mortgage', label: 'Mortgage', icon: 'business-outline' },
-                    { value: 'credit_card', label: 'Credit card', icon: 'card-outline' },
-                ]}
             />
 
             {frequency !== 'one-time' ? (
