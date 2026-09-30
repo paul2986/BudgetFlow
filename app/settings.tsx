@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
-import { Text, View, ScrollView, Platform, Animated } from 'react-native';
+import { useState } from 'react';
+import { Text, View, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
-import { useCurrency, CURRENCIES, Currency } from '../hooks/useCurrency';
+import { useCurrency } from '../hooks/useCurrency';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
@@ -14,19 +14,16 @@ import Icon from '../components/Icon';
 import {
   Avatar,
   ConfirmDialog,
-  EmptyState,
   ListGroup,
   ListRow,
-  SearchField,
   SegmentedControl,
-  Sheet,
 } from '../components/ui';
 import { type, space } from '../styles/tokens';
 
 /**
  * Settings (UI_AUDIT Phase 3): one inset-grouped layout at every size, the
  * iOS Settings idiom. Budgets and categories are managed on their own screens
- * (/budgets, /manage-categories); this screen only links to them, so there is
+ * (/budgets, /manage-categories, /currency); this screen only links to them, so there is
  * a single place to do each task.
  */
 
@@ -38,39 +35,18 @@ const SETTINGS_MAX_WIDTH = 680;
 export default function SettingsScreen() {
   const { tokens, themeMode, setThemeMode } = useTheme();
   const largeTitle = useLargeTitle();
-  const { currency, setCurrency } = useCurrency();
+  const { currency } = useCurrency();
   const { appData, activeBudget, clearAllData, user, isSyncing } = useBudgetData();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
   const { signOut, deleteAccount } = useAuth();
 
-  const [showCurrencySheet, setShowCurrencySheet] = useState(false);
-  const [currencyQuery, setCurrencyQuery] = useState('');
   const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const budgetCount = appData?.budgets?.length || 0;
-
-  const filteredCurrencies = useMemo(() => {
-    const q = currencyQuery.toLowerCase().trim();
-    if (!q) return CURRENCIES;
-    return CURRENCIES.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q)
-    );
-  }, [currencyQuery]);
-
-  const closeCurrencySheet = () => {
-    setShowCurrencySheet(false);
-    setCurrencyQuery('');
-  };
-
-  // The checkmark moving is the confirmation; no toast needed.
-  const handleCurrencyChange = (curr: Currency) => {
-    setCurrency(curr);
-    closeCurrencySheet();
-  };
 
   const handleClearAllData = () => {
     Alert.alert(
@@ -173,7 +149,7 @@ export default function SettingsScreen() {
                 </Text>
               }
               chevron
-              onPress={() => setShowCurrencySheet(true)}
+              onPress={() => router.push('/currency')}
               accessibilityLabel={`Currency, ${currency.name}`}
             />
             <View
@@ -246,48 +222,6 @@ export default function SettingsScreen() {
           </Text>
         </View>
       </Animated.ScrollView>
-
-      <Sheet
-        visible={showCurrencySheet}
-        onClose={closeCurrencySheet}
-        title="Currency"
-        leadingAction={{ label: 'Cancel', onPress: closeCurrencySheet }}
-        grouped
-      >
-        <View style={{ padding: space.s4, paddingBottom: space.s2 }}>
-          <SearchField
-            value={currencyQuery}
-            onChangeText={setCurrencyQuery}
-            placeholder="Search currencies"
-          />
-        </View>
-        <ScrollView
-          style={{ flexShrink: 1 }}
-          contentContainerStyle={{ paddingHorizontal: space.s4, paddingBottom: space.s6 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {filteredCurrencies.length === 0 ? (
-            <EmptyState icon="search-outline" title="No currencies found" caption="Try a name, code or symbol." />
-          ) : (
-            <ListGroup style={{ marginBottom: 0 }}>
-              {filteredCurrencies.map((curr, i) => {
-                const selected = curr.code === currency.code;
-                return (
-                  <ListRow
-                    key={curr.code}
-                    title={curr.name}
-                    caption={`${curr.symbol} · ${curr.code}`}
-                    trailing={selected ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
-                    onPress={() => handleCurrencyChange(curr)}
-                    accessibilityLabel={`${curr.name}${selected ? ', selected' : ''}`}
-                    showSeparator={i < filteredCurrencies.length - 1}
-                  />
-                );
-              })}
-            </ListGroup>
-          )}
-        </ScrollView>
-      </Sheet>
 
       <ConfirmDialog
         visible={confirmSignOutVisible}

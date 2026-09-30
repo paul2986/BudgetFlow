@@ -7,7 +7,7 @@ import { useReducedMotion } from './useReducedMotion';
 
 /**
  * Editor screens (expense, person, income) and sub-screens (budgets, budget
- * lock, categories) slide in from the right over the
+ * lock, categories, currency) slide in from the right over the
  * screen that opened them and slide back out when saved or closed, like an
  * iOS push/pop. They stay tab routes, so the tab bar remains in place.
  *
@@ -40,6 +40,7 @@ const EDITOR_ROUTES = new Set([
   'budgets',
   'budget-lock',
   'manage-categories',
+  'currency',
 ]);
 
 /**
