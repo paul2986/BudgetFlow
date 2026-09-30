@@ -2,7 +2,7 @@
     "framework": "create-react-app",
     "rewrites": [
         {
-            "source": "/(.*)",
+            "source": "/((?!_expo/|assets/).*)",
             "destination": "/index.html"
         }
     ],
