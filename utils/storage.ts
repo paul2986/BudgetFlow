@@ -92,6 +92,17 @@ export const resetAppDataCache = (): void => {
   appDataLoadingPromise = null;
 };
 
+// Tabs of the web app share storage but each keeps its own cache. When another
+// tab changes the budgets or who owns them (or clears storage), drop ours and
+// read storage afresh, rather than later saving a stale copy over theirs.
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key === null || event.key === STORAGE_KEYS.APP_DATA_V2 || event.key === STORAGE_KEYS.DEVICE_OWNER) {
+      resetAppDataCache();
+    }
+  });
+}
+
 // Wipe all locally persisted app data from device storage. This is a local-only
 // operation (no cloud interaction) intended for sign-out, so the next account on
 // this device starts from a clean slate instead of inheriting/merging stale data.
@@ -122,6 +133,9 @@ export const getDeviceOwner = async (): Promise<string | null> => AsyncStorage.g
 // Call when an account's session starts on this device, before syncing:
 // another account's data is wiped; unclaimed data becomes this account's.
 export const claimDeviceData = async (userId: string): Promise<void> => {
+  // A session starting here means anything this tab holds in memory may be
+  // another account's; read storage afresh.
+  resetAppDataCache();
   const owner = await getDeviceOwner();
   if (owner === userId) return;
   if (owner) await clearLocalAppData();

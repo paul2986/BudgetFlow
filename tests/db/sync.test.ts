@@ -116,27 +116,56 @@ describe('switching accounts on a device', () => {
   });
 });
 
-describe('overlapping syncs', () => {
-  it('create a budget once, even when it needs a new id', async () => {
-    // Bob's budget takes an id that Alice's device also uses, so Alice's copy
-    // is created under a new id. A second pass queued straight behind the
-    // first must not create it again.
+describe('copies of budgets the user can’t open', () => {
+  it('are dropped, never uploaded under a new id', async () => {
+    // A budget that exists on the server but isn't this user's: its id is taken.
     const bob = await createUser('bob');
-    const taken = makeBudget({ name: 'Taken' });
-    await bob.client.rpc('create_budget', { p_id: taken.id, p_data: taken });
+    const theirs = makeBudget({ name: 'Theirs' });
+    await bob.client.rpc('create_budget', { p_id: theirs.id, p_data: theirs });
 
     const alice = await createUser('alice');
     const phone = await createDevice(alice);
-    const mine = { ...taken, name: 'Mine' };
-    await phone.storage.saveAppData({ version: 2, budgets: [mine], activeBudgetId: mine.id });
+    await phone.storage.saveAppData({ version: 2, budgets: [{ ...theirs, name: 'Copy' }], activeBudgetId: theirs.id });
     const [first, second] = await Promise.all([phone.syncNow(), phone.syncNow()]);
     expect(first.ok && second.ok).toBe(true);
 
     const { data: owned } = await admin.from('budget_members').select('budget_id').eq('user_id', alice.id);
-    expect(owned).toHaveLength(1);
-    const data = await phone.load();
-    expect(data.budgets.map((b) => b.name)).toEqual(['Mine']);
-    expect(data.budgets[0].id).not.toBe(taken.id);
+    expect(owned).toEqual([]);
+    expect((await phone.load()).budgets).toEqual([]);
+    expect((await serverBudget(theirs.id))?.data.name).toBe('Theirs');
+  });
+
+  it('a new budget synced from two passes at once is created once', async () => {
+    const alice = await createUser('alice');
+    const phone = await createDevice(alice);
+    const mine = makeBudget({ name: 'Mine' });
+    await phone.storage.saveAppData({ version: 2, budgets: [mine], activeBudgetId: mine.id });
+    await Promise.all([phone.syncNow(), phone.syncNow()]);
+    const { data: owned } = await admin.from('budget_members').select('budget_id').eq('user_id', alice.id);
+    expect(owned).toEqual([{ budget_id: mine.id }]);
+    expect((await phone.load()).budgets.map((b) => b.name)).toEqual(['Mine']);
+  });
+});
+
+describe('two tabs on one device', () => {
+  it('a tab still holding another account’s budgets in memory doesn’t upload them', async () => {
+    // As on the iPhone: tab B has the owner's budgets loaded. In tab A the
+    // owner signs out and the other account signs in, clearing storage and
+    // claiming it; tab B's memory still has the owner's budgets. Then the
+    // other account's session starts in tab B too.
+    const { alice, budget } = await aliceWithBudget();
+    const bob = await createUser('bob');
+    const tabB = await createDevice(bob, undefined, { claim: false });
+    const aliceData = { version: 2 as const, budgets: [find(await (await createDevice(alice)).sync(), budget.id)!], activeBudgetId: budget.id };
+    await tabB.storage.saveAppData(aliceData);
+    tabB.disk.store.clear();
+    tabB.disk.store.set('device_owner_v1', bob.id);
+
+    await tabB.storage.claimDeviceData(bob.id);
+    expect((await tabB.sync()).budgets).toEqual([]);
+    const { data: owned } = await admin.from('budget_members').select('budget_id').eq('user_id', bob.id);
+    expect(owned).toEqual([]);
+    expect(await members(budget.id)).toEqual([{ user_id: alice.id, role: 'owner' }]);
   });
 });
 
