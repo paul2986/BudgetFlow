@@ -11,7 +11,10 @@
     "build:android": "expo prebuild -p android",
     "lint": "eslint .",
     "check:native": "expo install --check && expo export -p ios --output-dir .expo/check-native",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test": "vitest run tests/unit",
+    "test:db": "vitest run tests/db",
+    "db:start": "supabase start -x studio,storage-api,imgproxy,edge-runtime,logflare,vector,mailpit,postgres-meta,supavisor,realtime"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.3",
@@ -81,6 +84,7 @@
     "patch-package": "^8.0.1",
     "playwright": "^1.60.0",
     "typescript": "~6.0.3",
+    "vitest": "^3.2.7",
     "webpack-cli": "^6.0.1"
   },
   "expo": {
