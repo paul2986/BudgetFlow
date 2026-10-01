@@ -120,8 +120,6 @@ export const toServerBudget = (budget: Budget): Omit<Budget, 'lock'> => {
 const sameContent = (a: Budget, b: Budget): boolean =>
   stableStringify(toServerBudget(a)) === stableStringify(toServerBudget(b));
 
-const newBudgetId = () => `budget_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-
 type ServerBudget = { id: string; data: Budget; revision: number };
 
 export type SyncResult =
@@ -158,19 +156,18 @@ const writeBudget = async (budget: Budget, server: ServerBudget): Promise<Budget
 };
 
 // Create a budget that has never been on the server, with the user as owner.
-// If its id is already taken by a budget the user can't see, it gets a new id.
-const createBudget = async (budget: Budget): Promise<Budget> => {
-  let toCreate = budget;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const { error } = await supabase.rpc('create_budget', {
-      p_id: toCreate.id,
-      p_data: toServerBudget(toCreate),
-    });
-    if (!error) return toCreate;
-    if (error.code !== '23505') throw error;
-    toCreate = { ...toCreate, id: newBudgetId() };
-  }
-  throw new Error('Could not create budget');
+// Returns false when its id is already taken: ids are random, so that means
+// it's a copy of a budget that exists but the user can't open (another
+// account's, or one they left or were removed from). That copy must never be
+// uploaded under a new id; the caller drops it.
+const createBudget = async (budget: Budget): Promise<boolean> => {
+  const { error } = await supabase.rpc('create_budget', {
+    p_id: budget.id,
+    p_data: toServerBudget(budget),
+  });
+  if (!error) return true;
+  if (error.code === '23505') return false;
+  throw error;
 };
 
 // Before shared budgets, the account's budgets lived in user_data; the
@@ -306,17 +303,19 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     }
 
     // Budgets only on this device: new ones are created; ones the server used
-    // to have were deleted by their owner or the user was removed, so drop them.
+    // to have were deleted by their owner or the user was removed, so drop
+    // them, as are ones whose id turns out to belong to a budget elsewhere.
     for (const budget of localById.values()) {
       if (server.has(budget.id)) continue;
       if (syncedIds.has(budget.id)) {
         syncedIds.delete(budget.id);
         continue;
       }
-      const created = await createBudget(budget);
-      result.push(created);
-      syncedIds.add(created.id);
-      sharing[created.id] = { role: 'owner', memberCount: 1 };
+      if (await createBudget(budget)) {
+        result.push(budget);
+        syncedIds.add(budget.id);
+        sharing[budget.id] = { role: 'owner', memberCount: 1 };
+      }
     }
 
     await saveSyncedBudgetIds(Array.from(syncedIds));
@@ -346,8 +345,16 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
 // the merged result is saved to the device before the next pass begins.
 let queue: Promise<unknown> = Promise.resolve();
 
+// Several tabs of the web app share one device storage but run separately, so
+// on web the passes also take turns across tabs (Web Locks), or two tabs could
+// each save their own view of the device data over the other's.
+const withDeviceLock = <T>(task: () => Promise<T>): Promise<T> => {
+  const locks = typeof navigator !== 'undefined' ? (navigator as { locks?: LockManager }).locks : undefined;
+  return locks ? locks.request('budgetflow-sync', task) : task();
+};
+
 export const syncBudgets = (userId: string, load: () => Promise<AppDataV2>): Promise<SyncResult> => {
-  const run = queue.then(() => syncOnce(userId, load));
+  const run = queue.then(() => withDeviceLock(() => syncOnce(userId, load)));
   queue = run.catch(() => undefined);
   return run;
 };

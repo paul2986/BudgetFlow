@@ -8,8 +8,9 @@ const SUPABASE_MODULE = fileURLToPath(new URL('../../utils/supabase.ts', import.
 
 // One device signed in as `user`: its own storage and its own copy of the
 // app's storage and sync modules (they keep state in module scope). Pass the
-// `disk` of an earlier device to sign a different account in on the same one.
-export const createDevice = async (user: TestUser, disk = createMemoryStorage()) => {
+// `disk` of an earlier device to sign a different account in on the same one,
+// or to open a second tab on it. `claim: false` skips the session-start claim.
+export const createDevice = async (user: TestUser, disk = createMemoryStorage(), { claim = true } = {}) => {
   vi.resetModules();
   vi.doMock('@react-native-async-storage/async-storage', () => ({ default: disk }));
   vi.doMock(SUPABASE_MODULE, () => ({ supabase: user.client }));
@@ -17,7 +18,7 @@ export const createDevice = async (user: TestUser, disk = createMemoryStorage())
   const sync = await import('../../utils/budgetSync');
 
   // What useBudgetData does when the session starts.
-  await storage.claimDeviceData(user.id);
+  if (claim) await storage.claimDeviceData(user.id);
 
   const device = {
     user,
