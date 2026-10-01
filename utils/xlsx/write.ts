@@ -93,7 +93,6 @@ export interface WorkbookSpec {
 const MAX_CELL_CHARS = 32767;
 
 // Characters XML 1.0 can't carry; Excel refuses a file that has them.
-// eslint-disable-next-line no-control-regex
 const INVALID_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g;
 
 const escapeText = (s: string): string =>

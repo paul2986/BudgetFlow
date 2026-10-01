@@ -1,6 +1,6 @@
 {
   "name": "budget-flow",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "main": "index.ts",
   "scripts": {
     "dev": "expo start --tunnel",
@@ -78,11 +78,13 @@
     "@babel/core": "^7.20.0",
     "@types/react": "~19.2.4",
     "@types/react-dom": "~19.2.3",
+    "@typescript-eslint/parser": "^8.71.0",
     "babel-plugin-module-resolver": "^5.0.2",
     "babel-plugin-transform-remove-console": "^6.9.4",
     "babel-preset-expo": "~57.0.0",
     "eslint": "^9.39.4",
     "eslint-config-expo": "~57.0.2",
+    "eslint-import-resolver-typescript": "^3.10.1",
     "patch-package": "^8.0.1",
     "playwright": "^1.60.0",
     "typescript": "~6.0.3",

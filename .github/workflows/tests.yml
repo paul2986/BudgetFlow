@@ -20,6 +20,7 @@ jobs:
       # Expo's web style types (e.g. position: 'sticky'), so create it here too.
       - run: echo '/// <reference types="expo/types" />' > expo-env.d.ts
       - run: npx tsc --noEmit -p .
+      - run: npm run lint
       - run: npm test
 
   db:
