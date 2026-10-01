@@ -105,6 +105,22 @@ function RootLayoutContent() {
           outline: 2px solid ${tokens.colors.brand};
           outline-offset: 1px;
         }
+        /* Browser autofill paints its own yellow/blue fill over just the
+           <input>, inside our rounded field. background-color can't be
+           overridden there, so cover it with an inset shadow in the field
+           color and restore the text color. The long transition stops the
+           UA fill from flashing in Chrome. */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active {
+          -webkit-box-shadow: 0 0 0 100px ${tokens.colors.field} inset !important;
+          box-shadow: 0 0 0 100px ${tokens.colors.field} inset !important;
+          -webkit-text-fill-color: ${tokens.colors.text} !important;
+          caret-color: ${tokens.colors.text};
+          border-radius: 0;
+          transition: background-color 600000s 0s, color 600000s 0s;
+        }
         input[type="date"]::-webkit-calendar-picker-indicator {
           filter: ${isDarkMode ? 'invert(1) brightness(2)' : 'none'} !important;
           cursor: pointer;
