@@ -1,6 +1,6 @@
 {
   "name": "budget-flow",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "main": "index.ts",
   "scripts": {
     "dev": "expo start --tunnel",
@@ -26,10 +26,8 @@
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
     "@react-native-masked-view/masked-view": "^0.3.2",
-    "@react-navigation/drawer": "^7.5.7",
-    "@react-navigation/native": "^7.1.17",
-    "@react-navigation/native-stack": "^7.3.25",
-    "@supabase/supabase-js": "^2.90.1",
+    "@react-navigation/native": "^7.5.0",
+    "@supabase/supabase-js": "^2.117.2",
     "@types/difflib": "^0.2.7",
     "@vercel/analytics": "^2.0.1",
     "aes-js": "^3.1.2",
@@ -67,9 +65,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-url-polyfill": "^2.0.0",
-    "react-native-web": "~0.21.1",
+    "react-native-web": "~0.21.3",
     "react-native-webview": "13.16.1",
-    "react-router-dom": "^7.8.2",
     "workbox-cli": "^7.3.0",
     "workbox-precaching": "^7.3.0",
     "workbox-webpack-plugin": "^7.3.0"
@@ -94,9 +91,7 @@
   "expo": {
     "install": {
       "exclude": [
-        "@react-navigation/native",
-        "@react-navigation/native-stack",
-        "@react-navigation/drawer"
+        "@react-navigation/native"
       ]
     }
   },
