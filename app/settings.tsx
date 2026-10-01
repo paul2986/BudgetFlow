@@ -19,6 +19,7 @@ import {
   SegmentedControl,
 } from '../components/ui';
 import { type, space } from '../styles/tokens';
+import { appVersionLabel } from '../utils/appVersion';
 
 /**
  * Settings (UI_AUDIT Phase 3): one inset-grouped layout at every size, the
@@ -218,7 +219,7 @@ export default function SettingsScreen() {
           </ListGroup>
 
           <Text style={[type.caption, { color: tokens.colors.textMuted, textAlign: 'center', marginTop: space.s2 }]}>
-            Budget Flow 1.0.0
+            Budget Flow {appVersionLabel}
           </Text>
         </View>
       </Animated.ScrollView>

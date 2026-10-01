@@ -22,3 +22,7 @@ Build interfaces that feel native and calm. The design source of truth is `desig
 - Haptics go through `utils/haptics.ts` and stay sparing: selection changes, success/error outcomes, destructive warnings. Never on every button tap. Shared primitives (SegmentedControl, Chip, ConfirmDialog, toasts) already fire them.
 - Respect safe areas via `react-native-safe-area-context`.
 - Verify light and dark mode for any visual change.
+
+## Releases
+- Every change that ships bumps `version` in `package.json` (the single source; `app.config.ts` reads it): patch for fixes (1.1.0 → 1.1.1), minor for features (1.1.1 → 1.2.0). Do it in the same PR.
+- Settings shows `Budget Flow <version> (<build>)`; the build is the commit Vercel or EAS built, so you can confirm a device is running the latest deploy.
