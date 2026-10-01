@@ -1,6 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppDataV2, Budget, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
+import { AppDataV2, Budget, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
 
 // Storage keys for versions
 const STORAGE_KEYS = {
@@ -8,8 +8,9 @@ const STORAGE_KEYS = {
   BUDGET_DATA: 'budget_data',
   // New multi-budget app data key (v2)
   APP_DATA_V2: 'app_data_v2',
-  // Filters and custom categories
   EXPENSES_FILTERS: 'expenses_filters_v1',
+  // Legacy device-only custom categories; now synced inside AppDataV2 and
+  // absorbed from here on first load.
   CUSTOM_EXPENSE_CATEGORIES: 'custom_expense_categories_v1',
 };
 
@@ -104,29 +105,36 @@ export const clearLocalAppData = async (): Promise<void> => {
 
 export const getCustomExpenseCategories = async (): Promise<string[]> => {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    // Normalize and dedupe
-    const set = new Set<string>();
-    arr.forEach((n) => set.add(normalizeCategoryName(n)));
-    return Array.from(set).filter((c) => !DEFAULT_CATEGORIES.includes(c));
+    const appData = await loadAppData();
+    return (appData.customCategories || []).map((c) => c.name);
   } catch (e) {
     console.error('storage: getCustomExpenseCategories error', e);
     return [];
   }
 };
 
-export const saveCustomExpenseCategories = async (categories: string[]): Promise<void> => {
-  try {
-    const cleaned = Array.from(
-      new Set(categories.map((c) => normalizeCategoryName(c)).filter((c) => c && !DEFAULT_CATEGORIES.includes(c)))
-    );
-    await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES, JSON.stringify(cleaned));
-  } catch (e) {
-    console.error('storage: saveCustomExpenseCategories error', e);
-  }
+// Set the custom category list. Removed names get a tombstone so the removal
+// syncs; new names are stamped so they survive a merge with an older delete.
+const withCustomCategories = (appData: AppDataV2, categories: string[]): AppDataV2 => {
+  const now = Date.now();
+  const next = new Set(
+    categories.map((c) => normalizeCategoryName(c)).filter((c) => c && !DEFAULT_CATEGORIES.includes(c))
+  );
+  const current = appData.customCategories || [];
+  const deletedCategories = { ...(appData.deletedCategories || {}) };
+  current.forEach((c) => {
+    if (!next.has(c.name)) deletedCategories[c.name] = now;
+  });
+  const kept = current.filter((c) => next.has(c.name));
+  const added: CustomCategory[] = Array.from(next)
+    .filter((name) => !kept.some((c) => c.name === name))
+    .map((name) => ({ name, updatedAt: now }));
+  return { ...appData, customCategories: [...kept, ...added], deletedCategories };
+};
+
+export const saveCustomExpenseCategories = async (categories: string[]): Promise<{ success: boolean; error?: Error }> => {
+  const appData = await loadAppData();
+  return await saveAppData(withCustomCategories(appData, categories));
 };
 
 export const renameCustomExpenseCategory = async (oldName: string, newName: string): Promise<{ success: boolean; error?: Error }> => {
@@ -157,37 +165,28 @@ export const renameCustomExpenseCategory = async (oldName: string, newName: stri
       return { success: false, error: new Error('A category with this name already exists') };
     }
 
-    // Update custom categories list
-    const updatedCategories = customCategories.map(cat =>
-      cat === normalizedOldName ? normalizedNewName : cat
-    );
-    await saveCustomExpenseCategories(updatedCategories);
-
-    // Update all expenses that use this category
+    // Rename in the list and retag every expense using it, in one save. Retagged
+    // expenses get a fresh updatedAt, or a merge would keep the other device's
+    // copy still tagged with the old name.
     const appData = await loadAppData();
-    let hasChanges = false;
-
+    const now = Date.now();
     const updatedBudgets = appData.budgets.map(budget => {
+      let changed = false;
       const updatedExpenses = budget.expenses.map(expense => {
         if (normalizeCategoryName(expense.categoryTag || 'Misc') === normalizedOldName) {
-          hasChanges = true;
-          return { ...expense, categoryTag: normalizedNewName };
+          changed = true;
+          return { ...expense, categoryTag: normalizedNewName, updatedAt: now };
         }
         return expense;
       });
-
-      return { ...budget, expenses: updatedExpenses, modifiedAt: Date.now() };
+      return changed ? { ...budget, expenses: updatedExpenses, modifiedAt: now } : budget;
     });
 
-    if (hasChanges) {
-      const updatedAppData = { ...appData, budgets: updatedBudgets };
-      const saveResult = await saveAppData(updatedAppData);
-      if (!saveResult.success) {
-        return { success: false, error: saveResult.error };
-      }
-    }
-
-    return { success: true };
+    const renamed = withCustomCategories(
+      { ...appData, budgets: updatedBudgets },
+      customCategories.map(cat => (cat === normalizedOldName ? normalizedNewName : cat))
+    );
+    return await saveAppData(renamed);
   } catch (error) {
     console.error('storage: renameCustomExpenseCategory error', error);
     return { success: false, error: error as Error };
@@ -425,7 +424,56 @@ const validateAppData = (data: any): AppDataV2 => {
     budgetNames: budgets.map(b => b.name)
   });
 
-  return { version: 2 as const, budgets, activeBudgetId };
+  return {
+    version: 2 as const,
+    budgets,
+    activeBudgetId,
+    customCategories: sanitizeCustomCategories(data.customCategories),
+    deletedBudgets: sanitizeDeletions(data.deletedBudgets),
+    deletedCategories: sanitizeDeletions(data.deletedCategories),
+  };
+};
+
+// Normalize, drop defaults, dedupe (keeping the latest stamp) and sort by name,
+// so two devices holding the same set produce identical JSON.
+export const sanitizeCustomCategories = (raw: any): CustomCategory[] => {
+  if (!Array.isArray(raw)) return [];
+  const byName = new Map<string, CustomCategory>();
+  for (const c of raw) {
+    if (!c || typeof c.name !== 'string') continue;
+    const name = normalizeCategoryName(c.name);
+    if (DEFAULT_CATEGORIES.includes(name)) continue;
+    const updatedAt = typeof c.updatedAt === 'number' ? c.updatedAt : 0;
+    const existing = byName.get(name);
+    if (!existing || updatedAt > existing.updatedAt) byName.set(name, { name, updatedAt });
+  }
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+};
+
+// Fold the legacy device-only category list into the app data, then drop the
+// legacy key. Each device does this once; the sync merge unions the results.
+const absorbLegacyCustomCategories = async (appData: AppDataV2): Promise<AppDataV2> => {
+  const raw = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
+  if (!raw) return appData;
+  let legacy: unknown;
+  try {
+    legacy = JSON.parse(raw);
+  } catch {
+    legacy = [];
+  }
+  const now = Date.now();
+  const names = Array.isArray(legacy) ? legacy.filter((n): n is string => typeof n === 'string') : [];
+  const merged: AppDataV2 = {
+    ...appData,
+    customCategories: sanitizeCustomCategories([
+      ...(appData.customCategories || []),
+      ...names.map((name) => ({ name, updatedAt: now })),
+    ]),
+  };
+  appDataCache = merged;
+  const res = await saveAppData(merged);
+  if (res.success) await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
+  return merged;
 };
 
 // Load AppDataV2; migrate from v1 if necessary
@@ -451,7 +499,7 @@ export const loadAppData = async (): Promise<AppDataV2> => {
         const validated = validateAppData(parsed);
         console.log('storage: Loaded existing AppDataV2 successfully');
         appDataCache = validated;
-        return validated;
+        return await absorbLegacyCustomCategories(validated);
       }
 
       // Attempt to read legacy v1
@@ -483,7 +531,7 @@ export const loadAppData = async (): Promise<AppDataV2> => {
         appDataCache = appData;
         await saveAppData(appData); // This will trigger the disk save
         console.log('storage: Migration complete.');
-        return appData;
+        return await absorbLegacyCustomCategories(appData);
       }
 
       // No data at all, return empty state for first-time user
@@ -619,7 +667,8 @@ export const deleteBudget = async (budgetId: string): Promise<{ success: boolean
   if (activeBudgetId === budgetId) {
     activeBudgetId = budgets[0]?.id || '';
   }
-  return await saveAppData({ ...appData, budgets, activeBudgetId });
+  const deletedBudgets = { ...(appData.deletedBudgets || {}), [budgetId]: Date.now() };
+  return await saveAppData({ ...appData, budgets, activeBudgetId, deletedBudgets });
 };
 
 export const duplicateBudget = async (budgetId: string, customName?: string): Promise<{ success: boolean; error?: Error; budget?: Budget }> => {
@@ -842,6 +891,14 @@ export const clearAllAppData = async (): Promise<{ success: boolean; error?: Err
   try {
     console.log('storage: Clearing all app data - deleting all budgets, people, expenses, and custom categories');
 
+    // Tombstone everything being wiped so another device's copy can't merge it back.
+    const previous = await loadAppData();
+    const now = Date.now();
+    const deletedBudgets = { ...(previous.deletedBudgets || {}) };
+    previous.budgets.forEach((b) => { deletedBudgets[b.id] = now; });
+    const deletedCategories = { ...(previous.deletedCategories || {}) };
+    (previous.customCategories || []).forEach((c) => { deletedCategories[c.name] = now; });
+
     // Clear all related storage items including custom categories and filters FIRST
     // Use sequential clearing to ensure each item is properly removed
     await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
@@ -862,7 +919,9 @@ export const clearAllAppData = async (): Promise<{ success: boolean; error?: Err
     const freshAppData: AppDataV2 = {
       version: 2,
       budgets: [],
-      activeBudgetId: ''
+      activeBudgetId: '',
+      deletedBudgets,
+      deletedCategories,
     };
 
     // Save the fresh app data (this will create a new empty state)
