@@ -96,10 +96,22 @@ export interface Budget {
   deletions?: Record<string, number>;
 }
 
+// A user-created expense category. `name` is the normalized name and doubles
+// as its id; `updatedAt` (epoch millis) decides merges against deletions.
+export interface CustomCategory {
+  name: string;
+  updatedAt: number;
+}
+
 export interface AppDataV2 {
   version: 2;
   budgets: Budget[];
   activeBudgetId: string;
+  customCategories?: CustomCategory[];
+  // Tombstones (id or category name -> deletion epoch millis), so a budget or
+  // category deleted on one device isn't resurrected by another device's copy.
+  deletedBudgets?: Record<string, number>;
+  deletedCategories?: Record<string, number>;
 }
 
 /**

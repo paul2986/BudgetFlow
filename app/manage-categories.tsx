@@ -6,7 +6,7 @@ import StandardHeader from '../components/StandardHeader';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
 import { DEFAULT_CATEGORIES } from '../types/budget';
-import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName, renameCustomExpenseCategory } from '../utils/storage';
+import { getCustomExpenseCategories, normalizeCategoryName } from '../utils/storage';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router } from 'expo-router';
 import { Chip, EmptyState, IconButton, Input, ListGroup, ListRow, Sheet, Skeleton } from '../components/ui';
@@ -15,7 +15,7 @@ import { space } from '../styles/tokens';
 export default function ManageCategoriesScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { tokens } = useTheme();
-  const { data, refreshData } = useBudgetData();
+  const { data, customCategories, saveCustomCategories, renameCustomCategory } = useBudgetData();
 
   const [customs, setCustoms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,10 +43,10 @@ export default function ManageCategoriesScreen() {
     refresh();
   }, [refresh]);
 
-  // Refresh when data changes (e.g., after clearing all data)
+  // Refresh when the synced list changes (another device, or clearing all data)
   useEffect(() => {
     refresh();
-  }, [data.people.length, data.expenses.length, refresh]);
+  }, [customCategories.join('|'), refresh]);
 
   const isInUse = (category: string): boolean => {
     if (!data?.expenses) return false;
@@ -67,7 +67,8 @@ export default function ManageCategoriesScreen() {
         onPress: async () => {
           try {
             const next = customs.filter((c) => c !== category);
-            await saveCustomExpenseCategories(next);
+            const result = await saveCustomCategories(next);
+            if (!result.success) throw result.error;
             setCustoms(next);
           } catch (e) {
             console.log('Failed to delete custom category', e);
@@ -97,11 +98,10 @@ export default function ManageCategoriesScreen() {
 
     setRenaming(true);
     try {
-      const result = await renameCustomExpenseCategory(categoryToRename, newCategoryName.trim());
+      const result = await renameCustomCategory(categoryToRename, newCategoryName.trim());
       
       if (result.success) {
         await refresh();
-        await refreshData(); // Refresh budget data to reflect changes in expenses
         setRenameModalVisible(false);
         setCategoryToRename('');
         setNewCategoryName('');
@@ -151,7 +151,8 @@ export default function ManageCategoriesScreen() {
     setCreating(true);
     try {
       const updatedCategories = [...customs, normalized];
-      await saveCustomExpenseCategories(updatedCategories);
+      const result = await saveCustomCategories(updatedCategories);
+      if (!result.success) throw result.error;
       setCustoms(updatedCategories);
       setCreateModalVisible(false);
       setNewCategoryInput('');

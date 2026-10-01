@@ -10,6 +10,9 @@ import {
   updateBudget as storageUpdateBudget,
   clearAllAppData as storageClearAllAppData,
   saveAppData,
+  sanitizeCustomCategories,
+  saveCustomExpenseCategories as storageSaveCustomCategories,
+  renameCustomExpenseCategory as storageRenameCustomCategory,
 } from '../utils/storage';
 import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget } from '../types/budget';
 import { supabase } from '../utils/supabase';
@@ -147,14 +150,24 @@ const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
 
     const localBudget = mergedBudgetsMap.get(remoteBudget.id);
     if (!localBudget) {
-      // Budget only exists remotely: adopt it. (Whole-budget deletion across
-      // devices is not yet tombstoned, so a budget deleted on one device can
-      // reappear from another — a known, narrower limitation than data loss.)
       mergedBudgetsMap.set(remoteBudget.id, remoteBudget);
     } else {
       mergedBudgetsMap.set(remoteBudget.id, mergeBudget(localBudget, remoteBudget));
     }
   });
+
+  // A deleted budget stays deleted unless it was edited after the deletion.
+  const deletedBudgets = mergeDeletions(local.deletedBudgets, remote.deletedBudgets);
+  mergedBudgetsMap.forEach((budget, id) => {
+    const deletedAt = deletedBudgets[id];
+    if (typeof deletedAt === 'number' && deletedAt >= (budget.modifiedAt || 0)) mergedBudgetsMap.delete(id);
+  });
+
+  const deletedCategories = mergeDeletions(local.deletedCategories, remote.deletedCategories);
+  const customCategories = sanitizeCustomCategories([
+    ...(local.customCategories || []),
+    ...(remote.customCategories || []),
+  ]).filter(c => !(deletedCategories[c.name] >= c.updatedAt));
 
   const mergedBudgets = Array.from(mergedBudgetsMap.values());
 
@@ -169,7 +182,10 @@ const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
   return {
     version: 2,
     budgets: mergedBudgets,
-    activeBudgetId
+    activeBudgetId,
+    customCategories,
+    deletedBudgets,
+    deletedCategories,
   };
 };
 
@@ -812,6 +828,25 @@ const useBudgetDataInternal = () => {
     [queueSave, syncFullAppData]
   );
 
+  // Custom categories are account-wide and sync with the rest of the app data.
+  const saveCustomCategories = useCallback(
+    async (categories: string[]) => queueSave(async () => {
+      const res = await storageSaveCustomCategories(categories);
+      if (res.success) await syncFullAppData(await loadAppData());
+      return res;
+    }),
+    [queueSave, syncFullAppData]
+  );
+
+  const renameCustomCategory = useCallback(
+    async (oldName: string, newName: string) => queueSave(async () => {
+      const res = await storageRenameCustomCategory(oldName, newName);
+      if (res.success) await syncFullAppData(await loadAppData());
+      return res;
+    }),
+    [queueSave, syncFullAppData]
+  );
+
   const setActiveBudget = useCallback(
     async (budgetId: string) => queueSave(async () => {
       const res = await storageSetActiveBudget(budgetId);
@@ -1233,7 +1268,9 @@ const useBudgetDataInternal = () => {
         setIsSyncing(true);
         console.log('useBudgetData: Clearing cloud data for user:', user.id);
         try {
-          const emptyCloudData = { version: 2 as const, budgets: [], activeBudgetId: '' };
+          // Empty, but carrying the tombstones storage just recorded, so other
+          // devices drop their copies instead of merging them back.
+          const emptyCloudData = await loadAppData();
           // A deliberate overwrite, so no revision check or merge.
           const { data: cleared, error } = await supabase
             .from('user_data')
@@ -1294,6 +1331,9 @@ const useBudgetDataInternal = () => {
     deleteBudget,
     duplicateBudget,
     setActiveBudget,
+    customCategories: (appData.customCategories || []).map((c) => c.name),
+    saveCustomCategories,
+    renameCustomCategory,
     // existing ops scoped to active budget
     addPerson,
     removePerson,
