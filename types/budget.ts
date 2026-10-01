@@ -94,6 +94,9 @@ export interface Budget {
   // Tombstones for deleted people/expenses: id -> deletion epoch millis. Used so a
   // delete on one device isn't resurrected when merging with another device's copy.
   deletions?: Record<string, number>;
+  // Categories travel with the budget, so everyone sharing it sees the same list.
+  customCategories?: CustomCategory[];
+  deletedCategories?: Record<string, number>; // category name -> deletion epoch millis
 }
 
 // A user-created expense category. `name` is the normalized name and doubles
@@ -103,15 +106,21 @@ export interface CustomCategory {
   updatedAt: number;
 }
 
+// The device's copy of everything the account can open. Each budget syncs as
+// its own server row; `activeBudgetId` and `deletedBudgets` stay on the device.
 export interface AppDataV2 {
   version: 2;
   budgets: Budget[];
   activeBudgetId: string;
-  customCategories?: CustomCategory[];
-  // Tombstones (id or category name -> deletion epoch millis), so a budget or
-  // category deleted on one device isn't resurrected by another device's copy.
+  // Budgets deleted or left on this device and not yet removed on the server
+  // (id -> epoch millis). The next sync carries each out, then clears it.
   deletedBudgets?: Record<string, number>;
-  deletedCategories?: Record<string, number>;
+}
+
+// What the signed-in user can do with a synced budget.
+export interface BudgetSharing {
+  role: 'owner' | 'editor';
+  memberCount: number;
 }
 
 /**

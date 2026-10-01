@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
+import { AppState } from 'react-native';
 import {
   loadAppData,
   getActiveBudget,
@@ -10,12 +11,12 @@ import {
   updateBudget as storageUpdateBudget,
   clearAllAppData as storageClearAllAppData,
   saveAppData,
-  sanitizeCustomCategories,
   saveCustomExpenseCategories as storageSaveCustomCategories,
   renameCustomExpenseCategory as storageRenameCustomCategory,
 } from '../utils/storage';
-import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget } from '../types/budget';
+import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget, BudgetSharing } from '../types/budget';
 import { supabase } from '../utils/supabase';
+import { syncBudgets, stableStringify } from '../utils/budgetSync';
 import { useAuth } from './useAuth';
 
 // Local type for the editable slice of a budget
@@ -52,209 +53,6 @@ const safeAsyncResult = async <T extends unknown>(
     console.error(`useBudgetData: Error in ${operationName}:`, error);
     return { success: false, error: error as Error } as { success: boolean; error?: Error } & T;
   }
-};
-
-// Tombstones older than this are ignored when merging (matches storage pruning).
-const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
-
-// Union two tombstone maps, keeping the latest deletion time per id and dropping
-// entries that have aged out.
-const mergeDeletions = (
-  a?: Record<string, number>,
-  b?: Record<string, number>
-): Record<string, number> => {
-  const out: Record<string, number> = {};
-  const now = Date.now();
-  const absorb = (m?: Record<string, number>) => {
-    if (!m) return;
-    for (const [id, ts] of Object.entries(m)) {
-      if (typeof ts !== 'number' || now - ts > TOMBSTONE_TTL_MS) continue;
-      if (!(id in out) || ts > out[id]) out[id] = ts;
-    }
-  };
-  absorb(a);
-  absorb(b);
-  return out;
-};
-
-// Effective last-modified time for an entity. Legacy entities without their own
-// timestamp fall back to their budget's modifiedAt, preserving prior behaviour.
-const entityTime = (entity: { updatedAt?: number }, budgetModifiedAt: number): number =>
-  typeof entity?.updatedAt === 'number' ? entity.updatedAt : budgetModifiedAt;
-
-// Merge two lists of id'd entities (expenses or people): union by id, pick the
-// most-recently-updated copy for conflicts, and drop anything a newer tombstone
-// has deleted. This is what prevents concurrent edits on two devices from wiping
-// each other's additions.
-const mergeEntities = <T extends { id: string; updatedAt?: number }>(
-  localArr: T[] = [],
-  remoteArr: T[] = [],
-  localMod: number,
-  remoteMod: number,
-  deletions: Record<string, number>
-): T[] => {
-  const byId = new Map<string, { entity: T; time: number }>();
-  const consider = (arr: T[], mod: number) => {
-    for (const e of arr) {
-      if (!e || !e.id) continue;
-      const t = entityTime(e, mod);
-      const existing = byId.get(e.id);
-      if (!existing || t >= existing.time) byId.set(e.id, { entity: e, time: t });
-    }
-  };
-  consider(localArr, localMod);
-  consider(remoteArr, remoteMod);
-
-  const result: T[] = [];
-  byId.forEach(({ entity, time }) => {
-    const deletedAt = deletions[entity.id];
-    // Tombstone wins only if the deletion is at least as recent as the last edit;
-    // an edit that happened after a delete intentionally resurrects the entity.
-    if (typeof deletedAt === 'number' && deletedAt >= time) return;
-    result.push(entity);
-  });
-  return result;
-};
-
-// Merge a single budget that exists on both sides, at the entity level.
-const mergeBudget = (local: Budget, remote: Budget): Budget => {
-  const localMod = local.modifiedAt || 0;
-  const remoteMod = remote.modifiedAt || 0;
-  // Budget-level scalar fields (name, householdSettings, lock) use whole-budget LWW.
-  const base = remoteMod > localMod ? remote : local;
-  const deletions = mergeDeletions(local.deletions, remote.deletions);
-
-  return {
-    ...base,
-    expenses: mergeEntities(local.expenses, remote.expenses, localMod, remoteMod, deletions),
-    people: mergeEntities(local.people, remote.people, localMod, remoteMod, deletions),
-    deletions,
-    modifiedAt: Math.max(localMod, remoteMod),
-  };
-};
-
-const mergeAppData = (local: AppDataV2, remote: AppDataV2): AppDataV2 => {
-  if (!local || !local.budgets) return remote || { version: 2, budgets: [], activeBudgetId: '' };
-  if (!remote || !remote.budgets) return local;
-
-  const mergedBudgetsMap = new Map<string, Budget>();
-
-  local.budgets.forEach(b => {
-    if (b && b.id) {
-      mergedBudgetsMap.set(b.id, b);
-    }
-  });
-
-  remote.budgets.forEach(remoteBudget => {
-    if (!remoteBudget || !remoteBudget.id) return;
-
-    const localBudget = mergedBudgetsMap.get(remoteBudget.id);
-    if (!localBudget) {
-      mergedBudgetsMap.set(remoteBudget.id, remoteBudget);
-    } else {
-      mergedBudgetsMap.set(remoteBudget.id, mergeBudget(localBudget, remoteBudget));
-    }
-  });
-
-  // A deleted budget stays deleted unless it was edited after the deletion.
-  const deletedBudgets = mergeDeletions(local.deletedBudgets, remote.deletedBudgets);
-  mergedBudgetsMap.forEach((budget, id) => {
-    const deletedAt = deletedBudgets[id];
-    if (typeof deletedAt === 'number' && deletedAt >= (budget.modifiedAt || 0)) mergedBudgetsMap.delete(id);
-  });
-
-  const deletedCategories = mergeDeletions(local.deletedCategories, remote.deletedCategories);
-  const customCategories = sanitizeCustomCategories([
-    ...(local.customCategories || []),
-    ...(remote.customCategories || []),
-  ]).filter(c => !(deletedCategories[c.name] >= c.updatedAt));
-
-  const mergedBudgets = Array.from(mergedBudgetsMap.values());
-
-  let activeBudgetId = local.activeBudgetId;
-  if (activeBudgetId && !mergedBudgetsMap.has(activeBudgetId)) {
-    activeBudgetId = remote.activeBudgetId;
-  }
-  if (!activeBudgetId || !mergedBudgetsMap.has(activeBudgetId)) {
-    activeBudgetId = mergedBudgets[0]?.id || '';
-  }
-
-  return {
-    version: 2,
-    budgets: mergedBudgets,
-    activeBudgetId,
-    customCategories,
-    deletedBudgets,
-    deletedCategories,
-  };
-};
-
-// JSON.stringify with object keys sorted, for comparing app data by content.
-// Postgres jsonb stores keys in its own order, so a plain stringify of the
-// cloud copy never matches an identical local copy.
-const stableStringify = (value: unknown): string =>
-  JSON.stringify(value, (_key, v) =>
-    v && typeof v === 'object' && !Array.isArray(v)
-      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]]))
-      : v
-  );
-
-type CloudWriteResult =
-  | { ok: true; data: AppDataV2; revision: number }
-  | { ok: false; error: unknown };
-
-// Write app data to the user's cloud row without overwriting a newer copy.
-// The database bumps `revision` on every write, and the update only lands if
-// the row is still at `baseRevision`. If another device wrote in between (or
-// the revision isn't known yet), fetch the cloud copy, merge, and retry.
-// `data` in the result is what was actually written, which differs from the
-// input when a merge happened.
-const writeCloudData = async (
-  userId: string,
-  data: AppDataV2,
-  baseRevision: number | null
-): Promise<CloudWriteResult> => {
-  let toWrite = data;
-  let base = baseRevision;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (base === null) {
-      const { data: row, error } = await supabase
-        .from('user_data')
-        .select('app_data, revision')
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (error) return { ok: false, error };
-
-      if (!row) {
-        const { data: inserted, error: insertError } = await supabase
-          .from('user_data')
-          .insert({ user_id: userId, app_data: toWrite })
-          .select('revision')
-          .single();
-        if (!insertError) return { ok: true, data: toWrite, revision: inserted.revision };
-        // 23505: another device created the row first; fetch it and merge.
-        if (insertError.code !== '23505') return { ok: false, error: insertError };
-        continue;
-      }
-
-      toWrite = mergeAppData(toWrite, row.app_data as AppDataV2);
-      base = row.revision;
-    }
-
-    const { data: updated, error } = await supabase
-      .from('user_data')
-      .update({ app_data: toWrite })
-      .eq('user_id', userId)
-      .eq('revision', base)
-      .select('revision');
-    if (error) return { ok: false, error };
-    if (updated.length === 1) return { ok: true, data: toWrite, revision: updated[0].revision };
-    // No row matched: another device wrote since we last read.
-    base = null;
-  }
-
-  return { ok: false, error: new Error('Cloud data kept changing during save') };
 };
 
 // Context Type definition
@@ -298,142 +96,57 @@ const useBudgetDataInternal = () => {
   const isQueueRunning = useRef(false);
   const isLoadingRef = useRef(false);
   const lastRefreshTimeRef = useRef<number>(0);
-  const justClearedData = useRef(false); // Flag to prevent immediate Supabase sync after clear
-  // Cloud row revision this device last read or wrote; null means unknown, so
-  // the next write fetches and merges first.
-  const cloudRevisionRef = useRef<number | null>(null);
+  // Each synced budget's role and member count for the signed-in user.
+  const [sharing, setSharing] = useState<Record<string, BudgetSharing>>({});
 
-  // Push app data to the cloud. If another device had written in the meantime,
-  // the merged result is adopted locally too.
-  const pushToCloud = useCallback(async (local: AppDataV2) => {
-    if (!user) return;
-    const result = await writeCloudData(user.id, local, cloudRevisionRef.current);
-    if (!result.ok) {
-      cloudRevisionRef.current = null;
-      console.error('useBudgetData: Cloud write failed:', result.error);
-      return;
-    }
-    cloudRevisionRef.current = result.revision;
-    if (result.data !== local) {
-      console.log('useBudgetData: Cloud had newer changes, adopting merged data');
-      setAppData(result.data);
-      const active = getActiveBudget(result.data);
-      if (active) {
-        setData({
+  // Show app data in the UI: the full set, and the active budget's editable slice.
+  const showAppData = useCallback((app: AppDataV2) => {
+    setAppData(app);
+    const active = getActiveBudget(app);
+    setData(
+      active
+        ? {
           people: active.people || [],
           expenses: active.expenses || [],
-          householdSettings: active.householdSettings || { distributionMethod: 'even' }
-        });
-      }
-      await saveAppData(result.data);
-    }
-  }, [user]);
+          householdSettings: active.householdSettings || { distributionMethod: 'even' },
+        }
+        : { people: [], expenses: [], householdSettings: { distributionMethod: 'even' } }
+    );
+  }, []);
 
-  // One sync pass: avoids overwriting local state if Supabase has less data
+  // Sync every budget with the server. The device copy is read when the pass
+  // runs (so it includes the latest save), and the merged result is adopted
+  // locally when it differs.
+  const pushToCloud = useCallback(async () => {
+    if (!user) return;
+    const result = await syncBudgets(user.id, loadAppData);
+    if (!result.ok) {
+      console.error('useBudgetData: Sync failed:', result.error);
+      return;
+    }
+    setSharing(result.sharing);
+    const local = await loadAppData();
+    if (stableStringify(result.data) !== stableStringify(local)) {
+      console.log('useBudgetData: Adopting synced budgets');
+      await saveAppData(result.data);
+      showAppData(await loadAppData());
+    }
+  }, [user, showAppData]);
+
+  // One refresh pass: show the device copy, then sync it when signed in.
   const syncOnce = useCallback(async () => {
-    // DO NOT refresh if we are currently saving or if the queue is running
-    // This prevents overwriting the user's just-saved data with stale data from Supabase/Disk
+    // Don't refresh mid-save: the save syncs when it finishes.
     if (saving || isQueueRunning.current) {
       console.log('useBudgetData: Save in progress, skipping refresh');
       return;
     }
-
-    console.log('useBudgetData: refreshFromStorage called');
     try {
-      // 1. Load local data first to have a baseline
-      const localApp = await loadAppData();
-
-      // 2. If logged in, fetch from Supabase (unless we just cleared data)
-      if (user && !justClearedData.current) {
-        console.log('useBudgetData: User present, syncing from Supabase...');
-        const { data: supabaseData, error } = await supabase
-          .from('user_data')
-          .select('app_data, revision')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) {
-          console.error('useBudgetData: Supabase fetch error:', error);
-        }
-        cloudRevisionRef.current = supabaseData?.revision ?? null;
-
-        if (!error && supabaseData?.app_data) {
-          const remoteData = supabaseData.app_data as AppDataV2;
-
-          const merged = mergeAppData(localApp, remoteData);
-          const localJson = stableStringify(localApp);
-          const remoteJson = stableStringify(remoteData);
-          const mergedJson = stableStringify(merged);
-
-          const hasLocalUpdates = mergedJson !== remoteJson;
-          const hasRemoteUpdates = mergedJson !== localJson;
-
-          console.log('useBudgetData: Sync conflict check via budget merging', {
-            localBudgetsCount: localApp.budgets.length,
-            remoteBudgetsCount: remoteData.budgets.length,
-            mergedBudgetsCount: merged.budgets.length,
-            hasLocalUpdates,
-            hasRemoteUpdates
-          });
-
-          if (hasRemoteUpdates) {
-            console.log('useBudgetData: Cloud data has newer/different budgets, adopting them');
-            setAppData(merged);
-            const active = getActiveBudget(merged);
-            if (active) {
-              setData({
-                people: active.people || [],
-                expenses: active.expenses || [],
-                householdSettings: active.householdSettings || { distributionMethod: 'even' }
-              });
-            }
-            await saveAppData(merged);
-          } else {
-            // Even if no remote changes are merged in, keep our local appData state in sync
-            setAppData(localApp);
-            const active = getActiveBudget(localApp);
-            if (active) {
-              setData({
-                people: active.people || [],
-                expenses: active.expenses || [],
-                householdSettings: active.householdSettings || { distributionMethod: 'even' }
-              });
-            }
-          }
-
-          if (hasLocalUpdates) {
-            console.log('useBudgetData: Local data has newer/different budgets, pushing merged state to cloud...');
-            await pushToCloud(merged);
-          }
-          return;
-        } else if (error && error.code === 'PGRST116') {
-          // No cloud data yet, push local if it exists and has real data (unless we just cleared)
-          if (localApp.budgets.length > 0 && !justClearedData.current) {
-            console.log('useBudgetData: No cloud data, pushing local state to cloud');
-            await pushToCloud(localApp);
-          } else if (justClearedData.current) {
-            console.log('useBudgetData: Skipping cloud push - data was just cleared');
-          }
-        }
-      }
-
-      // Fallback to local if not logged in or Supabase empty/failed (and logic above fell through)
-      console.log('useBudgetData: Using local data');
-      setAppData(localApp);
-      const active = getActiveBudget(localApp);
-      if (active) {
-        setData({
-          people: active.people || [],
-          expenses: active.expenses || [],
-          householdSettings: active.householdSettings || { distributionMethod: 'even' }
-        });
-      } else {
-        setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
-      }
+      showAppData(await loadAppData());
+      if (user) await pushToCloud();
     } catch (error) {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
     }
-  }, [user, saving, pushToCloud]);
+  }, [user, saving, pushToCloud, showAppData]);
   const syncOnceRef = useRef(syncOnce);
   syncOnceRef.current = syncOnce;
 
@@ -563,10 +276,35 @@ const useBudgetDataInternal = () => {
       // cache are already wiped by signOut). Guarded so we don't clear during the
       // initial unauthenticated load.
       hadUserRef.current = false;
-      cloudRevisionRef.current = null;
+      setSharing({});
       setAppData({ version: 2, budgets: [], activeBudgetId: '' });
       setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
     }
+  }, [user, refreshFromStorage]);
+
+  // Pick up other people's (and other devices') changes as they happen: the
+  // server announces changes to budgets and memberships this user can see, and
+  // returning to the app catches anything missed while it was in the background.
+  useEffect(() => {
+    if (!user) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refreshSoon = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => refreshFromStorage(), 400);
+    };
+    const channel = supabase
+      .channel(`budgets:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets' }, refreshSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_members' }, refreshSoon)
+      .subscribe();
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshSoon();
+    });
+    return () => {
+      clearTimeout(timer);
+      appState.remove();
+      supabase.removeChannel(channel);
+    };
   }, [user, refreshFromStorage]);
 
   // Load data only once on mount
@@ -711,7 +449,7 @@ const useBudgetDataInternal = () => {
             console.log('useBudgetData: User logged in, syncing mutation to Supabase...');
             setIsSyncing(true);
             try {
-              await pushToCloud(updatedAppData);
+              await pushToCloud();
             } catch (error) {
               console.error('useBudgetData: Supabase mutation sync error:', error);
             } finally {
@@ -763,7 +501,7 @@ const useBudgetDataInternal = () => {
       setIsSyncing(true);
       try {
         console.log('useBudgetData: Pushing full app data update to Supabase...');
-        await pushToCloud(updatedAppData);
+        await pushToCloud();
       } catch (error) {
         console.error('useBudgetData: Supabase sync error:', error);
       } finally {
@@ -801,9 +539,16 @@ const useBudgetDataInternal = () => {
     [queueSave, syncFullAppData]
   );
 
+  // Delete a budget. When it's shared and the user owns it, it's deleted for
+  // everyone, which needs the server now; otherwise the next sync handles it.
   const deleteBudget = useCallback(
     async (budgetId: string) => queueSave(async () => {
       console.log('useBudgetData: deleteBudget called for', budgetId);
+      const access = sharing[budgetId];
+      if (access?.role === 'owner' && access.memberCount > 1) {
+        const { error } = await supabase.from('budgets').delete().eq('id', budgetId);
+        if (error) return { success: false, error: new Error('Couldn’t delete the budget. Check your connection and try again.') };
+      }
       const res = await storageDeleteBudget(budgetId);
       if (res.success) {
         const updated = await loadAppData();
@@ -811,6 +556,17 @@ const useBudgetDataInternal = () => {
       } else {
         console.error('useBudgetData: deleteBudget failed', res.error);
       }
+      return res;
+    }),
+    [queueSave, syncFullAppData, sharing]
+  );
+
+  // Stop sharing a budget someone else owns. It leaves this account's devices;
+  // the others keep it. Allowed even when it's the only budget here.
+  const leaveBudget = useCallback(
+    async (budgetId: string) => queueSave(async () => {
+      const res = await storageDeleteBudget(budgetId, true);
+      if (res.success) await syncFullAppData(await loadAppData());
       return res;
     }),
     [queueSave, syncFullAppData]
@@ -1239,82 +995,33 @@ const useBudgetDataInternal = () => {
     [refreshFromStorage, saving, loading] // Remove dependencies that could cause loops
   );
 
-  // Clear ALL app data - delete all budgets, people, and expenses everywhere
+  // Clear ALL app data. Budgets only this account uses are deleted everywhere;
+  // shared ones are left, and carry on for the people sharing them.
   const clearAllData = useCallback(async (): Promise<{ success: boolean; error?: Error }> => {
     console.log('useBudgetData: ===== CLEARING ALL DATA =====');
     try {
-      // Set flag to prevent immediate Supabase sync
-      justClearedData.current = true;
-
-      // 1. Clear local state FIRST (optimistic)
-      const emptyApp = { version: 2 as const, budgets: [], activeBudgetId: '' };
-      setAppData(emptyApp);
-      setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
-      console.log('useBudgetData: Local state cleared');
-
-      // 2. Clear local storage
-      console.log('useBudgetData: Clearing AsyncStorage...');
+      showAppData({ version: 2, budgets: [], activeBudgetId: '' });
       const result = await storageClearAllAppData();
-      console.log('useBudgetData: AsyncStorage clear result:', result);
-
       if (!result.success) {
         console.error('useBudgetData: Failed to clear local storage:', result.error);
-        justClearedData.current = false;
         return result;
       }
-
-      // 3. Clear Supabase if logged in - UPDATE with empty data instead of DELETE
       if (user) {
         setIsSyncing(true);
-        console.log('useBudgetData: Clearing cloud data for user:', user.id);
         try {
-          // Empty, but carrying the tombstones storage just recorded, so other
-          // devices drop their copies instead of merging them back.
-          const emptyCloudData = await loadAppData();
-          // A deliberate overwrite, so no revision check or merge.
-          const { data: cleared, error } = await supabase
-            .from('user_data')
-            .upsert(
-              {
-                user_id: user.id,
-                app_data: emptyCloudData
-              },
-              { onConflict: 'user_id' }
-            )
-            .select('revision')
-            .single();
-
-          if (error) {
-            console.error('useBudgetData: Supabase clear error:', error);
-            cloudRevisionRef.current = null;
-          } else {
-            console.log('useBudgetData: Cloud data cleared successfully (set to empty)');
-            cloudRevisionRef.current = cleared.revision;
-          }
-        } catch (error) {
-          console.error('useBudgetData: Error clearing Supabase data:', error);
+          await pushToCloud();
         } finally {
           setIsSyncing(false);
         }
       }
-
       setRefreshTrigger(prev => prev + 1);
-
-      // Reset the flag after 2 seconds to allow normal syncing to resume
-      setTimeout(() => {
-        justClearedData.current = false;
-        console.log('useBudgetData: justClearedData flag reset, normal sync can resume');
-      }, 2000);
-
-      console.log('useBudgetData: ===== ALL DATA CLEARED SUCCESSFULLY =====');
       return { success: true };
     } catch (error) {
       console.error('useBudgetData: Error in clearAllData:', error);
       setIsSyncing(false);
-      justClearedData.current = false;
       return { success: false, error: error as Error };
     }
-  }, [user]);
+  }, [user, pushToCloud, showAppData]);
 
   return {
     appData,
@@ -1329,9 +1036,11 @@ const useBudgetDataInternal = () => {
     addBudget,
     renameBudget,
     deleteBudget,
+    leaveBudget,
     duplicateBudget,
     setActiveBudget,
-    customCategories: (appData.customCategories || []).map((c) => c.name),
+    customCategories: (getActiveBudget(appData)?.customCategories || []).map((c) => c.name),
+    sharing,
     saveCustomCategories,
     renameCustomCategory,
     // existing ops scoped to active budget

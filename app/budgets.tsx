@@ -20,7 +20,7 @@ const formatDate = (timestamp: number): string => {
 };
 
 export default function BudgetsScreen() {
-  const { appData, activeBudget, addBudget, renameBudget, deleteBudget, duplicateBudget, setActiveBudget, refreshData } = useBudgetData();
+  const { appData, activeBudget, sharing, addBudget, renameBudget, deleteBudget, leaveBudget, duplicateBudget, setActiveBudget, refreshData } = useBudgetData();
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
@@ -109,9 +109,12 @@ export default function BudgetsScreen() {
       return;
     }
 
+    const others = (sharing[budgetId]?.memberCount || 1) - 1;
     Alert.alert(
       'Delete Budget',
-      `Are you sure you want to delete "${budgetName}"? This action cannot be undone.`,
+      others > 0
+        ? `"${budgetName}" is shared with ${others === 1 ? '1 other person' : `${others} other people`}. Deleting it removes it for everyone. This action cannot be undone.`
+        : `Are you sure you want to delete "${budgetName}"? This action cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -136,7 +139,31 @@ export default function BudgetsScreen() {
         },
       ]
     );
-  }, [deleteBudget, showToast, activeBudget]);
+  }, [deleteBudget, showToast, activeBudget, sharing]);
+
+  const handleLeaveBudget = useCallback((budgetId: string, budgetName: string) => {
+    Alert.alert(
+      'Leave Budget',
+      `Leave "${budgetName}"? It will be removed from your devices. Everyone else keeps it.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            setOperationInProgress(true);
+            try {
+              const result = await leaveBudget(budgetId);
+              if (result.success) showToast(`You left "${budgetName}"`, 'success');
+              else showToast(result.error?.message || 'Failed to leave budget', 'error');
+            } finally {
+              setOperationInProgress(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [leaveBudget, showToast]);
 
   const handleDuplicateBudget = useCallback(async (budgetId: string, budgetName: string) => {
     setOperationInProgress(true);
@@ -199,6 +226,7 @@ export default function BudgetsScreen() {
 
   const budgetActions = (budget: Budget): MenuSection[] => {
     const isActive = activeBudget?.id === budget.id;
+    const access = sharing[budget.id];
     const run = (fn: () => void) => () => {
       setActionBudgetId(null);
       fn();
@@ -206,6 +234,13 @@ export default function BudgetsScreen() {
     const sections: MenuSection[] = [
       {
         items: [
+          {
+            key: 'share',
+            label: 'Share',
+            detail: access && access.memberCount > 1 ? `${access.memberCount} people` : undefined,
+            icon: 'people-outline',
+            onPress: run(() => router.push({ pathname: '/share-budget', params: { budgetId: budget.id } })),
+          },
           {
             key: 'rename',
             label: 'Rename',
@@ -231,7 +266,19 @@ export default function BudgetsScreen() {
         ],
       },
     ];
-    if (budgets.length > 1) {
+    if (access?.role === 'editor') {
+      sections.push({
+        items: [
+          {
+            key: 'leave',
+            label: 'Leave budget',
+            icon: 'exit-outline',
+            destructive: true,
+            onPress: run(() => handleLeaveBudget(budget.id, budget.name)),
+          },
+        ],
+      });
+    } else if (budgets.length > 1) {
       sections.push({
         items: [
           {
@@ -249,10 +296,12 @@ export default function BudgetsScreen() {
     return sections;
   };
 
+  const isShared = (budget: Budget) => (sharing[budget.id]?.memberCount || 1) > 1;
+
   const describe = (budget: Budget) => {
     const people = budget.people?.length || 0;
     const expenses = budget.expenses?.length || 0;
-    return `${people} ${people === 1 ? 'person' : 'people'} · ${expenses} ${expenses === 1 ? 'expense' : 'expenses'} · Edited ${formatDate(budget.modifiedAt)}`;
+    return `${isShared(budget) ? 'Shared · ' : ''}${people} ${people === 1 ? 'person' : 'people'} · ${expenses} ${expenses === 1 ? 'expense' : 'expenses'} · Edited ${formatDate(budget.modifiedAt)}`;
   };
 
   return (
@@ -285,7 +334,7 @@ export default function BudgetsScreen() {
           ) : (
             <ListGroup
               header="Your budgets"
-              footer="Tap a budget to switch to it. Use ⋯ to rename, duplicate, lock or delete."
+              footer="Tap a budget to switch to it. Use ⋯ to share, rename, duplicate, lock or delete."
             >
               {budgets.map((budget, i) => {
                 const isActive = activeBudget?.id === budget.id;
@@ -342,11 +391,11 @@ export default function BudgetsScreen() {
                     key={budget.id}
                     title={budget.name}
                     caption={describe(budget)}
-                    icon={locked ? 'lock-closed-outline' : 'folder-outline'}
+                    icon={locked ? 'lock-closed-outline' : isShared(budget) ? 'people-outline' : 'folder-outline'}
                     iconColor={isActive ? tokens.colors.brand : undefined}
                     trailing={isActive ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
                     onPress={isActive || operationInProgress || dimmed ? undefined : () => handleSetActiveBudget(budget.id)}
-                    accessibilityLabel={`${budget.name}${isActive ? ', active budget' : ', switch to this budget'}${locked ? ', locked' : ''}`}
+                    accessibilityLabel={`${budget.name}${isActive ? ', active budget' : ', switch to this budget'}${isShared(budget) ? ', shared' : ''}${locked ? ', locked' : ''}`}
                     accessory={
                       <View ref={(el) => { moreButtons.current[budget.id] = el; }} collapsable={false}>
                         <IconButton

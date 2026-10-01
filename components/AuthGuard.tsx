@@ -256,7 +256,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                     iconColor={tokens.colors.income}
                     iconBackground={tokens.colors.incomeSubtle}
                     title="Account deleted"
-                    body="Your account and every budget, person and expense in it have been permanently deleted."
+                    body="Your account and every budget, person and expense in it have been permanently deleted. Shared budgets stay with the people you shared them with."
                 />
                 <Button text="Done" onPress={() => setNotice(null)} variant="primary" size="lg" />
             </AuthShell>

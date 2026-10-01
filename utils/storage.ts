@@ -9,9 +9,12 @@ const STORAGE_KEYS = {
   // New multi-budget app data key (v2)
   APP_DATA_V2: 'app_data_v2',
   EXPENSES_FILTERS: 'expenses_filters_v1',
-  // Legacy device-only custom categories; now synced inside AppDataV2 and
+  // Legacy device-only custom categories; now synced on each budget and
   // absorbed from here on first load.
   CUSTOM_EXPENSE_CATEGORIES: 'custom_expense_categories_v1',
+  // Ids of budgets this device has seen on the server, so a budget missing
+  // from the server later is known to be deleted rather than new.
+  SYNCED_BUDGET_IDS: 'synced_budget_ids_v1',
 };
 
 // Normalize and validate category names
@@ -95,6 +98,7 @@ export const clearLocalAppData = async (): Promise<void> => {
       STORAGE_KEYS.BUDGET_DATA,
       STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES,
       STORAGE_KEYS.EXPENSES_FILTERS,
+      STORAGE_KEYS.SYNCED_BUDGET_IDS,
     ]);
   } catch (e) {
     console.error('storage: clearLocalAppData error', e);
@@ -103,25 +107,41 @@ export const clearLocalAppData = async (): Promise<void> => {
   }
 };
 
+export const loadSyncedBudgetIds = async (): Promise<string[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.SYNCED_BUDGET_IDS);
+    const ids = raw ? JSON.parse(raw) : [];
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
+  } catch (e) {
+    console.error('storage: loadSyncedBudgetIds error', e);
+    return [];
+  }
+};
+
+export const saveSyncedBudgetIds = async (ids: string[]): Promise<void> => {
+  await AsyncStorage.setItem(STORAGE_KEYS.SYNCED_BUDGET_IDS, JSON.stringify(ids));
+};
+
+// Custom categories belong to the active budget.
 export const getCustomExpenseCategories = async (): Promise<string[]> => {
   try {
-    const appData = await loadAppData();
-    return (appData.customCategories || []).map((c) => c.name);
+    const active = getActiveBudget(await loadAppData());
+    return (active?.customCategories || []).map((c) => c.name);
   } catch (e) {
     console.error('storage: getCustomExpenseCategories error', e);
     return [];
   }
 };
 
-// Set the custom category list. Removed names get a tombstone so the removal
-// syncs; new names are stamped so they survive a merge with an older delete.
-const withCustomCategories = (appData: AppDataV2, categories: string[]): AppDataV2 => {
+// Set a budget's custom category list. Removed names get a tombstone so the
+// removal syncs; new names are stamped so they survive a merge with an older delete.
+const withCustomCategories = (budget: Budget, categories: string[]): Budget => {
   const now = Date.now();
   const next = new Set(
     categories.map((c) => normalizeCategoryName(c)).filter((c) => c && !DEFAULT_CATEGORIES.includes(c))
   );
-  const current = appData.customCategories || [];
-  const deletedCategories = { ...(appData.deletedCategories || {}) };
+  const current = budget.customCategories || [];
+  const deletedCategories = { ...(budget.deletedCategories || {}) };
   current.forEach((c) => {
     if (!next.has(c.name)) deletedCategories[c.name] = now;
   });
@@ -129,12 +149,22 @@ const withCustomCategories = (appData: AppDataV2, categories: string[]): AppData
   const added: CustomCategory[] = Array.from(next)
     .filter((name) => !kept.some((c) => c.name === name))
     .map((name) => ({ name, updatedAt: now }));
-  return { ...appData, customCategories: [...kept, ...added], deletedCategories };
+  const changed = added.length > 0 || kept.length !== current.length;
+  return changed
+    ? { ...budget, customCategories: sanitizeCustomCategories([...kept, ...added]), deletedCategories, modifiedAt: now }
+    : budget;
 };
+
+const replaceBudget = (appData: AppDataV2, budget: Budget): AppDataV2 => ({
+  ...appData,
+  budgets: appData.budgets.map((b) => (b.id === budget.id ? budget : b)),
+});
 
 export const saveCustomExpenseCategories = async (categories: string[]): Promise<{ success: boolean; error?: Error }> => {
   const appData = await loadAppData();
-  return await saveAppData(withCustomCategories(appData, categories));
+  const active = getActiveBudget(appData);
+  if (!active) return { success: false, error: new Error('No active budget') };
+  return await saveAppData(replaceBudget(appData, withCustomCategories(active, categories)));
 };
 
 export const renameCustomExpenseCategory = async (oldName: string, newName: string): Promise<{ success: boolean; error?: Error }> => {
@@ -165,28 +195,23 @@ export const renameCustomExpenseCategory = async (oldName: string, newName: stri
       return { success: false, error: new Error('A category with this name already exists') };
     }
 
-    // Rename in the list and retag every expense using it, in one save. Retagged
-    // expenses get a fresh updatedAt, or a merge would keep the other device's
-    // copy still tagged with the old name.
+    // Rename in the active budget's list and retag its expenses, in one save.
+    // Retagged expenses get a fresh updatedAt, or a merge would keep another
+    // device's copy still tagged with the old name.
     const appData = await loadAppData();
+    const active = getActiveBudget(appData);
+    if (!active) return { success: false, error: new Error('No active budget') };
     const now = Date.now();
-    const updatedBudgets = appData.budgets.map(budget => {
-      let changed = false;
-      const updatedExpenses = budget.expenses.map(expense => {
-        if (normalizeCategoryName(expense.categoryTag || 'Misc') === normalizedOldName) {
-          changed = true;
-          return { ...expense, categoryTag: normalizedNewName, updatedAt: now };
-        }
-        return expense;
-      });
-      return changed ? { ...budget, expenses: updatedExpenses, modifiedAt: now } : budget;
-    });
-
+    const expenses = active.expenses.map(expense =>
+      normalizeCategoryName(expense.categoryTag || 'Misc') === normalizedOldName
+        ? { ...expense, categoryTag: normalizedNewName, updatedAt: now }
+        : expense
+    );
     const renamed = withCustomCategories(
-      { ...appData, budgets: updatedBudgets },
+      { ...active, expenses },
       customCategories.map(cat => (cat === normalizedOldName ? normalizedNewName : cat))
     );
-    return await saveAppData(renamed);
+    return await saveAppData(replaceBudget(appData, renamed));
   } catch (error) {
     console.error('storage: renameCustomExpenseCategory error', error);
     return { success: false, error: error as Error };
@@ -360,7 +385,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
 };
 
 // Validate AppDataV2
-const validateAppData = (data: any): AppDataV2 => {
+export const validateAppData = (data: any): AppDataV2 => {
   console.log('storage: Validating AppDataV2...');
   if (!data || typeof data !== 'object') {
     console.log('storage: No data or invalid data, returning empty state for first-time user');
@@ -407,11 +432,20 @@ const validateAppData = (data: any): AppDataV2 => {
       modifiedAt,
       lock: lockSettings,
       deletions: sanitizeDeletions(b?.deletions),
+      customCategories: sanitizeCustomCategories(b?.customCategories),
+      deletedCategories: sanitizeDeletions(b?.deletedCategories),
     };
   };
 
   // Allow empty budgets array for first-time users
-  const budgets: Budget[] = Array.isArray(data.budgets) ? data.budgets.map((b: any) => makeSafeBudget(b)) : [];
+  let budgets: Budget[] = Array.isArray(data.budgets) ? data.budgets.map((b: any) => makeSafeBudget(b)) : [];
+
+  // Categories used to be account-wide; hand any account-level list to every budget.
+  const accountCategories = sanitizeCustomCategories(data.customCategories);
+  const accountCategoryDeletions = sanitizeDeletions(data.deletedCategories);
+  if (accountCategories.length || Object.keys(accountCategoryDeletions).length) {
+    budgets = budgets.map((b) => addCategoriesToBudget(b, accountCategories, accountCategoryDeletions));
+  }
 
   let activeBudgetId = typeof data.activeBudgetId === 'string' ? data.activeBudgetId : '';
   if (budgets.length > 0 && !budgets.find((b) => b.id === activeBudgetId)) {
@@ -428,10 +462,24 @@ const validateAppData = (data: any): AppDataV2 => {
     version: 2 as const,
     budgets,
     activeBudgetId,
-    customCategories: sanitizeCustomCategories(data.customCategories),
     deletedBudgets: sanitizeDeletions(data.deletedBudgets),
-    deletedCategories: sanitizeDeletions(data.deletedCategories),
   };
+};
+
+// Union categories (and their tombstones) into a budget, dropping any a newer
+// tombstone has deleted.
+export const addCategoriesToBudget = (
+  budget: Budget,
+  categories: CustomCategory[],
+  deletions: Record<string, number> = {}
+): Budget => {
+  const deletedCategories = { ...(budget.deletedCategories || {}) };
+  for (const [name, ts] of Object.entries(deletions)) {
+    if (!(name in deletedCategories) || ts > deletedCategories[name]) deletedCategories[name] = ts;
+  }
+  const customCategories = sanitizeCustomCategories([...(budget.customCategories || []), ...categories])
+    .filter((c) => !(deletedCategories[c.name] >= c.updatedAt));
+  return { ...budget, customCategories, deletedCategories };
 };
 
 // Normalize, drop defaults, dedupe (keeping the latest stamp) and sort by name,
@@ -463,12 +511,10 @@ const absorbLegacyCustomCategories = async (appData: AppDataV2): Promise<AppData
   }
   const now = Date.now();
   const names = Array.isArray(legacy) ? legacy.filter((n): n is string => typeof n === 'string') : [];
+  const categories = sanitizeCustomCategories(names.map((name) => ({ name, updatedAt: now })));
   const merged: AppDataV2 = {
     ...appData,
-    customCategories: sanitizeCustomCategories([
-      ...(appData.customCategories || []),
-      ...names.map((name) => ({ name, updatedAt: now })),
-    ]),
+    budgets: appData.budgets.map((b) => addCategoriesToBudget(b, categories)),
   };
   appDataCache = merged;
   const res = await saveAppData(merged);
@@ -638,7 +684,10 @@ export const setActiveBudget = async (budgetId: string): Promise<{ success: bool
 
 export const addBudget = async (name: string): Promise<{ success: boolean; error?: Error; budget?: Budget }> => {
   const appData = await loadAppData();
-  const newBudget = createEmptyBudget(name || 'New Budget');
+  // Start with the current budget's custom categories, as they were once shared by every budget.
+  const now = Date.now();
+  const inherited = (getActiveBudget(appData)?.customCategories || []).map((c) => ({ name: c.name, updatedAt: now }));
+  const newBudget = { ...createEmptyBudget(name || 'New Budget'), customCategories: inherited };
   const budgets = appData.budgets && Array.isArray(appData.budgets) ? appData.budgets : [];
   const newAppData: AppDataV2 = { ...appData, budgets: [...budgets, newBudget], activeBudgetId: newBudget.id };
   const res = await saveAppData(newAppData);
@@ -657,9 +706,12 @@ export const renameBudget = async (budgetId: string, newName: string): Promise<{
   return await saveAppData({ ...appData, budgets });
 };
 
-export const deleteBudget = async (budgetId: string): Promise<{ success: boolean; error?: Error }> => {
+// Remove a budget from this device and queue its removal; the next sync
+// deletes it on the server, or leaves it when other people still share it.
+// `allowLast` permits removing the only budget (leaving a shared budget).
+export const deleteBudget = async (budgetId: string, allowLast = false): Promise<{ success: boolean; error?: Error }> => {
   const appData = await loadAppData();
-  if (!appData.budgets || !Array.isArray(appData.budgets) || appData.budgets.length <= 1) {
+  if (!appData.budgets || !Array.isArray(appData.budgets) || (appData.budgets.length <= 1 && !allowLast)) {
     return { success: false, error: new Error('Cannot delete the last budget') };
   }
   const budgets = appData.budgets.filter((b) => b && b.id !== budgetId);
@@ -850,7 +902,9 @@ export const setBudgetLock = async (budgetId: string, patch: Partial<BudgetLockS
   const currentLock = budget.lock || getDefaultLockSettings();
   const updatedLock = { ...currentLock, ...patch };
 
-  const updatedBudget = { ...budget, lock: updatedLock, modifiedAt: Date.now() };
+  // Lock settings stay on this device (they aren't synced), so changing them
+  // isn't an edit to the budget.
+  const updatedBudget = { ...budget, lock: updatedLock };
   const budgets = [...appData.budgets];
   budgets[budgetIndex] = updatedBudget;
 
@@ -891,13 +945,12 @@ export const clearAllAppData = async (): Promise<{ success: boolean; error?: Err
   try {
     console.log('storage: Clearing all app data - deleting all budgets, people, expenses, and custom categories');
 
-    // Tombstone everything being wiped so another device's copy can't merge it back.
+    // Queue every budget for removal, so the next sync deletes it on the server
+    // (or leaves it, when it's shared) instead of downloading it again.
     const previous = await loadAppData();
     const now = Date.now();
     const deletedBudgets = { ...(previous.deletedBudgets || {}) };
     previous.budgets.forEach((b) => { deletedBudgets[b.id] = now; });
-    const deletedCategories = { ...(previous.deletedCategories || {}) };
-    (previous.customCategories || []).forEach((c) => { deletedCategories[c.name] = now; });
 
     // Clear all related storage items including custom categories and filters FIRST
     // Use sequential clearing to ensure each item is properly removed
@@ -921,7 +974,6 @@ export const clearAllAppData = async (): Promise<{ success: boolean; error?: Err
       budgets: [],
       activeBudgetId: '',
       deletedBudgets,
-      deletedCategories,
     };
 
     // Save the fresh app data (this will create a new empty state)

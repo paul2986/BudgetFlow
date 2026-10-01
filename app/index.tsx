@@ -25,6 +25,7 @@ import ExpenseBreakdownSection from '../components/ExpenseBreakdownSection';
 import DebtRepaymentSection from '../components/DebtRepaymentSection';
 import { Card, Input, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
+import { takePendingInvite } from '../utils/sharing';
 
 /**
  * Overview (UI_AUDIT Phase 4). One shell — header + scroll column — with one
@@ -138,6 +139,13 @@ export default function HomeScreen() {
   const [isDataReady, setIsDataReady] = useState(false);
 
   const appState = useRef(AppState.currentState);
+
+  // Signed in after opening an invite link (perhaps via an email confirmation
+  // link, which lands here): carry on to the invite.
+  useEffect(() => {
+    const token = takePendingInvite();
+    if (token) router.push(`/invite/${token}`);
+  }, []);
 
   // Track when data is ready to prevent flickering
   useEffect(() => {
