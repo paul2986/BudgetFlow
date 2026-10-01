@@ -102,6 +102,9 @@ const useBudgetDataInternal = () => {
   // The account this device's data has been claimed for (see claimDeviceData).
   // Syncs wait for it, so they never run against another account's data.
   const claimedForRef = useRef<string | null>(null);
+  // The account whose budgets have been shown at least once since sign-in. Until
+  // then the empty in-memory data isn't "no budgets", it's "not loaded yet".
+  const [readyFor, setReadyFor] = useState<string | null>(null);
 
   // Show app data in the UI: the full set, and the active budget's editable slice.
   const showAppData = useCallback((app: AppDataV2) => {
@@ -276,11 +279,15 @@ const useBudgetDataInternal = () => {
     if (user) {
       hadUserRef.current = true;
       claimDeviceData(user.id)
-        .then(() => {
+        .then(async () => {
           claimedForRef.current = user.id;
+          // A returning device already has this account's budgets: show them now.
+          // A fresh one has to wait for the first sync before it can say "none".
+          if ((await loadAppData()).budgets.length > 0) setReadyFor(user.id);
           return refreshFromStorage();
         })
-        .catch((error) => console.error('useBudgetData: Could not claim device data:', error));
+        .catch((error) => console.error('useBudgetData: Could not claim device data:', error))
+        .finally(() => setReadyFor(user.id));
     } else if (hadUserRef.current) {
       // Transitioned from signed-in to signed-out: drop in-memory data so the
       // provider doesn't hold the previous account's budgets (local storage and
@@ -288,6 +295,7 @@ const useBudgetDataInternal = () => {
       // initial unauthenticated load.
       hadUserRef.current = false;
       claimedForRef.current = null;
+      setReadyFor(null);
       setSharing({});
       setAppData({ version: 2, budgets: [], activeBudgetId: '' });
       setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
@@ -1039,7 +1047,7 @@ const useBudgetDataInternal = () => {
     appData,
     activeBudget: getActiveBudget(appData),
     data,
-    loading,
+    loading: loading || (!!user && readyFor !== user.id),
     saving,
     isSyncing,
     user,
