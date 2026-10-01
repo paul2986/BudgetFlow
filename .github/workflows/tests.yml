@@ -16,6 +16,9 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # expo-env.d.ts is gitignored; `expo start` writes it locally. It pulls in
+      # Expo's web style types (e.g. position: 'sticky'), so create it here too.
+      - run: echo '/// <reference types="expo/types" />' > expo-env.d.ts
       - run: npx tsc --noEmit -p .
       - run: npm test
 
