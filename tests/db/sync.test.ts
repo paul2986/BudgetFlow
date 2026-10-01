@@ -91,6 +91,55 @@ describe('one person', () => {
   });
 });
 
+describe('switching accounts on a device', () => {
+  it('another account signing in never uploads the previous account’s budgets', async () => {
+    const { phone, budget } = await aliceWithBudget();
+    // Alice's session ends elsewhere (signing out ends every device's session),
+    // leaving her budgets on this phone; then Bob signs in on it. Drop the
+    // synced-ids list too, as on a device last used with the pre-sharing app.
+    phone.disk.store.delete('synced_budget_ids_v1');
+    const bob = await createUser('bob');
+    const bobOnAlicesPhone = await createDevice(bob, phone.disk);
+    expect((await bobOnAlicesPhone.sync()).budgets).toEqual([]);
+    const { data: owned } = await admin.from('budget_members').select('budget_id').eq('user_id', bob.id);
+    expect(owned).toEqual([]);
+    expect(await members(budget.id)).toHaveLength(1);
+  });
+
+  it('a sync for an account the device data doesn’t belong to refuses to run', async () => {
+    const { phone } = await aliceWithBudget();
+    const bob = await createUser('bob');
+    const result = await phone.syncAs(bob.id);
+    expect(result.ok).toBe(false);
+    const { data: owned } = await admin.from('budget_members').select('budget_id').eq('user_id', bob.id);
+    expect(owned).toEqual([]);
+  });
+});
+
+describe('overlapping syncs', () => {
+  it('create a budget once, even when it needs a new id', async () => {
+    // Bob's budget takes an id that Alice's device also uses, so Alice's copy
+    // is created under a new id. A second pass queued straight behind the
+    // first must not create it again.
+    const bob = await createUser('bob');
+    const taken = makeBudget({ name: 'Taken' });
+    await bob.client.rpc('create_budget', { p_id: taken.id, p_data: taken });
+
+    const alice = await createUser('alice');
+    const phone = await createDevice(alice);
+    const mine = { ...taken, name: 'Mine' };
+    await phone.storage.saveAppData({ version: 2, budgets: [mine], activeBudgetId: mine.id });
+    const [first, second] = await Promise.all([phone.syncNow(), phone.syncNow()]);
+    expect(first.ok && second.ok).toBe(true);
+
+    const { data: owned } = await admin.from('budget_members').select('budget_id').eq('user_id', alice.id);
+    expect(owned).toHaveLength(1);
+    const data = await phone.load();
+    expect(data.budgets.map((b) => b.name)).toEqual(['Mine']);
+    expect(data.budgets[0].id).not.toBe(taken.id);
+  });
+});
+
 describe('moving off user_data', () => {
   it('merges old-version edits into existing budgets, ignores budgets only found there, then empties it', async () => {
     const alice = await createUser('alice');
@@ -208,12 +257,14 @@ describe('leaving and rejoining', () => {
     const bobLaptop = await createDevice(bob);
     await bobLaptop.sync();
 
-    // Phone leaves while offline: queued, not yet sent.
+    // Phone left a minute ago while offline: queued, not yet sent. (A real gap,
+    // not milliseconds: device and server clocks can differ by that much.)
     await bobPhone.storage.deleteBudget(budget.id, true);
+    const queued = await bobPhone.load();
+    await bobPhone.storage.saveAppData({ ...queued, deletedBudgets: { [budget.id]: Date.now() - 60_000 } });
     // Meanwhile the laptop leaves, then rejoins with a new invite.
     await bobLaptop.storage.deleteBudget(budget.id, true);
     await bobLaptop.sync();
-    await new Promise((resolve) => setTimeout(resolve, 20)); // joined_at after the phone's queued leave
     const { error } = await bob.client.rpc('accept_budget_invite', { p_token: await createInvite(alice, budget.id) });
     expect(error).toBeNull();
 

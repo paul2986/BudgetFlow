@@ -7,28 +7,35 @@ import type { AppDataV2, BudgetSharing } from '../../types/budget';
 const SUPABASE_MODULE = fileURLToPath(new URL('../../utils/supabase.ts', import.meta.url));
 
 // One device signed in as `user`: its own storage and its own copy of the
-// app's storage and sync modules (they keep state in module scope).
-export const createDevice = async (user: TestUser) => {
-  const disk = createMemoryStorage();
+// app's storage and sync modules (they keep state in module scope). Pass the
+// `disk` of an earlier device to sign a different account in on the same one.
+export const createDevice = async (user: TestUser, disk = createMemoryStorage()) => {
   vi.resetModules();
   vi.doMock('@react-native-async-storage/async-storage', () => ({ default: disk }));
   vi.doMock(SUPABASE_MODULE, () => ({ supabase: user.client }));
   const storage = await import('../../utils/storage');
   const sync = await import('../../utils/budgetSync');
 
+  // What useBudgetData does when the session starts.
+  await storage.claimDeviceData(user.id);
+
   const device = {
     user,
+    disk,
     storage,
     sharing: {} as Record<string, BudgetSharing>,
     load: () => storage.loadAppData(),
-    // One sync pass, adopted the way useBudgetData does it.
+    // One sync pass (it saves its result to the device).
     sync: async (): Promise<AppDataV2> => {
       const result = await sync.syncBudgets(user.id, storage.loadAppData);
       if (!result.ok) throw result.error;
-      await storage.saveAppData(result.data);
       device.sharing = result.sharing;
       return storage.loadAppData();
     },
+    // A sync pass without waiting for it, for overlapping passes.
+    syncNow: () => sync.syncBudgets(user.id, storage.loadAppData),
+    // A sync pass on this device for some other account's id.
+    syncAs: (userId: string) => sync.syncBudgets(userId, storage.loadAppData),
     // Edit a budget on this device the way the app's save does.
     edit: async (budgetId: string, change: (b: AppDataV2['budgets'][number]) => void) => {
       const data = await storage.loadAppData();

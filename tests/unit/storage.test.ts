@@ -120,6 +120,38 @@ describe('removing budgets', () => {
   });
 });
 
+describe('which account owns the device’s data', () => {
+  it('wipes another account’s data when a different account signs in', async () => {
+    seed(app([makeBudget()]), { device_owner_v1: 'alice', synced_budget_ids_v1: '["x"]' });
+    await storage.claimDeviceData('bob');
+    expect((await storage.loadAppData()).budgets).toEqual([]);
+    expect(await storage.loadSyncedBudgetIds()).toEqual([]);
+    expect(await storage.getDeviceOwner()).toBe('bob');
+  });
+
+  it('keeps the data when the same account signs back in', async () => {
+    seed(app([makeBudget()]), { device_owner_v1: 'alice' });
+    await storage.claimDeviceData('alice');
+    expect((await storage.loadAppData()).budgets).toHaveLength(1);
+  });
+
+  it('when signed out, clears data with no recorded owner and keeps owned data', async () => {
+    seed(app([makeBudget()]));
+    await storage.clearUnownedDeviceData();
+    expect((await storage.loadAppData()).budgets).toEqual([]);
+
+    seed(app([makeBudget()]), { device_owner_v1: 'alice' });
+    await storage.clearUnownedDeviceData();
+    expect((await storage.loadAppData()).budgets).toHaveLength(1);
+  });
+
+  it('signing out forgets the owner along with the data', async () => {
+    seed(app([makeBudget()]), { device_owner_v1: 'alice' });
+    await storage.clearLocalAppData();
+    expect(await storage.getDeviceOwner()).toBeNull();
+  });
+});
+
 describe('budget lock', () => {
   it('stays on the device without counting as an edit to the budget', async () => {
     const budget = makeBudget({ modifiedAt: 123 });

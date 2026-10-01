@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
-import { clearLocalAppData } from '../utils/storage';
+import { clearLocalAppData, clearUnownedDeviceData } from '../utils/storage';
 import { setAuthNotice } from '../utils/authNotice';
 import { Session, User } from '@supabase/supabase-js';
 
@@ -12,14 +12,19 @@ export const useAuth = () => {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Signed out (including a session ended from another device): data on this
+    // device with no recorded owner is a leftover and is cleared before anyone
+    // signs in (see claimDeviceData).
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) await clearUnownedDeviceData();
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') clearUnownedDeviceData();
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
