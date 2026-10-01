@@ -35,11 +35,13 @@ export default function ImportBudgetScreen() {
   const inFlight = useRef(false);
 
   // Start from the name the entry suggests whenever a new file is handed over.
+  const entryId = entry?.id;
+  const defaultName = entry?.defaultName;
   useEffect(() => {
-    if (!entry) return;
-    shownId.current = entry.id;
-    setName(entry.defaultName);
-  }, [entry?.id]);
+    if (entryId === undefined) return;
+    shownId.current = entryId;
+    setName(defaultName ?? '');
+  }, [entryId, defaultName]);
 
   // Once the screen has slid away for good, let go of the file; the entry id
   // keeps a quick reopen from losing the next file.

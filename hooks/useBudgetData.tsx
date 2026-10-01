@@ -74,10 +74,9 @@ export const BudgetDataProvider = ({ children }: { children: ReactNode }) => {
 
 export const useBudgetData = () => {
   const context = useContext(BudgetDataContext);
-  if (!context) {
-    // Fallback to local state if used outside of provider (for safety/backward compatibility)
-    return useBudgetDataInternal();
-  }
+  // Every caller is inside the provider (app/_layout.tsx). A fallback that built a
+  // second store here would call a hook conditionally and sync on its own, so fail loudly.
+  if (!context) throw new Error('useBudgetData must be used within a BudgetDataProvider');
   return context;
 };
 

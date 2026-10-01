@@ -636,7 +636,6 @@ export const fractionDigitsFor = (currencyCode: string): number => {
 
 /** `Family - 2026-10-01.xlsx`, safe to save on any system. */
 export const workbookFileName = (budgetName: string, now: Date): string => {
-  // eslint-disable-next-line no-control-regex
   const safe = (budgetName || '').replace(/[\\/:*?"<>|\u0000-\u001F]/g, '').replace(/\s+/g, ' ').trim().replace(/[. ]+$/, '').slice(0, 60);
   return `${safe || 'Budget'} - ${todayYmd(now)}.xlsx`;
 };
