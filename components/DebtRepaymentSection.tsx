@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
 import { Expense, Person } from '../types/budget';
-import { calculateMonthlyAmount } from '../utils/calculations';
+import { calculateMonthlyAmount, isExpenseActive } from '../utils/calculations';
 import { debtMeta } from '../utils/debtMeta';
 import Icon from './Icon';
 import { AmountText, Chip, ChoicePills, EmptyState, ListRow } from './ui';
@@ -21,7 +21,8 @@ export default function DebtRepaymentSection({ expenses, people = [] }: DebtRepa
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
   const debtExpenses = useMemo(() => {
-    return (expenses || []).filter((e) => !!e.debtRepayment);
+    // A loan that has ended isn't a repayment any more (it's under "Ending & expired").
+    return (expenses || []).filter((e) => !!e.debtRepayment && isExpenseActive(e));
   }, [expenses]);
 
   const filteredDebtExpenses = useMemo(() => {

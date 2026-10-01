@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
-import { calculateMonthlyAmount } from '../utils/calculations';
+import { calculateMonthlyAmount, isExpenseActive } from '../utils/calculations';
 import Icon from './Icon';
 import { AmountText, Card, ChoicePills, EmptyState, SegmentedControl } from './ui';
 import { type, space, radius, tabularNums } from '../styles/tokens';
@@ -82,10 +82,9 @@ export default function ExpenseBreakdownSection({
       return { household: null, personal: null, totalAmount: 0 };
     }
 
-    const activeExpenses = expenses.filter(expense => {
-      if (!expense) return false;
-      return true;
-    });
+    // Expenses past their end date aren't spending any more; they're listed under
+    // "Ending & expired" instead. The Overview totals above leave them out too.
+    const activeExpenses = expenses.filter(expense => !!expense && isExpenseActive(expense));
 
     console.log('ExpenseBreakdownSection: Active expenses count:', activeExpenses.length);
 
