@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   // New multi-budget app data key (v2)
   APP_DATA_V2: 'app_data_v2',
   EXPENSES_FILTERS: 'expenses_filters_v1',
+  // This account's chosen expense list sort, kept on the device like filters.
+  EXPENSES_SORT: 'expenses_sort_v1',
   // Legacy device-only custom categories; now synced on each budget and
   // absorbed from here on first load.
   CUSTOM_EXPENSE_CATEGORIES: 'custom_expense_categories_v1',
@@ -100,6 +102,7 @@ export const clearLocalAppData = async (): Promise<void> => {
       STORAGE_KEYS.BUDGET_DATA,
       STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES,
       STORAGE_KEYS.EXPENSES_FILTERS,
+      STORAGE_KEYS.EXPENSES_SORT,
       STORAGE_KEYS.SYNCED_BUDGET_IDS,
       STORAGE_KEYS.DEVICE_OWNER,
     ]);
@@ -284,6 +287,38 @@ export const saveExpensesFilters = async (filters: ExpensesFilters): Promise<voi
     await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(toSave));
   } catch (e) {
     console.error('storage: saveExpensesFilters error', e);
+  }
+};
+
+export type ExpensesSort = {
+  by: 'date' | 'alphabetical' | 'cost' | 'type' | 'assignedTo' | 'frequency' | 'categoryTag' | 'endDate' | 'debtRepayment';
+  order: 'asc' | 'desc';
+};
+
+export const DEFAULT_EXPENSES_SORT: ExpensesSort = { by: 'date', order: 'desc' };
+
+const SORT_FIELDS: ExpensesSort['by'][] = ['date', 'alphabetical', 'cost', 'type', 'assignedTo', 'frequency', 'categoryTag', 'endDate', 'debtRepayment'];
+
+// Sort is per account, not per budget: device data belongs to one account
+// (see claimDeviceData), so members of a shared budget each keep their own.
+export const getExpensesSort = async (): Promise<ExpensesSort> => {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.EXPENSES_SORT);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && SORT_FIELDS.includes(parsed.by) && (parsed.order === 'asc' || parsed.order === 'desc')) {
+      return { by: parsed.by, order: parsed.order };
+    }
+  } catch (e) {
+    console.error('storage: getExpensesSort error', e);
+  }
+  return DEFAULT_EXPENSES_SORT;
+};
+
+export const saveExpensesSort = async (sort: ExpensesSort): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_SORT, JSON.stringify({ by: sort.by, order: sort.order }));
+  } catch (e) {
+    console.error('storage: saveExpensesSort error', e);
   }
 };
 

@@ -19,7 +19,7 @@ import { AmountText, EmptyState, ListGroup, Menu, SearchField, type MenuAnchor }
 import { haptics } from '../utils/haptics';
 import { type, space, radius } from '../styles/tokens';
 import { DEFAULT_CATEGORIES } from '../types/budget';
-import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, normalizeCategoryName } from '../utils/storage';
+import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, getExpensesSort, saveExpensesSort, normalizeCategoryName } from '../utils/storage';
 
 
 // Sort menu: each field offers both directions; the list defaults to newest first.
@@ -87,6 +87,24 @@ export default function ExpensesScreen() {
   // Enhanced sorting state
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc'); // Default: newest first
+
+  // The sort is this account's own default: restored on open, saved on change.
+  const sortLoaded = useRef(false);
+  useEffect(() => {
+    let cancelled = false;
+    getExpensesSort().then((saved) => {
+      if (cancelled) return;
+      setSortBy(saved.by);
+      setSortOrder(saved.order);
+      sortLoaded.current = true;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  useEffect(() => {
+    if (sortLoaded.current) saveExpensesSort({ by: sortBy, order: sortOrder });
+  }, [sortBy, sortOrder]);
 
   // Use ref to track if we've already refreshed on this focus
   const hasRefreshedOnFocus = useRef(false);

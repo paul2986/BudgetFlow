@@ -162,3 +162,25 @@ describe('budget lock', () => {
     expect(saved.modifiedAt).toBe(123);
   });
 });
+
+describe('expenses sort preference', () => {
+  beforeEach(() => device.store.clear());
+
+  it('defaults to newest first', async () => {
+    expect(await storage.getExpensesSort()).toEqual({ by: 'date', order: 'desc' });
+  });
+
+  it('round-trips a saved sort and ignores junk', async () => {
+    await storage.saveExpensesSort({ by: 'cost', order: 'desc' });
+    expect(await storage.getExpensesSort()).toEqual({ by: 'cost', order: 'desc' });
+    device.store.set('expenses_sort_v1', JSON.stringify({ by: 'nope', order: 'asc' }));
+    expect(await storage.getExpensesSort()).toEqual({ by: 'date', order: 'desc' });
+  });
+
+  it("does not carry over to the next account on the device", async () => {
+    await storage.claimDeviceData('user-a');
+    await storage.saveExpensesSort({ by: 'cost', order: 'desc' });
+    await storage.claimDeviceData('user-b');
+    expect(await storage.getExpensesSort()).toEqual({ by: 'date', order: 'desc' });
+  });
+});
