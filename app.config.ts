@@ -48,6 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     plugins: [
         'expo-font',
         'expo-router',
+        'expo-sharing',
         [
             'expo-splash-screen',
             {

@@ -6,12 +6,17 @@ import { router, useFocusEffect } from 'expo-router';
 import StandardHeader from '../components/StandardHeader';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../hooks/useTheme';
+import { useCurrency } from '../hooks/useCurrency';
 import { Budget } from '../types/budget';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
 import { EmptyState, IconButton, Input, ListGroup, ListRow, Menu, Sheet, type MenuAnchor, type MenuSection } from '../components/ui';
 import { space } from '../styles/tokens';
+import { buildBudgetWorkbook, fractionDigitsFor, workbookFileName } from '../utils/budgetWorkbook/export';
+import { parseBudgetWorkbook } from '../utils/budgetWorkbook/import';
+import { pickWorkbook, saveWorkbook } from '../utils/fileTransfer';
+import { importHandoff } from '../utils/importHandoff';
 
 const formatDate = (timestamp: number): string => {
   const d = new Date(timestamp);
@@ -22,6 +27,7 @@ const formatDate = (timestamp: number): string => {
 export default function BudgetsScreen() {
   const { appData, activeBudget, sharing, addBudget, renameBudget, deleteBudget, leaveBudget, duplicateBudget, setActiveBudget, refreshData } = useBudgetData();
   const { tokens } = useTheme();
+  const { currency } = useCurrency();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
 
@@ -41,6 +47,8 @@ export default function BudgetsScreen() {
   };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [operationInProgress, setOperationInProgress] = useState(false);
+  // Import from Excel: choosing the file; the preview is its own screen (/import-budget).
+  const [pickingFile, setPickingFile] = useState(false);
 
   // Refresh data when screen comes into focus
   useFocusEffect(
@@ -182,6 +190,46 @@ export default function BudgetsScreen() {
     }
   }, [duplicateBudget, showToast]);
 
+  // Build and hand over the file with no waiting in between: browsers only allow the
+  // share sheet straight after a tap.
+  const handleExportBudget = useCallback(async (budget: Budget) => {
+    try {
+      const now = new Date();
+      const bytes = buildBudgetWorkbook(budget, {
+        currencyCode: currency.code,
+        currencySymbol: currency.symbol,
+        fractionDigits: fractionDigitsFor(currency.code),
+        now,
+      });
+      const outcome = await saveWorkbook(workbookFileName(budget.name, now), bytes);
+      if (outcome === 'downloaded') showToast(`Exported “${budget.name}”`, 'success');
+    } catch (error) {
+      console.error('Error exporting budget:', error);
+      showToast('Couldn’t export the budget. Please try again.', 'error');
+    }
+  }, [currency, showToast]);
+
+  const handleImportPress = useCallback(async () => {
+    setPickingFile(true);
+    try {
+      const picked = await pickWorkbook();
+      if (!picked) return;
+      const result = parseBudgetWorkbook(picked.bytes, { fileName: picked.fileName, currencyCode: currency.code });
+      // The workbook may be one exported from a budget that's still here; don't give two the same name.
+      let name = result.budget?.name ?? '';
+      if (name && budgets.some((b) => b.name.trim().toLowerCase() === name.toLowerCase())) {
+        name = `${name.slice(0, 39)} (imported)`;
+      }
+      importHandoff.put(result, name);
+      router.push('/import-budget');
+    } catch (error) {
+      console.error('Error reading workbook:', error);
+      showToast('Couldn’t open that file. Please try again.', 'error');
+    } finally {
+      setPickingFile(false);
+    }
+  }, [budgets, currency, showToast]);
+
   const handleSetActiveBudget = useCallback(async (budgetId: string) => {
     setOperationInProgress(true);
         try {
@@ -227,6 +275,8 @@ export default function BudgetsScreen() {
   const budgetActions = (budget: Budget): MenuSection[] => {
     const isActive = activeBudget?.id === budget.id;
     const access = sharing[budget.id];
+    // A locked budget opens only after its lock; exporting it from the list would skip that.
+    const lockedElsewhere = !!budget.lock?.locked && !isActive;
     const run = (fn: () => void) => () => {
       setActionBudgetId(null);
       fn();
@@ -255,6 +305,14 @@ export default function BudgetsScreen() {
             label: 'Duplicate',
             icon: 'copy-outline',
             onPress: run(() => handleDuplicateBudget(budget.id, budget.name)),
+          },
+          {
+            key: 'export',
+            label: 'Export to Excel',
+            detail: lockedElsewhere ? 'Switch to it and unlock first' : undefined,
+            icon: 'download-outline',
+            disabled: lockedElsewhere,
+            onPress: run(() => handleExportBudget(budget)),
           },
           {
             key: 'lock',
@@ -334,7 +392,7 @@ export default function BudgetsScreen() {
           ) : (
             <ListGroup
               header="Your budgets"
-              footer="Tap a budget to switch to it. Use ⋯ to share, rename, duplicate, lock or delete."
+              footer="Tap a budget to switch to it. Use ⋯ to share, rename, duplicate, export, lock or delete."
             >
               {budgets.map((budget, i) => {
                 const isActive = activeBudget?.id === budget.id;
@@ -413,6 +471,20 @@ export default function BudgetsScreen() {
               })}
             </ListGroup>
           )}
+
+          <ListGroup
+            header="Spreadsheets"
+            footer="Import adds a new budget from an Excel workbook, such as one you exported here and edited. It never changes an existing budget."
+          >
+            <ListRow
+              title="Import from Excel"
+              caption="Add a budget from an .xlsx file"
+              icon="document-outline"
+              chevron
+              onPress={pickingFile || operationInProgress ? undefined : handleImportPress}
+              showSeparator={false}
+            />
+          </ListGroup>
         </View>
       </ScrollView>
 

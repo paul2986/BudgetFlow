@@ -184,3 +184,44 @@ describe('expenses sort preference', () => {
     expect(await storage.getExpensesSort()).toEqual({ by: 'date', order: 'desc' });
   });
 });
+
+describe('importing a budget', () => {
+  const draft = () => ({
+    name: 'Imported',
+    householdSettings: { distributionMethod: 'income-based' as const },
+    people: [{ id: 'p1', name: 'Paul', income: [], updatedAt: 5 }],
+    expenses: [makeExpense({ id: 'e1', categoryTag: 'Pets', description: 'Dog food' })],
+    customCategories: ['Pets', 'Groceries', 'pets'],
+  });
+
+  it('adds it as a new budget, makes it active, and leaves the others alone', async () => {
+    const existing = makeBudget({ name: 'Family', expenses: [makeExpense({ id: 'keep' })] });
+    seed(app([existing]));
+
+    const result = await storage.importBudget(draft());
+    expect(result.success).toBe(true);
+
+    const data = await storage.loadAppData();
+    expect(data.budgets.map((b) => b.name)).toEqual(['Family', 'Imported']);
+    expect(data.activeBudgetId).toBe(result.budget!.id);
+    expect(data.budgets[0].expenses.map((e) => e.id)).toEqual(['keep']);
+
+    const imported = data.budgets[1];
+    expect(imported.id).not.toBe(existing.id);
+    expect(imported.householdSettings.distributionMethod).toBe('income-based');
+    expect(imported.people.map((p) => p.name)).toEqual(['Paul']);
+    expect(imported.expenses.map((e) => e.description)).toEqual(['Dog food']);
+    // Built-in names and repeats are dropped from the budget's own category list.
+    expect(imported.customCategories?.map((c) => c.name)).toEqual(['Pets']);
+    expect(imported.lock?.locked).toBe(false);
+  });
+
+  it('works on a device with no budgets yet', async () => {
+    seed(app([]));
+    const result = await storage.importBudget(draft());
+    expect(result.success).toBe(true);
+    const data = await storage.loadAppData();
+    expect(data.budgets).toHaveLength(1);
+    expect(data.activeBudgetId).toBe(data.budgets[0].id);
+  });
+});

@@ -8,6 +8,7 @@ import {
   renameBudget as storageRenameBudget,
   deleteBudget as storageDeleteBudget,
   duplicateBudget as storageDuplicateBudget,
+  importBudget as storageImportBudget,
   updateBudget as storageUpdateBudget,
   clearAllAppData as storageClearAllAppData,
   saveAppData,
@@ -19,6 +20,7 @@ import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget, BudgetSh
 import { supabase } from '../utils/supabase';
 import { syncBudgets, stableStringify } from '../utils/budgetSync';
 import { useAuth } from './useAuth';
+import type { ImportedBudget } from '../utils/budgetWorkbook/import';
 
 // Local type for the editable slice of a budget
 type BudgetSlice = {
@@ -604,6 +606,16 @@ const useBudgetDataInternal = () => {
     [queueSave, syncFullAppData]
   );
 
+  // Add a budget read from a spreadsheet as a new budget and switch to it.
+  const importBudget = useCallback(
+    async (draft: ImportedBudget) => queueSave(async () => {
+      const res = await storageImportBudget(draft);
+      if (res.success) await syncFullAppData(await loadAppData());
+      return res;
+    }),
+    [queueSave, syncFullAppData]
+  );
+
   // Custom categories are account-wide and sync with the rest of the app data.
   const saveCustomCategories = useCallback(
     async (categories: string[]) => queueSave(async () => {
@@ -1058,6 +1070,7 @@ const useBudgetDataInternal = () => {
     deleteBudget,
     leaveBudget,
     duplicateBudget,
+    importBudget,
     setActiveBudget,
     customCategories: (getActiveBudget(appData)?.customCategories || []).map((c) => c.name),
     sharing,

@@ -191,15 +191,18 @@ Per-budget lock backed by device authentication.
 
 ---
 
-## 12. Data Management & Backup
+## 12. Data Management: Excel Export & Import
 
-- **Create backup** of app data.
-- **Import / restore** from a picked backup file.
-- **Share backup file.**
-- **Backup info / metadata** and **cleanup of old backups.**
-- **Clear all data** ("Danger Zone" in Settings) — wipes local data and returns to the first-run welcome state with a correct visual/state reset.
+Budgets move in and out of the app as Excel workbooks (`.xlsx`), so a budget can be kept as a copy, shared with someone who doesn't use the app, or edited in a spreadsheet and brought back.
 
----
+- **Export to Excel** — in a budget's ⋯ menu on the Budgets screen. The workbook has:
+  - **Summary** — income, expenses and left to spend (per month and per year), household costs and split method, a per-person table (income, household share, personal expenses, left to spend) and a spending-by-category table. These are live formulas, so they recalculate as the sheets are edited; each also carries its calculated value for previews that don't calculate.
+  - **People**, **Income**, **Expenses** — one row per person, income source and expense, with drop-downs (frequency, type, person, category), frozen header rows, filters and a *Per month* formula column. Expenses past their end date turn grey and are left out of the Summary. Blank rows below the data are ready for new entries.
+  - **Lists** — the values the drop-downs offer.
+- **Import from Excel** — on the Budgets screen. It reads the People, Income and Expenses sheets (columns are found by their header text, so reordering or adding columns is fine) and shows a preview — counts, new categories and any rows that were left out, each with its row number and reason — before anything is added. The budget name can be edited. Import always **adds a new budget** and never changes an existing one; people and expenses get fresh ids, so nothing collides with synced data. Rows with problems are skipped and the rest import.
+- A budget under **Budget Lock** can't be exported from the list until it's the active, unlocked budget.
+- On phones the export opens the share sheet (Save to Files, AirDrop, Mail); on desktop browsers it downloads.
+- **Clear all data** ("Erase all data" in Settings → Danger zone) wipes the account's budgets and returns to the first-run welcome state.
 
 ## 13. Preferences & Personalization (Settings)
 
