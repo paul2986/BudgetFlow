@@ -2,7 +2,9 @@ import { AppDataV2, Budget, BudgetSharing } from '../types/budget';
 import { supabase } from './supabase';
 import {
   addCategoriesToBudget,
+  getDeviceOwner,
   loadSyncedBudgetIds,
+  saveAppData,
   saveSyncedBudgetIds,
   validateAppData,
 } from './storage';
@@ -234,6 +236,8 @@ const reconcile = (
 
 const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise<SyncResult> => {
   try {
+    // Never upload one account's device data as another's (see claimDeviceData).
+    if ((await getDeviceOwner()) !== userId) throw new Error('This device’s data belongs to another account');
     const snapshot = await load();
     const [budgetsRes, membersRes, legacy] = await Promise.all([
       supabase.from('budgets').select('id, data, revision'),
@@ -325,15 +329,21 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     const order = new Map(snapshot.budgets.map((b, i) => [b.id, i]));
     result.sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
 
+    // Saved here, inside the queue, so the next pass starts from this result;
+    // otherwise it would re-create budgets this pass gave new ids.
     const synced: AppDataV2 = { version: 2, budgets: result, activeBudgetId };
-    return { ok: true, data: reconcile(snapshot, synced, await load(), settled), sharing };
+    const data = reconcile(snapshot, synced, await load(), settled);
+    const saved = await saveAppData(data);
+    if (!saved.success) throw saved.error;
+    return { ok: true, data, sharing };
   } catch (error) {
     return { ok: false, error };
   }
 };
 
 // One sync at a time: overlapping passes would race to create the same budget.
-// `load` reads the device copy when the pass starts and again when it ends.
+// `load` reads the device copy when the pass starts and again when it ends;
+// the merged result is saved to the device before the next pass begins.
 let queue: Promise<unknown> = Promise.resolve();
 
 export const syncBudgets = (userId: string, load: () => Promise<AppDataV2>): Promise<SyncResult> => {

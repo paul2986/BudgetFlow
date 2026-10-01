@@ -11,6 +11,7 @@ import {
   updateBudget as storageUpdateBudget,
   clearAllAppData as storageClearAllAppData,
   saveAppData,
+  claimDeviceData,
   saveCustomExpenseCategories as storageSaveCustomCategories,
   renameCustomExpenseCategory as storageRenameCustomCategory,
 } from '../utils/storage';
@@ -98,6 +99,9 @@ const useBudgetDataInternal = () => {
   const lastRefreshTimeRef = useRef<number>(0);
   // Each synced budget's role and member count for the signed-in user.
   const [sharing, setSharing] = useState<Record<string, BudgetSharing>>({});
+  // The account this device's data has been claimed for (see claimDeviceData).
+  // Syncs wait for it, so they never run against another account's data.
+  const claimedForRef = useRef<string | null>(null);
 
   // Show app data in the UI: the full set, and the active budget's editable slice.
   const showAppData = useCallback((app: AppDataV2) => {
@@ -115,20 +119,19 @@ const useBudgetDataInternal = () => {
   }, []);
 
   // Sync every budget with the server. The device copy is read when the pass
-  // runs (so it includes the latest save), and the merged result is adopted
-  // locally when it differs.
+  // runs (so it includes the latest save); the sync saves the merged result,
+  // and the UI picks it up when it differs.
   const pushToCloud = useCallback(async () => {
-    if (!user) return;
+    if (!user || claimedForRef.current !== user.id) return;
+    const before = stableStringify(await loadAppData());
     const result = await syncBudgets(user.id, loadAppData);
     if (!result.ok) {
       console.error('useBudgetData: Sync failed:', result.error);
       return;
     }
     setSharing(result.sharing);
-    const local = await loadAppData();
-    if (stableStringify(result.data) !== stableStringify(local)) {
+    if (stableStringify(result.data) !== before) {
       console.log('useBudgetData: Adopting synced budgets');
-      await saveAppData(result.data);
       showAppData(await loadAppData());
     }
   }, [user, showAppData]);
@@ -140,6 +143,8 @@ const useBudgetDataInternal = () => {
       console.log('useBudgetData: Save in progress, skipping refresh');
       return;
     }
+    // Until the device's data is claimed, it may be another account's: don't show it.
+    if (user && claimedForRef.current !== user.id) return;
     try {
       showAppData(await loadAppData());
       if (user) await pushToCloud();
@@ -264,18 +269,25 @@ const useBudgetDataInternal = () => {
     }
   }, [refreshFromStorage]);
 
-  // Supabase sync effect - simplified to just trigger on user change
+  // When an account's session starts, make sure the device's data is its own
+  // (another account's is wiped), then sync.
   const hadUserRef = useRef(false);
   useEffect(() => {
     if (user) {
       hadUserRef.current = true;
-      refreshFromStorage();
+      claimDeviceData(user.id)
+        .then(() => {
+          claimedForRef.current = user.id;
+          return refreshFromStorage();
+        })
+        .catch((error) => console.error('useBudgetData: Could not claim device data:', error));
     } else if (hadUserRef.current) {
       // Transitioned from signed-in to signed-out: drop in-memory data so the
       // provider doesn't hold the previous account's budgets (local storage and
       // cache are already wiped by signOut). Guarded so we don't clear during the
       // initial unauthenticated load.
       hadUserRef.current = false;
+      claimedForRef.current = null;
       setSharing({});
       setAppData({ version: 2, budgets: [], activeBudgetId: '' });
       setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });

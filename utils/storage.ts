@@ -15,6 +15,8 @@ const STORAGE_KEYS = {
   // Ids of budgets this device has seen on the server, so a budget missing
   // from the server later is known to be deleted rather than new.
   SYNCED_BUDGET_IDS: 'synced_budget_ids_v1',
+  // The account the budget data on this device belongs to.
+  DEVICE_OWNER: 'device_owner_v1',
 };
 
 // Normalize and validate category names
@@ -99,12 +101,36 @@ export const clearLocalAppData = async (): Promise<void> => {
       STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES,
       STORAGE_KEYS.EXPENSES_FILTERS,
       STORAGE_KEYS.SYNCED_BUDGET_IDS,
+      STORAGE_KEYS.DEVICE_OWNER,
     ]);
   } catch (e) {
     console.error('storage: clearLocalAppData error', e);
   } finally {
     resetAppDataCache();
   }
+};
+
+// Budget data on a device belongs to one account. A device can be left
+// holding data after its session ends elsewhere (signing out ends every
+// device's session, but only clears the device it was done on), so the next
+// account to sign in must never inherit it.
+export const getDeviceOwner = async (): Promise<string | null> => AsyncStorage.getItem(STORAGE_KEYS.DEVICE_OWNER);
+
+// Call when an account's session starts on this device, before syncing:
+// another account's data is wiped; unclaimed data becomes this account's.
+export const claimDeviceData = async (userId: string): Promise<void> => {
+  const owner = await getDeviceOwner();
+  if (owner === userId) return;
+  if (owner) await clearLocalAppData();
+  await AsyncStorage.setItem(STORAGE_KEYS.DEVICE_OWNER, userId);
+};
+
+// Call when no one is signed in. Data with no recorded owner is left over
+// from before owners were recorded and can't be attributed, so it goes; data
+// with an owner stays for that account's next sign-in (claimDeviceData wipes
+// it if someone else signs in instead).
+export const clearUnownedDeviceData = async (): Promise<void> => {
+  if (!(await getDeviceOwner())) await clearLocalAppData();
 };
 
 export const loadSyncedBudgetIds = async (): Promise<string[]> => {
