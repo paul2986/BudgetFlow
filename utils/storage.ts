@@ -1,5 +1,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { ImportedBudget } from './budgetWorkbook/import';
 import { AppDataV2, Budget, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
 
 // Storage keys for versions
@@ -767,6 +768,29 @@ export const addBudget = async (name: string): Promise<{ success: boolean; error
   const newAppData: AppDataV2 = { ...appData, budgets: [...budgets, newBudget], activeBudgetId: newBudget.id };
   const res = await saveAppData(newAppData);
   return { ...res, budget: newBudget };
+};
+
+// Save a budget read from a workbook as a new budget (never over an existing
+// one) and make it the active budget. Its people and expenses already carry
+// fresh ids, so they can't collide with anything on this device or in the cloud.
+export const importBudget = async (draft: ImportedBudget): Promise<{ success: boolean; error?: Error; budget?: Budget }> => {
+  try {
+    const appData = await loadAppData();
+    const now = Date.now();
+    const budget: Budget = {
+      ...createEmptyBudget(draft.name.trim() || 'Imported budget'),
+      people: draft.people,
+      expenses: draft.expenses,
+      householdSettings: draft.householdSettings,
+      customCategories: sanitizeCustomCategories(draft.customCategories.map((name) => ({ name, updatedAt: now }))),
+    };
+    const budgets = Array.isArray(appData.budgets) ? appData.budgets : [];
+    const res = await saveAppData({ ...appData, budgets: [...budgets, budget], activeBudgetId: budget.id });
+    return { ...res, budget };
+  } catch (error) {
+    console.error('storage: Error in importBudget:', error);
+    return { success: false, error: error as Error };
+  }
 };
 
 export const renameBudget = async (budgetId: string, newName: string): Promise<{ success: boolean; error?: Error }> => {
