@@ -44,9 +44,10 @@ export default function ManageCategoriesScreen() {
   }, [refresh]);
 
   // Refresh when the synced list changes (another device, or clearing all data)
+  const customCategoriesKey = customCategories.join('|');
   useEffect(() => {
     refresh();
-  }, [customCategories.join('|'), refresh]);
+  }, [customCategoriesKey, refresh]);
 
   const isInUse = (category: string): boolean => {
     if (!data?.expenses) return false;
