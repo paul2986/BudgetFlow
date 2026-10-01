@@ -51,7 +51,7 @@ export default function SettingsScreen() {
   const handleClearAllData = () => {
     Alert.alert(
       'Erase all data?',
-      'This permanently deletes every budget, person and expense in your account. It cannot be undone.',
+      'This permanently deletes every budget, person and expense in your account. Budgets you share stay with the people you share them with. It cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -246,7 +246,7 @@ export default function SettingsScreen() {
       <ConfirmDialog
         visible={confirmDeleteVisible}
         title="Delete account?"
-        message={`This permanently deletes ${user?.email || 'your account'} and every budget, person and expense in it. It cannot be undone.`}
+        message={`This permanently deletes ${user?.email || 'your account'} and every budget, person and expense in it. Budgets you share stay with the people you share them with. It cannot be undone.`}
         confirmLabel="Delete account"
         destructive
         loading={deletingAccount}

@@ -118,12 +118,6 @@ export const toServerBudget = (budget: Budget): Omit<Budget, 'lock'> => {
 const sameContent = (a: Budget, b: Budget): boolean =>
   stableStringify(toServerBudget(a)) === stableStringify(toServerBudget(b));
 
-// A budget deleted on this device stays deleted unless it was edited afterwards.
-const isTombstoned = (budget: Budget, deletedBudgets: Record<string, number> = {}): boolean => {
-  const deletedAt = deletedBudgets[budget.id];
-  return typeof deletedAt === 'number' && deletedAt >= (budget.modifiedAt || 0);
-};
-
 const newBudgetId = () => `budget_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 type ServerBudget = { id: string; data: Budget; revision: number };
@@ -177,30 +171,22 @@ const createBudget = async (budget: Budget): Promise<Budget> => {
   throw new Error('Could not create budget');
 };
 
-// Before shared budgets, the account's budgets lived in user_data. Fold any
-// still there (from this update's first run, or from a not-yet-updated device)
-// into the local copy, then empty them out of user_data.
-const absorbLegacyBudgets = async (
-  userId: string,
-  local: AppDataV2
-): Promise<{ data: AppDataV2; clear: (() => Promise<void>) | null }> => {
+// Before shared budgets, the account's budgets lived in user_data; the
+// migration copied them to their own rows. A device still on the old version
+// may keep writing there, so fold those edits into budgets that still exist on
+// the server, then empty user_data. Budgets found only there are not brought
+// back: the old device uploads its own copy once it updates.
+const readLegacyBudgets = async (
+  userId: string
+): Promise<{ budgets: Budget[]; clear: (() => Promise<void>) | null }> => {
   const { data: row, error } = await supabase
     .from('user_data')
     .select('app_data, revision')
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !row || !Array.isArray(row.app_data?.budgets) || row.app_data.budgets.length === 0) {
-    return { data: local, clear: null };
+    return { budgets: [], clear: null };
   }
-
-  const legacy = validateAppData(row.app_data);
-  const byId = new Map(local.budgets.map((b) => [b.id, b]));
-  for (const budget of legacy.budgets) {
-    if (isTombstoned(budget, local.deletedBudgets)) continue;
-    const existing = byId.get(budget.id);
-    byId.set(budget.id, existing ? mergeBudget(existing, budget) : budget);
-  }
-
   const clear = async () => {
     await supabase
       .from('user_data')
@@ -208,15 +194,20 @@ const absorbLegacyBudgets = async (
       .eq('user_id', userId)
       .eq('revision', row.revision);
   };
-  return { data: { ...local, budgets: Array.from(byId.values()) }, clear };
+  return { budgets: validateAppData(row.app_data).budgets, clear };
 };
 
 // Fold the sync result into the device copy as it is now: anything saved on
 // this device while the sync was talking to the server is merged in, not lost.
-const reconcile = (snapshot: AppDataV2, synced: AppDataV2, latest: AppDataV2): AppDataV2 => {
+// `settled` are removals the server has now carried out.
+const reconcile = (
+  snapshot: AppDataV2,
+  synced: AppDataV2,
+  latest: AppDataV2,
+  settled: Set<string>
+): AppDataV2 => {
   const before = new Map(snapshot.budgets.map((b) => [b.id, b]));
   const now = new Map(latest.budgets.map((b) => [b.id, b]));
-  const deletedBudgets = mergeDeletions(synced.deletedBudgets, latest.deletedBudgets);
   const budgets: Budget[] = [];
   for (const budget of synced.budgets) {
     const current = now.get(budget.id);
@@ -228,6 +219,12 @@ const reconcile = (snapshot: AppDataV2, synced: AppDataV2, latest: AppDataV2): A
   for (const budget of latest.budgets) {
     if (!before.has(budget.id) && !budgets.some((b) => b.id === budget.id)) budgets.push(budget);
   }
+  // Pending removals: drop the settled ones, unless the budget was deleted
+  // again meanwhile (a newer entry).
+  const deletedBudgets = { ...(latest.deletedBudgets || {}) };
+  settled.forEach((id) => {
+    if (deletedBudgets[id] === snapshot.deletedBudgets?.[id]) delete deletedBudgets[id];
+  });
   let activeBudgetId = latest.activeBudgetId;
   if (!budgets.some((b) => b.id === activeBudgetId)) {
     activeBudgetId = budgets.some((b) => b.id === synced.activeBudgetId) ? synced.activeBudgetId : budgets[0]?.id || '';
@@ -238,44 +235,60 @@ const reconcile = (snapshot: AppDataV2, synced: AppDataV2, latest: AppDataV2): A
 const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise<SyncResult> => {
   try {
     const snapshot = await load();
-    const { data: local, clear: clearLegacy } = await absorbLegacyBudgets(userId, snapshot);
-
-    const [budgetsRes, membersRes] = await Promise.all([
+    const [budgetsRes, membersRes, legacy] = await Promise.all([
       supabase.from('budgets').select('id, data, revision'),
-      supabase.from('budget_members').select('budget_id, user_id, role'),
+      supabase.from('budget_members').select('budget_id, user_id, role, joined_at'),
+      readLegacyBudgets(userId),
     ]);
     if (budgetsRes.error) throw budgetsRes.error;
     if (membersRes.error) throw membersRes.error;
 
     const sharing: Record<string, BudgetSharing> = {};
+    const joinedAt: Record<string, number> = {};
     for (const m of membersRes.data) {
       const entry = sharing[m.budget_id] || { role: 'editor', memberCount: 0 };
       entry.memberCount += 1;
-      if (m.user_id === userId) entry.role = m.role as BudgetSharing['role'];
+      if (m.user_id === userId) {
+        entry.role = m.role as BudgetSharing['role'];
+        joinedAt[m.budget_id] = Date.parse(m.joined_at);
+      }
       sharing[m.budget_id] = entry;
     }
 
     const server = new Map((budgetsRes.data as ServerBudget[]).map((b) => [b.id, b]));
-    const localById = new Map(local.budgets.map((b) => [b.id, b]));
-    const deletedBudgets = { ...(local.deletedBudgets || {}) };
+    const localById = new Map(snapshot.budgets.map((b) => [b.id, b]));
+    for (const old of legacy.budgets) {
+      if (!server.has(old.id)) continue;
+      const mine = localById.get(old.id);
+      localById.set(old.id, mine ? mergeBudget(mine, old) : old);
+    }
+    const pendingRemovals = snapshot.deletedBudgets || {};
+    const settled = new Set<string>();
     const syncedIds = new Set(await loadSyncedBudgetIds());
     const result: Budget[] = [];
 
-    // Budgets on the server: merge, or remove ones this device deleted.
+    // Budgets on the server: merge, or carry out a removal made on this device.
     for (const remote of server.values()) {
       const mine = localById.get(remote.id);
-      if (!mine && isTombstoned(remote.data, deletedBudgets)) {
-        // Deleted here. Delete it outright if nobody else shares it; otherwise
-        // just leave, and it carries on for the others.
-        const access = sharing[remote.id];
-        const { error } =
-          access?.role === 'owner' && access.memberCount <= 1
-            ? await supabase.from('budgets').delete().eq('id', remote.id)
-            : await supabase.from('budget_members').delete().eq('budget_id', remote.id).eq('user_id', userId);
-        if (error) throw error;
-        syncedIds.delete(remote.id);
-        delete sharing[remote.id];
-        continue;
+      const removedAt = pendingRemovals[remote.id];
+      if (!mine && typeof removedAt === 'number') {
+        if ((joinedAt[remote.id] ?? 0) > removedAt) {
+          // They rejoined after removing it here; the removal is stale.
+          settled.add(remote.id);
+        } else {
+          // Delete it outright if nobody else shares it; otherwise just leave,
+          // and it carries on for the others.
+          const access = sharing[remote.id];
+          const { error } =
+            access?.role === 'owner' && access.memberCount <= 1
+              ? await supabase.from('budgets').delete().eq('id', remote.id)
+              : await supabase.from('budget_members').delete().eq('budget_id', remote.id).eq('user_id', userId);
+          if (error) throw error;
+          settled.add(remote.id);
+          syncedIds.delete(remote.id);
+          delete sharing[remote.id];
+          continue;
+        }
       }
       // A budget new to this device arrives unlocked; locks are set per device.
       const merged = mine ? mergeBudget(mine, remote.data) : { ...remote.data, lock: { locked: false, autoLockMinutes: 0 } };
@@ -283,13 +296,17 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
       syncedIds.add(remote.id);
     }
 
+    // Removals of budgets the server no longer has are already done.
+    for (const id of Object.keys(pendingRemovals)) {
+      if (!server.has(id)) settled.add(id);
+    }
+
     // Budgets only on this device: new ones are created; ones the server used
     // to have were deleted by their owner or the user was removed, so drop them.
-    for (const budget of local.budgets) {
+    for (const budget of localById.values()) {
       if (server.has(budget.id)) continue;
       if (syncedIds.has(budget.id)) {
         syncedIds.delete(budget.id);
-        deletedBudgets[budget.id] = Date.now();
         continue;
       }
       const created = await createBudget(budget);
@@ -299,17 +316,17 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     }
 
     await saveSyncedBudgetIds(Array.from(syncedIds));
-    if (clearLegacy) await clearLegacy();
+    if (legacy.clear) await legacy.clear();
 
-    let activeBudgetId = local.activeBudgetId;
+    let activeBudgetId = snapshot.activeBudgetId;
     if (!result.some((b) => b.id === activeBudgetId)) activeBudgetId = result[0]?.id || '';
 
     // Keep the device's order, with newly arrived budgets at the end.
-    const order = new Map(local.budgets.map((b, i) => [b.id, i]));
+    const order = new Map(snapshot.budgets.map((b, i) => [b.id, i]));
     result.sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
 
-    const synced: AppDataV2 = { version: 2, budgets: result, activeBudgetId, deletedBudgets };
-    return { ok: true, data: reconcile(snapshot, synced, await load()), sharing };
+    const synced: AppDataV2 = { version: 2, budgets: result, activeBudgetId };
+    return { ok: true, data: reconcile(snapshot, synced, await load(), settled), sharing };
   } catch (error) {
     return { ok: false, error };
   }

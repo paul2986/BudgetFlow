@@ -22,6 +22,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import { useEditorTransitions } from '../hooks/useEditorTransitions';
 import { setupErrorLogging } from '../utils/errorLogger';
+import { rememberInviteFromUrl } from '../utils/sharing';
 
 import AuthGuard from '../components/AuthGuard';
 import ToastContainer from '../components/ToastContainer';
@@ -31,6 +32,9 @@ import NavRail from '../components/nav/NavRail';
 import Sidebar from '../components/nav/Sidebar';
 // Side effect: its popstate listener must be registered before expo-router's.
 import '../hooks/useDiscardGuard';
+
+// An invite link opened while signed out is kept until sign-in (see utils/sharing).
+rememberInviteFromUrl();
 
 /**
  * Root shell (DESIGN.md §2.5–2.6):
@@ -195,6 +199,8 @@ function RootLayoutContent() {
             <Tabs.Screen name="budget-lock" options={{ href: null }} />
             <Tabs.Screen name="manage-categories" options={{ href: null }} />
             <Tabs.Screen name="currency" options={{ href: null }} />
+            <Tabs.Screen name="share-budget" options={{ href: null }} />
+            <Tabs.Screen name="invite/[token]" options={{ href: null }} />
             <Tabs.Screen name="auth/index" options={{ href: null }} />
             <Tabs.Screen name="auth/callback" options={{ href: null }} />
             <Tabs.Screen name="auth/debug" options={{ href: null }} />

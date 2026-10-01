@@ -1,4 +1,6 @@
-// Deletes the calling user's account and their synced budget data.
+// Deletes the calling user's account and their synced budget data. Removing the
+// auth user cascades to their budget memberships; the database then deletes
+// budgets nobody else shares and hands shared ones to the next member.
 // Required by App Store Review Guideline 5.1.1(v): apps that allow account
 // creation must let users delete their account from within the app.
 //

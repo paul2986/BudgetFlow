@@ -112,8 +112,8 @@ export interface AppDataV2 {
   version: 2;
   budgets: Budget[];
   activeBudgetId: string;
-  // Budgets deleted or left on this device (id -> epoch millis), so the next
-  // sync removes them from the server instead of downloading them again.
+  // Budgets deleted or left on this device and not yet removed on the server
+  // (id -> epoch millis). The next sync carries each out, then clears it.
   deletedBudgets?: Record<string, number>;
 }
 

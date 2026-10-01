@@ -706,7 +706,7 @@ export const renameBudget = async (budgetId: string, newName: string): Promise<{
   return await saveAppData({ ...appData, budgets });
 };
 
-// Remove a budget from this device and record a tombstone; the next sync
+// Remove a budget from this device and queue its removal; the next sync
 // deletes it on the server, or leaves it when other people still share it.
 // `allowLast` permits removing the only budget (leaving a shared budget).
 export const deleteBudget = async (budgetId: string, allowLast = false): Promise<{ success: boolean; error?: Error }> => {
@@ -945,7 +945,8 @@ export const clearAllAppData = async (): Promise<{ success: boolean; error?: Err
   try {
     console.log('storage: Clearing all app data - deleting all budgets, people, expenses, and custom categories');
 
-    // Tombstone everything being wiped so another device's copy can't merge it back.
+    // Queue every budget for removal, so the next sync deletes it on the server
+    // (or leaves it, when it's shared) instead of downloading it again.
     const previous = await loadAppData();
     const now = Date.now();
     const deletedBudgets = { ...(previous.deletedBudgets || {}) };

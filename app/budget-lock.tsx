@@ -137,7 +137,7 @@ export default function BudgetLockScreen() {
             header={budget.name}
             footer={
               canLock
-                ? 'Uses Face ID, Touch ID or your device passcode. Budget Flow never sees or stores your passcode.'
+                ? 'Uses Face ID, Touch ID or your device passcode, and applies on this device only. Budget Flow never sees or stores your passcode.'
                 : undefined
             }
           >
