@@ -10,18 +10,18 @@ import { useTheme } from '../../hooks/useTheme';
 import { type, space, radius } from '../../styles/tokens';
 
 /**
- * Tools hub (DESIGN.md §2.7): a card per calculator (icon, name, one line),
+ * Tools hub (DESIGN.md §2.7): a card per tool (icon, name, one line),
  * each opening its own screen so it can be linked to and backed out of.
  */
 
-type ToolTone = 'creditCard' | 'income' | 'mortgage';
+type ToolTone = 'creditCard' | 'income' | 'mortgage' | 'brand';
 
 interface ToolEntry {
-  route: '/tools/credit-card' | '/tools/savings' | '/tools/mortgage';
+  route: '/tools/credit-card' | '/tools/savings' | '/tools/mortgage' | '/tools/budget-review';
   title: string;
   caption: string;
   icon: string;
-  /** Reuses the app's own accents: credit card pink, savings income green, mortgage purple. */
+  /** Reuses the app's own accents: credit card pink, savings income green, mortgage purple, budget review brand indigo. */
   tone: ToolTone;
 }
 
@@ -46,6 +46,13 @@ const TOOLS: ToolEntry[] = [
     caption: 'Work out the monthly payment and see what extra payments would save.',
     icon: 'home-outline',
     tone: 'mortgage',
+  },
+  {
+    route: '/tools/budget-review',
+    title: 'Budget review',
+    caption: 'Compare your budget with the 50/30/20 rule for needs, wants and savings.',
+    icon: 'pie-chart-outline',
+    tone: 'brand',
   },
 ];
 
@@ -76,7 +83,7 @@ export default function ToolsHubScreen() {
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
           <LargeTitle largeTitle={largeTitle} />
           <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s4 }]}>
-            Calculators for the big numbers: what a debt costs and what savings can become.
+            Calculators and a budget check for the big numbers: what a debt costs, what savings can become and how your spending compares.
           </Text>
 
           <View style={{ gap: space.s4 }}>

@@ -140,7 +140,7 @@ The chosen method drives per-person "share of household expenses" and "remaining
 
 ## 8. Financial Tools
 
-A Tools screen hosts the financial calculators as a card per tool (`/tools`); each opens its own screen (`/tools/credit-card`, `/tools/savings`, `/tools/mortgage`).
+A Tools screen hosts the financial calculators as a card per tool (`/tools`); each opens its own screen (`/tools/credit-card`, `/tools/savings`, `/tools/mortgage`, `/tools/budget-review`).
 
 ### Credit Card Payoff Calculator
 
@@ -166,6 +166,19 @@ A Tools screen hosts the financial calculators as a card per tool (`/tools`); ea
 - Monthly payments and monthly interest at a fixed rate.
 
 Charts (`components/charts`) are drawn with `react-native-svg`. All the maths lives in `utils/projections.ts` and is unit-tested.
+
+### Budget Review (50/30/20)
+
+Compares the active budget with the 50/30/20 rule (Elizabeth Warren and Amelia Warren Tyagi, *All Your Worth*, 2005): 50% of take-home pay to needs, 30% to wants, 20% to savings.
+
+- **Explains the rule on screen:** a card first on a phone and beside the results on wide screens, saying what each bucket covers, that the shares are of after-tax income, and that it is a guideline.
+- **No inputs:** reads the active budget (all people and all expenses, household and personal). Shares are of total income; amounts are per month, from the same helpers as the Overview, so totals reconcile. Expenses past their end date are left out.
+- **Sorting:** Needs = Rent, Mortgage, Utilities, Groceries, Transport, Healthcare, Loan, Credit Card (the app can't tell a minimum debt payment from an extra one, so debt counts as a need). Wants = Entertainment, Clothing, Takeaways, Eating Out, Misc and any custom category (flagged "custom, counted as a want" in the list). Savings = Savings, Investments. A category can't be moved between buckets yet.
+- **Summary:** "n of three on target", which bucket is furthest off, and two stacked bars on one scale (the 50/30/20 target above, the budget below, with an "Unallocated" segment for income not assigned to anything). Income, spending and left over (or over income by) sit beneath.
+- **Bucket cards:** share of income and money per month against the target, a meter with a target tick, a status badge, the gap in money and a disclosure listing the categories (tap one to open Expenses filtered to it). Needs and Wants are ceilings and Savings is a floor; within 5 points of the target is "slightly over/under", beyond that "over/under target". Status is judged on the rounded percentage that is shown.
+- **Edge cases:** a locked budget shows an unlock prompt and computes nothing; no income, no expenses and no budget each have an empty state with a way forward; spending beyond income shows a warning, and the bars share a scale so the budget's bar runs past the target's.
+- **Links:** with money left over, "See what it could grow into" opens the savings calculator. "Copy results" copies a plain-text summary.
+- Maths lives in `utils/budgetReview.ts` and is unit-tested; the bars and cards are plain views (no new native dependency).
 
 ## 9. Categories Management
 
