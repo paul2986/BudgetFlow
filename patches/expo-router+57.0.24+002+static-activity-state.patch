@@ -1,0 +1,58 @@
+diff --git a/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js b/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js
+index 65c88f0..dd5ee71 100644
+--- a/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js
++++ b/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js
+@@ -87,6 +87,9 @@ function BottomTabView(props) {
+     const previousRouteKeyRef = React.useRef(focusedRouteKey);
+     // BudgetFlow patch: token of the focus-change animation still running.
+     const inFlightRef = React.useRef(null);
++    // BudgetFlow patch: the screen kept visible (activity state 1) while a
++    // focus-change animation runs, i.e. the one that just lost focus.
++    const [heldKey, setHeldKey] = React.useState(null);
+     const tabAnims = (0, useAnimatedHashMap_1.useAnimatedHashMap)(state);
+     React.useEffect(() => {
+         const previousRouteKey = previousRouteKeyRef.current;
+@@ -109,6 +112,9 @@ function BottomTabView(props) {
+         }
+         const animateToIndex = () => {
+             const token = previousRouteKey !== focusedRouteKey ? (inFlightRef.current = Symbol()) : null; // BudgetFlow patch
++            if (token) {
++                setHeldKey(previousRouteKey); // BudgetFlow patch
++            }
+             if (previousRouteKey !== focusedRouteKey) {
+                 navigation.emit({
+                     type: 'transitionStart',
+@@ -136,6 +142,7 @@ function BottomTabView(props) {
+                 .filter(Boolean)).start(({ finished }) => {
+                 if (token && inFlightRef.current === token) {
+                     inFlightRef.current = null; // BudgetFlow patch
++                    setHeldKey(null); // BudgetFlow patch
+                 }
+                 if (finished && popToTopAction) {
+                     navigation.dispatch(popToTopAction);
+@@ -176,6 +183,9 @@ function BottomTabView(props) {
+             }) }));
+     };
+     const { routes } = state;
++    // BudgetFlow patch: until the effect above has started the animation, the
++    // screen that just lost focus is still the one to keep visible.
++    const heldRouteKey = previousRouteKeyRef.current !== focusedRouteKey ? previousRouteKeyRef.current : heldKey;
+     // If there is no animation, we only have 2 states: visible and invisible
+     const hasTwoStates = !routes.some((route) => hasAnimation(descriptors[route.key].options));
+     const { tabBarPosition = 'bottom' } = descriptors[focusedRouteKey].options;
+@@ -200,6 +210,15 @@ function BottomTabView(props) {
+                     const animationEnabled = hasAnimation(descriptor.options);
+                     const activityState = isFocused
+                         ? STATE_ON_TOP // the screen is on top after the transition
++                        : animationEnabled && react_native_1.Platform.OS !== 'web' // BudgetFlow patch
++                            // Native: a plain number, not an interpolation of the tab's
++                            // progress. Handing a screen between an animated and a static
++                            // activityState races the native driver, and an interrupted
++                            // slide (a tab press while the editor is still sliding in) could
++                            // leave the screen we land on detached: a blank page.
++                            ? route.key === heldRouteKey
++                                ? STATE_TRANSITIONING_OR_BELOW_TOP
++                                : STATE_INACTIVE
+                         : animationEnabled // is animation is not enabled, immediately move to inactive state
+                             ? tabAnims[route.key].interpolate({
+                                 // BudgetFlow patch: detach at -1 too (screens left of the
