@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   useFonts,
   Inter_400Regular,
@@ -24,6 +24,7 @@ import { useEditorTransitions } from '../hooks/useEditorTransitions';
 import { setupErrorLogging } from '../utils/errorLogger';
 import { rememberInviteFromUrl } from '../utils/sharing';
 
+import AnimatedSplash from '../components/AnimatedSplash';
 import AuthGuard from '../components/AuthGuard';
 import ToastContainer from '../components/ToastContainer';
 import DialogHost from '../components/DialogHost';
@@ -250,8 +251,9 @@ function AppContent() {
   );
 }
 
-// Keep the native splash visible until the Inter fonts are ready so text
-// doesn't flash in the system font. Web already loads Inter via index.html.
+// Keep the native splash visible until AnimatedSplash has taken over from it,
+// so text never flashes in the system font while the Inter fonts load. Web
+// already loads Inter via index.html and has no native splash.
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
@@ -261,24 +263,23 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
-
-  useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
-  }, [fontsLoaded, fontError]);
-
   // On font error, proceed with the system font rather than blocking the app.
-  if (!fontsLoaded && !fontError) {
-    return null;
-  }
+  const ready = fontsLoaded || !!fontError;
+  const [splashDone, setSplashDone] = useState(false);
+  const finishSplash = useCallback(() => setSplashDone(true), []);
 
   return (
-    // Swipeable rows (e.g. swipe-to-delete on expenses) need the gesture root.
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <AppContent />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <>
+      {ready ? (
+        // Swipeable rows (e.g. swipe-to-delete on expenses) need the gesture root.
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <SafeAreaProvider>
+            <AppContent />
+          </SafeAreaProvider>
+        </GestureHandlerRootView>
+      ) : null}
+      {/* Covers the app until it is ready, then animates away. */}
+      {splashDone ? null : <AnimatedSplash ready={ready} onDone={finishSplash} />}
+    </>
   );
 }

@@ -53,12 +53,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'expo-font',
         'expo-router',
         'expo-sharing',
+        // Launch screen: the white B over the icon's gradient. The gradient is a
+        // full-bleed image the plugin below adds behind expo-splash-screen's logo;
+        // it must be listed first (see its header). `backgroundColor` is only the
+        // fallback behind it, and the flat colour on Android. imageWidth must match
+        // LOGO_SIZE in components/AnimatedSplash.tsx. Art comes from
+        // scripts/generate-splash-assets.py.
+        './plugins/withSplashBackground',
         [
             'expo-splash-screen',
             {
-                image: './assets/images/icon.png',
+                image: './assets/images/splash-mark.png',
+                imageWidth: 144,
                 resizeMode: 'contain',
-                backgroundColor: '#000000',
+                backgroundColor: '#3B3BD0',
             },
         ],
         './plugins/withMinimumPodsDeploymentTarget',
