@@ -12,7 +12,9 @@ import { type, radius, space } from '../styles/tokens';
  * Keeps the legacy slot API so existing screens work unchanged.
  */
 
-export const HEADER_HEIGHT = 56;
+const BUTTON_SIZE = 44;
+/** The bar's height on every screen: a button row plus its vertical padding. */
+export const HEADER_HEIGHT = BUTTON_SIZE + 2 * space.s2;
 export const HEADER_HEIGHT_IPAD = 64;
 
 interface HeaderButton {
@@ -98,7 +100,7 @@ export default function StandardHeader({
   const bp = useBreakpoint();
   const large = largeTitle?.enabled ? largeTitle : undefined;
 
-  const buttonSize = 44;
+  const buttonSize = BUTTON_SIZE;
   const iconSize = 22;
 
   const renderButton = (btn: HeaderButton, kind: 'left' | 'right', idx: number) => {
@@ -197,7 +199,11 @@ export default function StandardHeader({
   // with the buttons, and shrinks in place to the bar's h2 as the content
   // scrolls; the subtitle rides up beneath it. Positions come from the
   // measured bar height and the type tokens.
-  const minHeight = subtitle ? HEADER_HEIGHT + 12 : HEADER_HEIGHT;
+  // The bar is one height on every screen, with or without a subtitle or buttons, so
+  // the buttons and the resting title sit in the same place when you move between
+  // tabs. The collapsed title + subtitle block is a little taller than the button
+  // row; it overhangs the padding rather than growing the bar.
+  const minHeight = HEADER_HEIGHT;
   const [barHeight, setBarHeight] = React.useState(minHeight);
   const scale = type.h2.fontSize / type.display.fontSize;
   const smallBlock = type.h2.lineHeight + (subtitle ? 1 + type.caption.lineHeight : 0);
@@ -268,7 +274,8 @@ export default function StandardHeader({
     );
   } else {
     titleSlot = (
-      <View style={{ flex: 1 }}>
+      // Pinned to the button row's height so a subtitle can't grow the bar.
+      <View style={{ flex: 1, height: buttonSize, justifyContent: 'center' }}>
         <Text
           accessibilityRole="header"
           style={[type.h2, { color: tokens.colors.text }]}
