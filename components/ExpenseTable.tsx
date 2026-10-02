@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import Icon from './Icon';
-import { Chip, AmountText } from './ui';
+import { Chip, AmountText, Checkbox } from './ui';
 import { calculateMonthlyAmount } from '../utils/calculations';
 import { normalizeCategoryName } from '../utils/storage';
 import { debtMeta } from '../utils/debtMeta';
@@ -13,6 +13,8 @@ import { type, radius, space, elevation, tabularNums, avatarHue } from '../style
  * Expenses table for medium/expanded layouts. One surface, hairline row
  * separators, sortable column headers (tap again to reverse). Semantic
  * columns use icon + label chips; delete is muted until the row is hovered.
+ * A leading checkbox column selects rows for bulk edit (shift-click for a
+ * range); the header checkbox selects every row shown.
  */
 
 export type SortOption =
@@ -47,6 +49,10 @@ const COLUMNS: Column[] = [
 
 /** Fixed trailing column for the delete button (outside the row's button). */
 const ACTION_WIDTH = 44;
+/** Fixed leading column for the selection checkbox. */
+const SELECT_WIDTH = 44;
+
+const shiftHeld = (e: any): boolean => !!(e?.shiftKey ?? e?.nativeEvent?.shiftKey);
 
 const formatDate = (iso?: string) => {
   if (!iso) return '—';
@@ -106,6 +112,8 @@ function Row({
   person,
   isDeleting,
   disabled,
+  selected,
+  onToggle,
   onEdit,
   onDelete,
 }: {
@@ -113,6 +121,8 @@ function Row({
   person: Person | null | undefined;
   isDeleting: boolean;
   disabled: boolean;
+  selected: boolean;
+  onToggle: (shift: boolean) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -137,14 +147,24 @@ function Row({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: space.s2,
-        backgroundColor: hovered ? tokens.colors.surfaceHover : 'transparent',
+        backgroundColor: selected ? tokens.colors.brandSubtle : hovered ? tokens.colors.surfaceHover : 'transparent',
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: tokens.colors.border,
         opacity: isDeleting ? 0.5 : 1,
         // @ts-ignore web transition
         transitionDuration: '150ms',
+        // Shift-click selects a range of rows, not the text between them.
+        // @ts-ignore web only
+        ...(Platform.OS === 'web' ? { userSelect: 'none' } : null),
       }}
     >
+      <View style={{ width: SELECT_WIDTH, alignItems: 'center' }}>
+        <Checkbox
+          checked={selected}
+          onPress={(e) => onToggle(shiftHeld(e))}
+          accessibilityLabel={`Select ${expense.description}`}
+        />
+      </View>
       <Pressable
         onPress={onEdit}
         accessibilityRole="button"
@@ -253,6 +273,10 @@ interface ExpenseTableProps {
   deletingExpenseId: string | null;
   disabled: boolean;
   totalMonthly: number;
+  selectedIds: ReadonlySet<string>;
+  /** `shift` is true when the click held Shift (select a range). */
+  onToggle: (id: string, shift: boolean) => void;
+  onToggleAll: () => void;
 }
 
 export default function ExpenseTable({
@@ -266,8 +290,13 @@ export default function ExpenseTable({
   deletingExpenseId,
   disabled,
   totalMonthly,
+  selectedIds,
+  onToggle,
+  onToggleAll,
 }: ExpenseTableProps) {
   const { tokens } = useTheme();
+  const selectedCount = expenses.reduce((n, e) => n + (selectedIds.has(e.id) ? 1 : 0), 0);
+  const allChecked: boolean | 'mixed' = selectedCount === 0 ? false : selectedCount === expenses.length ? true : 'mixed';
 
   return (
     <View
@@ -287,6 +316,13 @@ export default function ExpenseTable({
           borderBottomColor: tokens.colors.borderStrong,
         }}
       >
+        <View style={{ width: SELECT_WIDTH, alignItems: 'center' }}>
+          <Checkbox
+            checked={allChecked}
+            onPress={onToggleAll}
+            accessibilityLabel={allChecked === true ? 'Deselect all expenses' : 'Select all expenses'}
+          />
+        </View>
         {COLUMNS.map((column, i) => (
           <HeaderCell key={i} column={column} sortBy={sortBy} sortOrder={sortOrder} onSort={onSort} />
         ))}
@@ -300,6 +336,8 @@ export default function ExpenseTable({
           person={expense.personId ? people.find((p) => p.id === expense.personId) : null}
           isDeleting={deletingExpenseId === expense.id}
           disabled={disabled}
+          selected={selectedIds.has(expense.id)}
+          onToggle={(shift) => onToggle(expense.id, shift)}
           onEdit={() => onEdit(expense)}
           onDelete={() => onDelete(expense.id, expense.description)}
         />

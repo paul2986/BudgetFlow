@@ -15,10 +15,14 @@ import ExpenseFilterModal from '../components/ExpenseFilterModal';
 import ExpenseCard from '../components/ExpenseCard';
 import ExpenseFilterBar from '../components/ExpenseFilterBar';
 import ExpenseTable, { SortOption, SortOrder } from '../components/ExpenseTable';
-import { AmountText, EmptyState, ListGroup, Menu, SearchField, type MenuAnchor } from '../components/ui';
+import BulkActionBar from '../components/BulkActionBar';
+import BulkEditSheet from '../components/BulkEditSheet';
+import { AmountText, ConfirmDialog, EmptyState, ListGroup, Menu, SearchField, type MenuAnchor } from '../components/ui';
 import { haptics } from '../utils/haptics';
+import { useBulkExpenseActions } from '../hooks/useBulkExpenseActions';
+import { countLabel, type BulkEditPatch } from '../utils/bulkEdit';
 import { type, space, radius } from '../styles/tokens';
-import { DEFAULT_CATEGORIES } from '../types/budget';
+import { DEFAULT_CATEGORIES, type Expense } from '../types/budget';
 import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, getExpensesSort, saveExpensesSort, normalizeCategoryName } from '../utils/storage';
 
 
@@ -56,6 +60,7 @@ const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; l
 
 export default function ExpensesScreen() {
   const { data, removeExpense, saving, refreshData } = useBudgetData();
+  const bulk = useBulkExpenseActions();
   const { tokens } = useTheme();
   const largeTitle = useLargeTitle();
   const { themedStyles, breakpoint } = useThemedStyles();
@@ -83,6 +88,19 @@ export default function ExpensesScreen() {
   const [debtFilter, setDebtFilter] = useState<'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'>('all');
 
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+
+  const sortButtonRef = useRef<View>(null);
+  const [sortMenuAnchor, setSortMenuAnchor] = useState<MenuAnchor | null>(null);
+  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  // Bulk edit. `selectMode` is the phone's Select button; the table shows its
+  // checkboxes all the time, so a selection there is just a non-empty set.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [bulkTargets, setBulkTargets] = useState<Expense[]>([]);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const lastToggledId = useRef<string | null>(null); // anchor for Shift-click ranges
 
   // Enhanced sorting state
   const [sortBy, setSortBy] = useState<SortOption>('date');
@@ -430,9 +448,6 @@ export default function ExpensesScreen() {
     }
   }, [sortBy, sortOrder]);
 
-  const sortButtonRef = useRef<View>(null);
-  const [sortMenuAnchor, setSortMenuAnchor] = useState<MenuAnchor | null>(null);
-  const [showSortMenu, setShowSortMenu] = useState(false);
   const openSortMenu = useCallback(() => {
     sortButtonRef.current?.measureInWindow((x, y, width, height) => {
       setSortMenuAnchor({ x, y, width, height });
@@ -582,6 +597,9 @@ export default function ExpensesScreen() {
 
   console.log('ExpensesScreen: Final filtered expenses count:', filteredExpenses.length);
 
+  // `filteredExpenses` is built up by reassignment above; handlers below close over this settled copy.
+  const shownExpenses = filteredExpenses;
+
   const totalMonthlyAmount = filteredExpenses.reduce((sum, e) => {
     return sum + calculateMonthlyAmount(e.amount, e.frequency);
   }, 0);
@@ -594,13 +612,89 @@ export default function ExpensesScreen() {
     else setCategoryFilter(null);
   };
 
-  const busy = saving || deletingExpenseId !== null;
+  const busy = saving || deletingExpenseId !== null || bulk.busy;
   const subtitle = hasActiveFilters
     ? `${filteredExpenses.length} of ${data.expenses.length} · ${formatCurrency(totalMonthlyAmount)}/mo`
     : `${data.expenses.length} ${data.expenses.length === 1 ? 'expense' : 'expenses'} · ${formatCurrency(totalMonthlyAmount)}/mo`;
 
   // The table needs expanded width; tablet widths read better as the list.
   const useTable = breakpoint.isExpanded;
+
+  // Only what is on screen can be selected: a row filtered away drops out, so
+  // a bulk edit never touches something the person can't see.
+  const selectedVisible = shownExpenses.filter((e) => selectedIds.has(e.id));
+  const visibleKey = shownExpenses.map((e) => e.id).join('\u0001');
+  useEffect(() => {
+    const visible = new Set(visibleKey.split('\u0001'));
+    setSelectedIds((prev) => {
+      const kept = [...prev].filter((id) => visible.has(id));
+      return kept.length === prev.size ? prev : new Set(kept);
+    });
+  }, [visibleKey]);
+  const selecting = useTable ? selectedVisible.length > 0 : selectMode;
+  const allSelected = shownExpenses.length > 0 && selectedVisible.length === shownExpenses.length;
+  const selectedMonthly = selectedVisible.reduce((sum, e) => sum + calculateMonthlyAmount(e.amount, e.frequency), 0);
+
+  const exitSelection = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+    lastToggledId.current = null;
+  };
+  const startSelection = (id?: string) => {
+    haptics.selection();
+    setSelectMode(true);
+    if (id) {
+      setSelectedIds(new Set([id]));
+      lastToggledId.current = id;
+    }
+  };
+  const toggleSelected = (id: string, shift = false) => {
+    haptics.selection();
+    const anchor = lastToggledId.current;
+    lastToggledId.current = id;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const ids = shownExpenses.map((e) => e.id);
+      const from = anchor && shift ? ids.indexOf(anchor) : -1;
+      const to = ids.indexOf(id);
+      if (from !== -1 && to !== -1) {
+        for (let i = Math.min(from, to); i <= Math.max(from, to); i++) next.add(ids[i]);
+      } else if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    haptics.selection();
+    lastToggledId.current = null;
+    setSelectedIds(allSelected ? new Set() : new Set(shownExpenses.map((e) => e.id)));
+  };
+
+  const openBulkEdit = () => {
+    if (selectedVisible.length === 0) return;
+    setBulkTargets(selectedVisible);
+    setShowBulkEdit(true);
+  };
+  const requestBulkDelete = () => {
+    if (selectedVisible.length === 0) return;
+    setBulkTargets(selectedVisible);
+    setConfirmBulkDelete(true);
+  };
+
+  const handleBulkApply = async (patch: BulkEditPatch) => {
+    if (!(await bulk.applyEdit(bulkTargets.map((e) => e.id), patch))) return;
+    setShowBulkEdit(false);
+    exitSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    const deleted = await bulk.deleteAll(bulkTargets.map((e) => e.id));
+    setConfirmBulkDelete(false);
+    if (deleted) exitSelection();
+  };
+
+  // Every category the add/edit form offers (defaults, then custom).
+  const bulkCategories = [...DEFAULT_CATEGORIES, ...customCategories.filter((c) => !DEFAULT_CATEGORIES.includes(c))];
   const isDefaultSort = sortBy === 'date' && sortOrder === 'desc';
   const currentSortLabel =
     SORT_MENU.flatMap((g) => g.options.map((o) => ({ ...o, group: g.title })))
@@ -610,22 +704,67 @@ export default function ExpensesScreen() {
   return (
     <View style={themedStyles.container}>
       <StandardHeader
-        title="Expenses"
-        subtitle={data.expenses.length > 0 ? subtitle : undefined}
+        title={selecting && !useTable ? (selectedVisible.length > 0 ? `${selectedVisible.length} selected` : 'Select expenses') : 'Expenses'}
+        subtitle={
+          selecting && !useTable
+            ? selectedVisible.length > 0
+              ? `${formatCurrency(selectedMonthly)}/mo selected`
+              : 'Tap expenses to choose them'
+            : data.expenses.length > 0
+              ? subtitle
+              : undefined
+        }
         largeTitle={largeTitle}
         showLeftIcon={false}
         showRightIcon={false}
         loading={busy}
-        rightButtons={[
-          {
-            icon: hasActiveFilters ? 'options' : 'options-outline',
-            onPress: () => setShowFilterModal(true),
-            backgroundColor: hasActiveFilters ? tokens.colors.brandSubtle : 'transparent',
-            iconColor: tokens.colors.brand,
-            accessibilityLabel: hasActiveFilters ? 'More filters, some applied' : 'More filters',
-          },
-          { icon: 'add', onPress: handleNavigateToAddExpense, accessibilityLabel: 'Add expense' },
-        ]}
+        rightButtons={
+          selecting && !useTable
+            ? [
+                ...(selectedVisible.length > 0
+                  ? [
+                      {
+                        icon: 'trash-outline',
+                        onPress: requestBulkDelete,
+                        backgroundColor: 'transparent',
+                        iconColor: tokens.colors.danger,
+                        accessibilityLabel: 'Delete selected expenses',
+                      },
+                      { icon: 'create-outline', onPress: openBulkEdit, accessibilityLabel: 'Edit selected expenses' },
+                    ]
+                  : []),
+                // Where the add button sits, so it turns into the way out.
+                {
+                  icon: 'close',
+                  onPress: exitSelection,
+                  backgroundColor: 'transparent',
+                  iconColor: tokens.colors.text,
+                  accessibilityLabel: 'Cancel selection',
+                },
+              ]
+            : [
+                // The table has its own checkboxes; the list needs a way in.
+                ...(useTable || data.expenses.length === 0
+                  ? []
+                  : [
+                      {
+                        icon: 'checkmark-circle-outline',
+                        onPress: () => startSelection(),
+                        backgroundColor: 'transparent',
+                        iconColor: tokens.colors.brand,
+                        accessibilityLabel: 'Select expenses',
+                      },
+                    ]),
+                {
+                  icon: hasActiveFilters ? 'options' : 'options-outline',
+                  onPress: () => setShowFilterModal(true),
+                  backgroundColor: hasActiveFilters ? tokens.colors.brandSubtle : 'transparent',
+                  iconColor: tokens.colors.brand,
+                  accessibilityLabel: hasActiveFilters ? 'More filters, some applied' : 'More filters',
+                },
+                { icon: 'add', onPress: handleNavigateToAddExpense, accessibilityLabel: 'Add expense' },
+              ]
+        }
       />
 
       <Animated.ScrollView
@@ -691,7 +830,23 @@ export default function ExpensesScreen() {
                 onClearAll={handleClearFilters}
               />
 
-              <View style={{ height: useTable ? space.s2 : space.s4 }} />
+              {selecting && !useTable ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44, marginBottom: space.s2 }}>
+                  <Pressable
+                    onPress={toggleAll}
+                    accessibilityRole="button"
+                    accessibilityLabel={allSelected ? 'Deselect all expenses' : `Select all ${shownExpenses.length} expenses`}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}
+                  >
+                    <Text style={[type.bodyMed, { color: tokens.colors.brand }]}>
+                      {allSelected ? 'Deselect all' : `Select all ${shownExpenses.length}`}
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ height: useTable ? space.s2 : space.s4 }} />
+              )}
             </>
           ) : null}
 
@@ -716,18 +871,32 @@ export default function ExpensesScreen() {
               )}
             </ListGroup>
           ) : useTable ? (
-            <ExpenseTable
-              expenses={filteredExpenses}
-              people={data.people}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              onSort={handleSortPress}
-              onEdit={handleEditExpense}
-              onDelete={handleDeletePress}
-              deletingExpenseId={deletingExpenseId}
-              disabled={busy}
-              totalMonthly={totalMonthlyAmount}
-            />
+            <>
+              <ExpenseTable
+                expenses={filteredExpenses}
+                people={data.people}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                onSort={handleSortPress}
+                onEdit={handleEditExpense}
+                onDelete={handleDeletePress}
+                deletingExpenseId={deletingExpenseId}
+                disabled={busy}
+                totalMonthly={totalMonthlyAmount}
+                selectedIds={selectedIds}
+                onToggle={toggleSelected}
+                onToggleAll={toggleAll}
+              />
+              {selectedVisible.length > 0 ? (
+                <BulkActionBar
+                  count={selectedVisible.length}
+                  disabled={busy}
+                  onEdit={openBulkEdit}
+                  onDelete={requestBulkDelete}
+                  onClear={exitSelection}
+                />
+              ) : null}
+            </>
           ) : (
             <ListGroup>
               {filteredExpenses.map((expense, idx) => (
@@ -738,6 +907,10 @@ export default function ExpensesScreen() {
                   isDeleting={deletingExpenseId === expense.id}
                   onPress={() => handleEditExpense(expense)}
                   onDelete={handleDeletePress}
+                  selectMode={selecting}
+                  selected={selectedIds.has(expense.id)}
+                  onToggleSelect={() => toggleSelected(expense.id)}
+                  onLongPress={() => startSelection(expense.id)}
                   // Light mode: the total row's divider replaces the last hairline.
                   showSeparator={tokens.isDark || idx < filteredExpenses.length - 1}
                 />
@@ -782,6 +955,27 @@ export default function ExpensesScreen() {
             onPress: () => chooseSort(o.by, o.order),
           })),
         }))}
+      />
+
+      <BulkEditSheet
+        visible={showBulkEdit}
+        onClose={() => setShowBulkEdit(false)}
+        expenses={bulkTargets}
+        people={data.people}
+        categories={bulkCategories}
+        busy={bulk.busy}
+        onApply={handleBulkApply}
+      />
+
+      <ConfirmDialog
+        visible={confirmBulkDelete}
+        title={`Delete ${countLabel(bulkTargets.length)}?`}
+        message={`${bulkTargets.length === 1 ? 'It' : 'They'} will be removed from this budget. This can't be undone.`}
+        confirmLabel="Delete"
+        destructive
+        loading={bulk.busy}
+        onConfirm={handleBulkDelete}
+        onCancel={() => setConfirmBulkDelete(false)}
       />
 
       <ExpenseFilterModal

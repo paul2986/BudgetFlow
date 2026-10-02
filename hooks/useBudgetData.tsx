@@ -19,6 +19,7 @@ import {
 import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget, BudgetSharing } from '../types/budget';
 import { supabase } from '../utils/supabase';
 import { syncBudgets, stableStringify } from '../utils/budgetSync';
+import { applyBulkEdit, type BulkEditPatch, type BulkEditResult } from '../utils/bulkEdit';
 import { useAuth } from './useAuth';
 import type { ImportedBudget } from '../utils/budgetWorkbook/import';
 
@@ -968,6 +969,66 @@ const useBudgetDataInternal = () => {
     [queueSave, createDataCopy, saveData]
   );
 
+  // The bulk calls below make one save for the whole selection. Looping
+  // updateExpense/removeExpense would save locally and push to the cloud once
+  // per expense.
+  const bulkEditExpenses = useCallback(
+    async (
+      ids: string[],
+      patch: BulkEditPatch
+    ): Promise<{ success: boolean; error?: Error; result?: BulkEditResult }> => {
+      let outcome: BulkEditResult | undefined;
+      const res = await queueSave(async () => {
+        const newData = await createDataCopy();
+        const result = applyBulkEdit(newData.expenses, ids, patch);
+        outcome = result;
+        if (result.changedIds.length === 0) return { success: true };
+        newData.expenses = result.expenses;
+        return saveData(newData);
+      });
+      return { ...res, result: res.success ? outcome : undefined };
+    },
+    [queueSave, createDataCopy, saveData]
+  );
+
+  // Undo for bulkEditExpenses: puts back each expense that is still exactly as
+  // the edit left it (same `updatedAt`), so a later edit to one isn't undone.
+  const undoBulkEdit = useCallback(
+    async (result: BulkEditResult): Promise<{ success: boolean; error?: Error }> =>
+      queueSave(async () => {
+        const newData = await createDataCopy();
+        const before = new Map(result.previous.map((e) => [e.id, e]));
+        const restoredAt = Date.now();
+        let restored = 0;
+        newData.expenses = newData.expenses.map((e) => {
+          const old = before.get(e.id);
+          if (!old || e.updatedAt !== result.stampedAt) return e;
+          restored++;
+          return { ...old, updatedAt: restoredAt };
+        });
+        if (restored === 0) return { success: true };
+        return saveData(newData);
+      }),
+    [queueSave, createDataCopy, saveData]
+  );
+
+  const removeExpenses = useCallback(
+    async (ids: string[]): Promise<{ success: boolean; error?: Error; removed: number }> => {
+      let removed = 0;
+      const res = await queueSave(async () => {
+        const newData = await createDataCopy();
+        const doomed = new Set(ids);
+        const gone = newData.expenses.filter((e) => doomed.has(e.id)).map((e) => e.id);
+        if (gone.length === 0) return { success: true };
+        newData.expenses = newData.expenses.filter((e) => !doomed.has(e.id));
+        removed = gone.length;
+        return saveData(newData, gone);
+      });
+      return { ...res, removed: res.success ? removed : 0 };
+    },
+    [queueSave, createDataCopy, saveData]
+  );
+
   const updateHouseholdSettings = useCallback(
     async (settings: Partial<HouseholdSettings>): Promise<{ success: boolean; error?: Error }> => {
       console.log('useBudgetData: Updating household settings:', settings);
@@ -1110,6 +1171,9 @@ const useBudgetDataInternal = () => {
     addExpense,
     removeExpense,
     updateExpense,
+    bulkEditExpenses,
+    undoBulkEdit,
+    removeExpenses,
     updateHouseholdSettings,
     clearAllData,
     refreshData,
