@@ -103,8 +103,12 @@ export default function StandardHeader({
 
   const renderButton = (btn: HeaderButton, kind: 'left' | 'right', idx: number) => {
     const isPrimary = kind === 'right' && !btn.backgroundColor;
-    const bg = btn.backgroundColor || (isPrimary ? tokens.colors.brandSubtle : 'transparent');
-    const fg = btn.iconColor || (isPrimary ? tokens.colors.brand : tokens.colors.text);
+    // The primary action is a solid brand button: the pale tint it used to have all but
+    // vanished against the light page. A caller's own icon colour keeps the soft tint
+    // (their colour wouldn't be legible on the solid fill).
+    const solid = isPrimary && !btn.iconColor;
+    const bg = btn.backgroundColor || (solid ? tokens.colors.brand : isPrimary ? tokens.colors.brandSubtle : 'transparent');
+    const fg = btn.iconColor || (solid ? tokens.colors.onBrand : tokens.colors.text);
     const label = btn.accessibilityLabel || ICON_LABELS[btn.icon] || btn.icon.replace(/-outline$|-circle$/, '').replace(/-/g, ' ');
 
     return (
@@ -118,7 +122,9 @@ export default function StandardHeader({
           width: buttonSize,
           height: buttonSize,
           borderRadius: radius.md,
-          backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : bg,
+          // A solid button dims on press (a pale hover fill would swallow its icon).
+          backgroundColor: solid ? bg : pressed || hovered ? tokens.colors.surfaceHover : bg,
+          opacity: solid ? (pressed ? 0.85 : hovered ? 0.92 : 1) : 1,
           justifyContent: 'center',
           alignItems: 'center',
           marginLeft: kind === 'right' && idx > 0 ? space.s2 : 0,

@@ -621,7 +621,7 @@ export default function ExpensesScreen() {
             icon: hasActiveFilters ? 'options' : 'options-outline',
             onPress: () => setShowFilterModal(true),
             backgroundColor: hasActiveFilters ? tokens.colors.brandSubtle : 'transparent',
-            iconColor: hasActiveFilters ? tokens.colors.brand : tokens.colors.text,
+            iconColor: tokens.colors.brand,
             accessibilityLabel: hasActiveFilters ? 'More filters, some applied' : 'More filters',
           },
           { icon: 'add', onPress: handleNavigateToAddExpense, accessibilityLabel: 'Add expense' },
