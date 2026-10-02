@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { admin, anonClient, createInvite, createUser, deleteUser, members, serverBudget, TestUser } from '../helpers/localSupabase';
+import { anonClient, createInvite, createUser, deleteUser, members, serverBudget, TestUser } from '../helpers/localSupabase';
 import { makeBudget, uniqueId } from '../helpers/fixtures';
 
 // Who can do what with shared budgets (supabase/migrations/*_shared_budgets.sql).
@@ -190,13 +190,10 @@ describe('deleting an account', () => {
     const solo = await createBudget(dave, 'Solo');
     const shared = await createBudget(dave, 'Shared');
     await join(bob, dave, shared.id);
-    await admin.from('user_data').insert({ user_id: dave.id, app_data: { version: 2, budgets: [], activeBudgetId: '' } });
 
     await deleteUser(dave);
 
     expect(await serverBudget(solo.id)).toBeNull();
     expect(await members(shared.id)).toEqual([{ user_id: bob.id, role: 'owner' }]);
-    const { data: userData } = await admin.from('user_data').select('user_id').eq('user_id', dave.id);
-    expect(userData).toEqual([]);
   });
 });

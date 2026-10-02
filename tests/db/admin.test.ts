@@ -158,12 +158,6 @@ describe('what it says', () => {
         await addInvite(b1.id, u1, 7, u2); // accepted
         await addInvite(b1.id, u1, -1, null); // expired yesterday
 
-        // One account still holding budgets in the old format, one emptied.
-        await db.query('insert into public.user_data (user_id, app_data) values ($1, $2), ($3, $4)', [
-          u1, JSON.stringify({ version: 2, activeBudgetId: '', budgets: [makeBudget()] }),
-          u2, JSON.stringify({ version: 2, activeBudgetId: '', budgets: [] }),
-        ]);
-
         const after = await overview();
         const change = (section: string, key: string) => after[section][key] - before[section][key];
         const frequency = (o: any, key: string) => o.content.expenses_by_frequency[key] ?? 0;
@@ -186,7 +180,6 @@ describe('what it says', () => {
           ['daily', 'weekly', 'monthly', 'yearly', 'one-time', 'other'].includes(key))).toBe(true);
 
         expect(after.health.largest_budget_bytes).toBeGreaterThan(0);
-        expect(change('health', 'legacy_user_data_with_budgets')).toBe(1);
         expect(change('health', 'budgets_without_owner')).toBe(1);
       } finally {
         await db.query('rollback');

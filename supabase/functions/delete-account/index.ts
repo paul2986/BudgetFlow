@@ -36,12 +36,6 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await admin.auth.getUser(token);
     if (userError || !user) return json({ error: 'Not signed in' }, 401);
 
-    const { error: dataError } = await admin.from('user_data').delete().eq('user_id', user.id);
-    if (dataError) {
-        console.error('delete-account: failed to delete user_data', dataError);
-        return json({ error: 'Could not delete account data' }, 500);
-    }
-
     const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
     if (deleteError) {
         console.error('delete-account: failed to delete auth user', deleteError);

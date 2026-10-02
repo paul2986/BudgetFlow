@@ -38,16 +38,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-/** A figure that is fine at zero: a tick beside it when it is, an icon in the warning colour when not. */
-function CheckedValue({ value, problem }: { value: number; problem: 'warning' | 'danger' }) {
+/** A figure that should be zero: a tick beside it when it is, an alert icon when not. */
+function CheckedValue({ value }: { value: number }) {
   const { tokens } = useTheme();
   const ok = value === 0;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s2 }}>
       <Icon
-        name={ok ? 'checkmark-circle-outline' : problem === 'danger' ? 'alert-circle-outline' : 'time-outline'}
+        name={ok ? 'checkmark-circle-outline' : 'alert-circle-outline'}
         size={20}
-        color={ok ? tokens.colors.income : problem === 'danger' ? tokens.colors.danger : tokens.colors.warning}
+        color={ok ? tokens.colors.income : tokens.colors.danger}
       />
       <Text style={[type.bodyMed, tabularNums, { color: tokens.colors.text }]}>{formatCount(value)}</Text>
     </View>
@@ -242,15 +242,9 @@ export default function AdminScreen() {
               trailing={<Value>{formatBytes(health.largest_budget_bytes)}</Value>}
             />
             <ListRow
-              title="Old-format accounts"
-              caption="Still holding budgets in user_data. At 0 it can be dropped."
-              captionLines={2}
-              trailing={<CheckedValue value={health.legacy_user_data_with_budgets} problem="warning" />}
-            />
-            <ListRow
               title="Budgets without an owner"
               caption="Should always be 0"
-              trailing={<CheckedValue value={health.budgets_without_owner} problem="danger" />}
+              trailing={<CheckedValue value={health.budgets_without_owner} />}
               showSeparator={false}
             />
           </ListGroup>
