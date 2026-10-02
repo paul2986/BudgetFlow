@@ -128,7 +128,7 @@ export default function ShareBudgetScreen() {
       await removeMember(budgetId, removing.userId);
       setMembers((list) => list?.filter((m) => m.userId !== removing.userId) || null);
       showToast(`${removing.email} removed`, 'success');
-      refreshData(true);
+      refreshData(true, true);
     } catch (e) {
       console.error('ShareBudget: remove failed', e);
       showToast('Couldn’t remove them. Try again.', 'error');
@@ -168,7 +168,7 @@ export default function ShareBudgetScreen() {
             title="Not synced yet"
             caption="You can share this budget once it has synced. Check your connection and try again."
             actionLabel="Try again"
-            onAction={() => refreshData(true)}
+            onAction={() => refreshData(true, true)}
           />
         </ListGroup>
       );

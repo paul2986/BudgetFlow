@@ -43,6 +43,21 @@ describe('one person', () => {
     expect(find(await phone.load(), budget.id)?.lock?.locked).toBe(true);
   });
 
+  it('leaves the device copy alone when a pass finds nothing new', async () => {
+    const { phone, budget } = await aliceWithBudget();
+    const writes: string[] = [];
+    const setItem = phone.disk.setItem;
+    phone.disk.setItem = async (key: string, value: string) => {
+      writes.push(key);
+      return setItem(key, value);
+    };
+    // Every screen change used to rewrite every budget, validated twice and read back.
+    await phone.sync();
+    await phone.sync();
+    expect(writes).toEqual([]);
+    expect(find(await phone.load(), budget.id)?.name).toBe('Family');
+  });
+
   it('gets everything on a new device, unlocked there', async () => {
     const { alice, budget } = await aliceWithBudget({ lock: { locked: true, autoLockMinutes: 5 } });
     const laptop = await createDevice(alice);

@@ -265,7 +265,8 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     }
     const pendingRemovals = snapshot.deletedBudgets || {};
     const settled = new Set<string>();
-    const syncedIds = new Set(await loadSyncedBudgetIds());
+    const knownSyncedIds = await loadSyncedBudgetIds();
+    const syncedIds = new Set(knownSyncedIds);
     const result: Budget[] = [];
 
     // Budgets on the server: merge, or carry out a removal made on this device.
@@ -318,7 +319,10 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
       }
     }
 
-    await saveSyncedBudgetIds(Array.from(syncedIds));
+    const nowSyncedIds = Array.from(syncedIds);
+    if (nowSyncedIds.length !== knownSyncedIds.length || nowSyncedIds.some((id) => !knownSyncedIds.includes(id))) {
+      await saveSyncedBudgetIds(nowSyncedIds);
+    }
     if (legacy.clear) await legacy.clear();
 
     let activeBudgetId = snapshot.activeBudgetId;
@@ -331,9 +335,14 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     // Saved here, inside the queue, so the next pass starts from this result;
     // otherwise it would re-create budgets this pass gave new ids.
     const synced: AppDataV2 = { version: 2, budgets: result, activeBudgetId };
-    const data = reconcile(snapshot, synced, await load(), settled);
-    const saved = await saveAppData(data);
-    if (!saved.success) throw saved.error;
+    const current = await load();
+    const data = reconcile(snapshot, synced, current, settled);
+    // The usual pass finds nothing new: rewriting every budget (validated twice, written,
+    // read back) each time was the bulk of the work behind every screen change.
+    if (stableStringify(data) !== stableStringify(current)) {
+      const saved = await saveAppData(data);
+      if (!saved.success) throw saved.error;
+    }
     return { ok: true, data, sharing };
   } catch (error) {
     return { ok: false, error };

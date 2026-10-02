@@ -32,7 +32,7 @@ export default function InviteScreen() {
   const alreadyMember = !!preview && appData.budgets.some((b) => b.id === preview.budgetId);
 
   const openBudget = async (budgetId: string) => {
-    await refreshData(true);
+    await refreshData(true, true);
     await setActiveBudget(budgetId);
     router.replace('/');
   };

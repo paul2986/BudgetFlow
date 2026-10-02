@@ -107,19 +107,34 @@ const useBudgetDataInternal = () => {
   // then the empty in-memory data isn't "no budgets", it's "not loaded yet".
   const [readyFor, setReadyFor] = useState<string | null>(null);
 
+  // What is on screen now, for showAppData to compare against.
+  const appDataRef = useRef(appData);
+  appDataRef.current = appData;
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
   // Show app data in the UI: the full set, and the active budget's editable slice.
   const showAppData = useCallback((app: AppDataV2) => {
-    setAppData(app);
     const active = getActiveBudget(app);
-    setData(
-      active
-        ? {
-          people: active.people || [],
-          expenses: active.expenses || [],
-          householdSettings: active.householdSettings || { distributionMethod: 'even' },
-        }
-        : { people: [], expenses: [], householdSettings: { distributionMethod: 'even' } }
-    );
+    const slice: BudgetSlice = active
+      ? {
+        people: active.people || [],
+        expenses: active.expenses || [],
+        householdSettings: active.householdSettings || { distributionMethod: 'even' },
+      }
+      : { people: [], expenses: [], householdSettings: { distributionMethod: 'even' } };
+    // Every focus refreshes, and storage hands back a fresh deep copy each time. Swapping
+    // identical data for new objects re-renders and recalculates every mounted screen
+    // right as the next one slides in (blank or janky frames on a phone), so leave the
+    // state alone when nothing differs from what's showing.
+    if (
+      stableStringify(app) === stableStringify(appDataRef.current) &&
+      stableStringify(slice) === stableStringify(dataRef.current)
+    ) {
+      return;
+    }
+    setAppData(app);
+    setData(slice);
   }, []);
 
   // Sync every budget with the server. The device copy is read when the pass
@@ -133,15 +148,18 @@ const useBudgetDataInternal = () => {
       console.error('useBudgetData: Sync failed:', result.error);
       return;
     }
-    setSharing(result.sharing);
+    // Same reason: a sync that finds nothing new shouldn't hand every screen a new object.
+    setSharing((prev) => (stableStringify(prev) === stableStringify(result.sharing) ? prev : result.sharing));
     if (stableStringify(result.data) !== before) {
       console.log('useBudgetData: Adopting synced budgets');
       showAppData(await loadAppData());
     }
   }, [user, showAppData]);
 
-  // One refresh pass: show the device copy, then sync it when signed in.
-  const syncOnce = useCallback(async () => {
+  // One refresh pass: show the device copy, then (when `cloud`) sync it when signed in.
+  // Moving between screens only needs the device copy; the cloud sync is for sign-in,
+  // Realtime changes, returning to the app, and saves.
+  const syncOnce = useCallback(async (cloud: boolean) => {
     // Don't refresh mid-save: the save syncs when it finishes.
     if (saving || isQueueRunning.current) {
       console.log('useBudgetData: Save in progress, skipping refresh');
@@ -151,7 +169,7 @@ const useBudgetDataInternal = () => {
     if (user && claimedForRef.current !== user.id) return;
     try {
       showAppData(await loadAppData());
-      if (user) await pushToCloud();
+      if (user && cloud) await pushToCloud();
     } catch (error) {
       console.error('useBudgetData: Error in refreshFromStorage:', error);
     }
@@ -165,7 +183,10 @@ const useBudgetDataInternal = () => {
   // gets one more pass afterwards, so changes made meanwhile still sync.
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshAgainRef = useRef(false);
-  const refreshFromStorage = useCallback((): Promise<void> => {
+  // A cloud sync asked for while a pass is running still happens, in the next pass.
+  const cloudWantedRef = useRef(false);
+  const refreshFromStorage = useCallback((cloud: boolean = true): Promise<void> => {
+    if (cloud) cloudWantedRef.current = true;
     if (refreshInFlightRef.current) {
       refreshAgainRef.current = true;
       return refreshInFlightRef.current;
@@ -174,7 +195,9 @@ const useBudgetDataInternal = () => {
       try {
         do {
           refreshAgainRef.current = false;
-          await syncOnceRef.current();
+          const withCloud = cloudWantedRef.current;
+          cloudWantedRef.current = false;
+          await syncOnceRef.current(withCloud);
         } while (refreshAgainRef.current);
       } finally {
         refreshInFlightRef.current = null;
@@ -977,8 +1000,10 @@ const useBudgetDataInternal = () => {
   );
 
   // Refresh function with improved logic - stable function that doesn't change
+  // Screens call this when they come into focus, and only need the device copy: pass
+  // `cloud` to also pull from the server (joining a budget, the sharing screen).
   const refreshData = useCallback(
-    async (force: boolean = false) => {
+    async (force: boolean = false, cloud: boolean = false) => {
       const now = Date.now();
       const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
 
@@ -1017,7 +1042,7 @@ const useBudgetDataInternal = () => {
 
       console.log('useBudgetData: Executing refresh...');
       try {
-        await refreshFromStorage();
+        await refreshFromStorage(cloud);
         lastRefreshTimeRef.current = Date.now();
       } catch (error) {
         console.error('useBudgetData: Error during refresh:', error);
