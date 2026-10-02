@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
+import { Client } from 'pg';
 
 // The local stack started by `supabase start`. The defaults are the Supabase
 // CLI's standard local development keys (public, local-only); CI can override.
@@ -14,6 +15,12 @@ const SERVICE_ROLE_KEY =
 if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/.test(URL)) {
   // These tests create and delete users; never point them at a real project.
   throw new Error(`Refusing to run db tests against ${URL}: use a local Supabase (supabase start).`);
+}
+
+const DB_URL = process.env.SUPABASE_DB_URL || 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+
+if (!/@(127\.0\.0\.1|localhost)(:\d+)?\//.test(DB_URL)) {
+  throw new Error(`Refusing to run db tests against ${DB_URL}: use a local Supabase (supabase start).`);
 }
 
 const options = { auth: { persistSession: false, autoRefreshToken: false } };
@@ -43,6 +50,25 @@ export const createUser = async (label: string): Promise<TestUser> => {
 export const deleteUser = async (user: TestUser) => {
   await admin.auth.admin.deleteUser(user.id);
 };
+
+// Plain SQL, for what the API can't reach (the private schema), the way the SQL
+// editor is used in production.
+export const withDb = async <T>(run: (db: Client) => Promise<T>): Promise<T> => {
+  const db = new Client({ connectionString: DB_URL });
+  await db.connect();
+  try {
+    return await run(db);
+  } finally {
+    await db.end();
+  }
+};
+
+// Admins can only be added with SQL; there is no in-app way to grant it.
+export const makeAdmin = (user: TestUser) =>
+  withDb((db) => db.query('insert into private.admins (user_id) values ($1)', [user.id]));
+
+export const removeAdmin = (user: TestUser) =>
+  withDb((db) => db.query('delete from private.admins where user_id = $1', [user.id]));
 
 // Owner-side helpers, as the app does them.
 export const createInvite = async (owner: TestUser, budgetId: string, expiresAt?: string) => {

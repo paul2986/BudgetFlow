@@ -5,7 +5,8 @@ import { useBreakpoint } from '../../hooks/useBreakpoint';
 import Icon from '../Icon';
 import Card from './Card';
 import AmountText from './AmountText';
-import { type, radius, space } from '../../styles/tokens';
+import { formatCount } from '../../utils/adminFormat';
+import { type, radius, space, tabularNums } from '../../styles/tokens';
 
 /**
  * StatCard per DESIGN.md §2.8: overline label + icon chip, large tabular
@@ -16,6 +17,8 @@ import { type, radius, space } from '../../styles/tokens';
 interface StatCardProps {
   label: string;
   value: number;
+  /** 'count' shows a plain number (users, budgets) instead of a currency amount. */
+  format?: 'currency' | 'count';
   icon: string;
   /** Colors the icon chip; the amount is only tinted for income/expense. */
   tone?: 'default' | 'income' | 'expense' | 'household' | 'personal';
@@ -25,7 +28,7 @@ interface StatCardProps {
   animate?: boolean;
 }
 
-export default function StatCard({ label, value, icon, tone = 'default', caption, style, animate }: StatCardProps) {
+export default function StatCard({ label, value, format = 'currency', icon, tone = 'default', caption, style, animate }: StatCardProps) {
   const { tokens } = useTheme();
   const bp = useBreakpoint();
 
@@ -62,13 +65,19 @@ export default function StatCard({ label, value, icon, tone = 'default', caption
         </Text>
       </View>
       {/* Half-width cards on compact can't fit h1 without mid-number wrapping. */}
-      <AmountText
-        value={value}
-        role={bp.isCompact ? 'h2' : 'h1'}
-        tone={tone === 'income' || tone === 'expense' ? tone : 'default'}
-        numberOfLines={1}
-        animate={animate}
-      />
+      {format === 'count' ? (
+        <Text style={[bp.isCompact ? type.h2 : type.h1, tabularNums, { color: tokens.colors.text }]} numberOfLines={1}>
+          {formatCount(value)}
+        </Text>
+      ) : (
+        <AmountText
+          value={value}
+          role={bp.isCompact ? 'h2' : 'h1'}
+          tone={tone === 'income' || tone === 'expense' ? tone : 'default'}
+          numberOfLines={1}
+          animate={animate}
+        />
+      )}
       {caption ? (
         <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1 }]} numberOfLines={1}>
           {caption}
