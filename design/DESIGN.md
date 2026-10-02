@@ -269,7 +269,8 @@ Every screen keeps its exact current capabilities; only presentation changes.
 - Grid of person cards: compact 1-col, medium 2, expanded 3. Card: avatar, name `h3`, income total (income color + ↑), expense count caption, chevron. Detail (route or dialog by class): income sources list (same row primitive as expenses) + person's expenses; add income = FormSheet.
 
 ### Tools
-- Card grid of tools (currently one): icon, name, one-line description. Credit-card payoff calculator: form column (max 560) with currency/percent inputs; **results as stat cards + schedule table** — table on expanded (tabular numerals, right-aligned figures, zebra hairlines), stacked cards per-month on compact. Charts (if added later) follow §2.9.
+- Hub (`/tools`): a card per tool (icon in a subtle circle using the debt/semantic accent, name, one-line description), one column on compact, two on medium, three on expanded. Each tool is its own pushed screen (`/tools/credit-card`, `/tools/savings`, `/tools/mortgage`) with a back button, inputs beside results on expanded and stacked on compact (`ToolLayout`).
+- Credit-card payoff: form column with currency/percent inputs; **results as stat cards + schedule table**. Savings and mortgage update live and lead with a hero figure, then charts (§2.9), then a collapsed year-by-year table that is the charts' text twin.
 
 ### Settings
 - Single grouped-list pattern on all classes (compact: full-width rows; medium/expanded: content max 720 with left anchor menu on expanded only). Groups: **Budgets** (list, create, rename, duplicate, delete, lock w/ per-budget auto-lock), **Preferences** (Currency — searchable sheet; Theme — segmented System/Light/Dark), **Account** (email, sign out), **Data** (Danger zone: clear data — `danger` styling, isolated card, typed-confirm dialog), **About**.
@@ -300,7 +301,9 @@ Every screen keeps its exact current capabilities; only presentation changes.
 | **Avatar** | Initial on deterministic per-person hue (from the fixed 6-hue accessible set in `styles/tokens.ts`), `rFull`, sizes 28/36/44. |
 
 ## 2.9 Charts & data-viz rules
-Allocation bars (stacked horizontal) are the default viz; donut only if categories ≤5. Colors from a fixed ordered palette (indigo, cyan, amber, rose, emerald, slate) with icon/pattern + always a legend with values; every chart has a text summary line for screen readers; tooltips on tap/hover with exact formatted values; empty chart = EmptyState, not blank axes.
+Allocation bars (stacked horizontal) are the default viz for parts of a whole; donut only if categories ≤5. **Balances over time (a stock) are lines/areas; per-period flows (what each year's payments are made of) are stacked columns.** Never smooth between points (no curve interpolation); plot at monthly resolution instead. Marks: 2px round lines, areas as a wash at 20% (`fillOpacity`, never a colour suffix), columns ≤24px with a 4px rounded top and a 2px surface gap between segments, end dots r=5 with a 2px surface ring, hairline solid gridlines in `border`. Series colours stay stable per meaning: brand = your money (contributions, principal, the scheduled plan), income = interest earned / the with-extra plan, expense = interest paid. Explore by drag/hover/arrow keys with a readout above the plot that doubles as the legend (value strong, label muted); VoiceOver gets an adjustable element with the summary. Shared pieces live in `components/charts` (`ChartFrame`, `AreaChart`, `BarChart`).
+
+Every chart: colors from a fixed ordered palette (indigo, cyan, amber, rose, emerald, slate) with icon/pattern + always a legend with values; every chart has a text summary line for screen readers; tooltips on tap/hover with exact formatted values; empty chart = EmptyState, not blank axes.
 
 ## 2.10 Accessibility contract (blocking, not advisory)
 1. Every interactive element: ≥44×44pt target (hitSlop where visual is smaller) and `accessibilityRole` + `accessibilityLabel` (icon-only ⇒ label mandatory).

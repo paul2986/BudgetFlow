@@ -1,31 +1,31 @@
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { View, Text, Animated, StyleSheet } from 'react-native';
-import StandardHeader, { LargeTitle } from '../components/StandardHeader';
-import { useLargeTitle } from '../hooks/useLargeTitle';
-import { useThemedStyles } from '../hooks/useThemedStyles';
-import { useTheme } from '../hooks/useTheme';
-import { useCurrency } from '../hooks/useCurrency';
-import Icon from '../components/Icon';
-import Button from '../components/Button';
-import CurrencyInput from '../components/CurrencyInput';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { router } from 'expo-router';
+import StandardHeader from '../../components/StandardHeader';
+import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../hooks/useTheme';
+import { useCurrency } from '../../hooks/useCurrency';
+import Icon from '../../components/Icon';
+import Button from '../../components/Button';
+import CurrencyInput from '../../components/CurrencyInput';
 import * as Clipboard from 'expo-clipboard';
-import { computeCreditCardPayoff, computeInterestOnlyMinimum } from '../utils/calculations';
-import { CreditCardPayoffResult } from '../types/budget';
-import { useToast } from '../hooks/useToast';
-import { AmountText, Card, EmptyState, Input } from '../components/ui';
-import { type, space, radius, tabularNums } from '../styles/tokens';
+import { computeCreditCardPayoff, computeInterestOnlyMinimum } from '../../utils/calculations';
+import { CreditCardPayoffResult } from '../../types/budget';
+import { useToast } from '../../hooks/useToast';
+import { AmountText, Card, EmptyState, Input } from '../../components/ui';
+import { formatDuration } from '../../utils/formatDuration';
+import { type, space, radius, tabularNums } from '../../styles/tokens';
 
-export default function ToolsScreen() {
+export default function CreditCardPayoffScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { tokens } = useTheme();
-  const largeTitle = useLargeTitle();
   const { formatCurrency, currency } = useCurrency();
   const { showToast } = useToast();
 
   const [balanceInput, setBalanceInput] = useState<string>('');
   const [aprInput, setAprInput] = useState<string>('');
-  const [paymentInput, setPaymentInput] = useState<string>('0.00');
+  const [paymentInput, setPaymentInput] = useState<string>('');
 
   const [errors, setErrors] = useState<{ balance?: string; apr?: string; payment?: string }>({});
   const [result, setResult] = useState<CreditCardPayoffResult | null>(null);
@@ -88,19 +88,8 @@ export default function ToolsScreen() {
       newErrors.apr = 'Enter APR as 0 or a positive percent.';
     }
     
-    // Only show payment error if the field is truly empty or has been modified from default
-    // Don't show error for default value of 0.00
-    if (paymentInput.trim() === '') {
+    if (p === null || p < 0) {
       newErrors.payment = 'Enter a positive monthly payment.';
-    } else if (p !== null && p < 0) {
-      // Only show error for negative values (though CurrencyInput should prevent this)
-      newErrors.payment = 'Enter a positive monthly payment.';
-    } else if (p === null) {
-      // Only show error if parsing failed and it's not the default 0.00
-      const cleanedPayment = paymentInput.replace(/[^0-9.]/g, '');
-      if (cleanedPayment !== '' && cleanedPayment !== '0' && cleanedPayment !== '0.00') {
-        newErrors.payment = 'Enter a positive monthly payment.';
-      }
     }
 
     console.log('Validation errors:', newErrors);
@@ -178,7 +167,7 @@ export default function ToolsScreen() {
   const handleReset = () => {
     setBalanceInput('');
     setAprInput('');
-    setPaymentInput('0.00');
+    setPaymentInput('');
     setErrors({});
     setResult(null);
     setShowResults(false);
@@ -224,13 +213,6 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
     suggestedMin !== null &&
     paymentNum !== null &&
     Number(paymentNum.toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits));
-
-  const durationLabel = (months: number) => {
-    const y = Math.floor(months / 12);
-    const m = months % 12;
-    if (y === 0) return `${m} ${m === 1 ? 'month' : 'months'}`;
-    return `${y} ${y === 1 ? 'year' : 'years'}${m ? ` ${m} ${m === 1 ? 'month' : 'months'}` : ''}`;
-  };
 
   const inputsCard = (
     <Card>
@@ -340,7 +322,7 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
               <View style={{ flex: 1 }}>
                 <Text style={[type.caption, { color: tokens.colors.textMuted }]}>Paid off in</Text>
                 <Text style={[type.h2, tabularNums, { color: tokens.colors.text, marginTop: space.s1 }]}>
-                  {durationLabel(result.months)}
+                  {formatDuration(result.months)}
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
@@ -400,23 +382,18 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
     );
   };
 
+  const goBack = () => (router.canGoBack() ? router.back() : router.navigate('/tools'));
+
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Tools" largeTitle={largeTitle} showLeftIcon={false} showRightIcon={false} />
-      <Animated.ScrollView
-        {...largeTitle.scrollProps}
-        contentContainerStyle={[
-          themedStyles.scrollContent,
-          { paddingHorizontal: breakpoint.gutter, paddingTop: largeTitle.enabled ? 0 : space.s6 },
-        ]}
+      <StandardHeader title="Credit card payoff" onLeftPress={goBack} />
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
-          <LargeTitle largeTitle={largeTitle} />
-          <Text accessibilityRole="header" style={[type.h2, { color: tokens.colors.text }]}>
-            Credit card payoff
-          </Text>
-          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1, marginBottom: space.s4 }]}>
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s4 }]}>
             See how long a balance takes to clear and how much interest it costs.
           </Text>
 
@@ -431,7 +408,7 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
             <View style={breakpoint.isExpanded ? { flex: 1.2 } : undefined}>{resultsCard()}</View>
           </View>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
     </View>
   );
 }
