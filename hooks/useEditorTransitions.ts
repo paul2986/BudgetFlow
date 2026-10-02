@@ -7,7 +7,7 @@ import { useReducedMotion } from './useReducedMotion';
 
 /**
  * Editor screens (expense, person, income) and sub-screens (budgets, budget
- * lock, categories, currency, import) slide in from the right over the
+ * lock, categories, currency, import, the Tools calculators) slide in from the right over the
  * screen that opened them and slide back out when saved or closed, like an
  * iOS push/pop. They stay tab routes, so the tab bar remains in place.
  *
@@ -42,6 +42,10 @@ const EDITOR_ROUTES = new Set([
   'manage-categories',
   'currency',
   'import-budget',
+  // The calculators open from the Tools hub the same way.
+  'tools/credit-card',
+  'tools/savings',
+  'tools/mortgage',
 ]);
 
 /**

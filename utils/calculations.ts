@@ -272,7 +272,9 @@ export const computeInterestOnlyMinimum = (
  * i = APR / 12 / 100
  * If P <= i * B -> never repaid
  * months n = ceil( ln(P / (P - i*B)) / ln(1+i) )
- * total interest = (n * P) - B
+ * total interest = (n - 1) * P + final payment - B, where the final payment is
+ * whatever is left to clear (the last payment is smaller than P, so n * P - B
+ * would overstate the interest).
  * For i=0, n = ceil(B / P), interest=0
  */
 export const computeCreditCardPayoff = (balance: number, aprPercent: number, monthlyPayment: number): CreditCardPayoffResult => {
@@ -293,7 +295,8 @@ export const computeCreditCardPayoff = (balance: number, aprPercent: number, mon
 
   if (i === 0) {
     const n = Math.ceil(B / P);
-    const totalInterest = Math.max(0, n * P - B);
+    // No interest accrues at 0% APR; the last payment just clears what is left.
+    const totalInterest = 0;
     const schedule: CreditCardPaymentRow[] = [];
     let bal = B;
     for (let m = 1; m <= 3 && bal > 0; m++) {
@@ -335,7 +338,11 @@ export const computeCreditCardPayoff = (balance: number, aprPercent: number, mon
   const denominator = Math.log(1 + i);
   const nRaw = numerator / denominator;
   const n = Math.max(1, Math.ceil(nRaw));
-  const totalInterest = Math.max(0, n * P - B);
+  // The balance after n-1 full payments, plus its last month of interest, is the final payment.
+  const growth = Math.pow(1 + i, n - 1);
+  const balanceBeforeLast = B * growth - (P * (growth - 1)) / i;
+  const finalPayment = balanceBeforeLast * (1 + i);
+  const totalInterest = Math.max(0, (n - 1) * P + finalPayment - B);
 
   // First 3 months schedule
   const schedule: CreditCardPaymentRow[] = [];

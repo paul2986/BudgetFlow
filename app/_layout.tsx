@@ -212,7 +212,10 @@ function RootLayoutContent() {
             <Tabs.Screen name="edit-person" options={{ href: null }} />
             <Tabs.Screen name="edit-income" options={{ href: null }} />
             <Tabs.Screen name="budgets" options={{ href: null }} />
-            <Tabs.Screen name="tools" />
+            <Tabs.Screen name="tools/index" />
+            <Tabs.Screen name="tools/credit-card" options={{ href: null }} />
+            <Tabs.Screen name="tools/savings" options={{ href: null }} />
+            <Tabs.Screen name="tools/mortgage" options={{ href: null }} />
             <Tabs.Screen name="budget-lock" options={{ href: null }} />
             <Tabs.Screen name="manage-categories" options={{ href: null }} />
             <Tabs.Screen name="currency" options={{ href: null }} />

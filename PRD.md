@@ -140,17 +140,32 @@ The chosen method drives per-person "share of household expenses" and "remaining
 
 ## 8. Financial Tools
 
-A Tools screen hosting financial calculators. v2 ships with the **Credit Card Payoff Calculator**:
+A Tools screen hosts the financial calculators as a card per tool (`/tools`); each opens its own screen (`/tools/credit-card`, `/tools/savings`, `/tools/mortgage`).
+
+### Credit Card Payoff Calculator
 
 - **Inputs:** balance, APR %, monthly payment.
 - **Interest-only minimum suggestion** — computes and displays the interest-only minimum for the given balance/APR (informational).
-- **Outputs:** months to payoff, total interest paid, and a full amortization schedule (per-month payment, interest, principal, remaining balance).
+- **Outputs:** months to payoff, total interest paid (the smaller final payment is accounted for), and the first months of the amortization schedule (payment, interest, principal, remaining balance).
 - **"Never repaid" state** — clearly flagged when the payment only covers interest (or is zero) so the balance never reduces.
-- **Explainer modal** and a collapsible results section.
 
-_Tools is designed as an extensible surface for additional calculators in future releases._
+### Savings Growth Calculator
 
----
+- **Inputs:** starting balance (optional), regular deposit with a daily / weekly / monthly frequency, yearly interest rate (an effective rate, as banks advertise it: AER / APY), time period in years (1–60, with 5/10/20/30/40 presets).
+- **Live projection** (no Calculate button): final balance, what the user put in, interest earned and its share of the total.
+- **Chart:** stacked area of contributions and interest over time (month resolution); drag, hover or arrow keys to read any point, tap to pin. A year-by-year table of running totals is the table twin.
+- Deposits are modelled at the end of each month; the rate is held constant; tax and inflation are ignored (stated on screen).
+- **Budget link:** "Use my monthly surplus" fills the deposit from income minus expenses when the active budget is unlocked and in surplus.
+
+### Mortgage Calculator
+
+- **Inputs:** balance still owed, yearly interest rate (fixed), years left (1–40, with 10/15/20/25/30 presets), optional extra payment each month.
+- **Outputs:** monthly payment (principal and interest only, labelled as such), total interest, total paid, and the month the mortgage is cleared.
+- **Extra payments:** time saved, interest saved and the new payoff date, with the balance charted against the scheduled plan.
+- **Charts:** balance over time (line + wash, one line per plan) and a stacked column per year splitting principal and interest; year-by-year table.
+- Monthly payments and monthly interest at a fixed rate.
+
+Charts (`components/charts`) are drawn with `react-native-svg`. All the maths lives in `utils/projections.ts` and is unit-tested.
 
 ## 9. Categories Management
 
