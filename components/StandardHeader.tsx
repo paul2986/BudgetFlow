@@ -16,6 +16,8 @@ const BUTTON_SIZE = 44;
 /** The bar's height on every screen: a button row plus its vertical padding. */
 export const HEADER_HEIGHT = BUTTON_SIZE + 2 * space.s2;
 export const HEADER_HEIGHT_IPAD = 64;
+/** Wider than any title can lay out, so measuring it never wraps or truncates. */
+const UNCUT_MEASURE_WIDTH = 4000;
 
 interface HeaderButton {
   icon: string;
@@ -205,6 +207,13 @@ export default function StandardHeader({
   // row; it overhangs the padding rather than growing the bar.
   const minHeight = HEADER_HEIGHT;
   const [barHeight, setBarHeight] = React.useState(minHeight);
+  // The large title is truncated at display size, then scaled down, so a long title
+  // would keep its ellipsis in the collapsed bar even though it has room for more.
+  // When it is cut at rest, a separate bar-size label (laid out at its own size)
+  // takes over as it collapses, as UIKit's inline title does.
+  const [slotWidth, setSlotWidth] = React.useState(0);
+  const [titleWidth, setTitleWidth] = React.useState(0);
+  const truncatedAtRest = slotWidth > 0 && titleWidth > slotWidth;
   const scale = type.h2.fontSize / type.display.fontSize;
   const smallBlock = type.h2.lineHeight + (subtitle ? 1 + type.caption.lineHeight : 0);
   const yCol = (barHeight - smallBlock) / 2; // collapsed title block, centred
@@ -236,8 +245,34 @@ export default function StandardHeader({
     const titleScale = y.interpolate({ ...range, outputRange: [1, scale] });
     const titleY = y.interpolate({ ...range, outputRange: [0, titleShiftCol] });
     const subY = y.interpolate({ ...range, outputRange: [0, subShiftCol] });
+    // Cut titles hand over between the two labels while the large one is mid-shrink.
+    const handOver = { inputRange: [d * 0.5, d * 0.9], extrapolate: 'clamp' as const };
+    const largeOpacity = truncatedAtRest ? y.interpolate({ ...handOver, outputRange: [1, 0] }) : 1;
+    const smallOpacity = y.interpolate({ ...handOver, outputRange: [0, 1] });
+    // Where the scaled large title's line box lands, in slot coordinates.
+    const smallTop = type.display.lineHeight / 2 + titleShiftCol - type.h2.lineHeight / 2;
     titleSlot = (
-      <View style={{ flex: 1 }} pointerEvents="none">
+      <View
+        // The gap keeps a title that fills the slot off the trailing button.
+        style={{ flex: 1, marginRight: space.s2 }}
+        pointerEvents="none"
+        onLayout={(e) => setSlotWidth(e.nativeEvent.layout.width)}
+      >
+        {/* Invisible: the title's uncut width at display size, to tell if it is cut at rest. */}
+        <View
+          aria-hidden
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: type.display.lineHeight, overflow: 'hidden', opacity: 0 }}
+        >
+          <View style={{ width: UNCUT_MEASURE_WIDTH, flexDirection: 'row' }}>
+            <Text
+              numberOfLines={1}
+              style={type.display}
+              onLayout={(e) => setTitleWidth(e.nativeEvent.layout.width)}
+            >
+              {title}
+            </Text>
+          </View>
+        </View>
         <Animated.Text
           accessibilityRole="header"
           numberOfLines={1}
@@ -245,6 +280,7 @@ export default function StandardHeader({
             type.display,
             {
               color: tokens.colors.text,
+              opacity: largeOpacity,
               transformOrigin: 'left center',
               transform: [{ translateY: titleY }, { scale: titleScale }],
             },
@@ -252,6 +288,18 @@ export default function StandardHeader({
         >
           {title}
         </Animated.Text>
+        {truncatedAtRest ? (
+          <Animated.Text
+            aria-hidden
+            numberOfLines={1}
+            style={[
+              type.h2,
+              { position: 'absolute', top: smallTop, left: 0, right: 0, color: tokens.colors.text, opacity: smallOpacity },
+            ]}
+          >
+            {title}
+          </Animated.Text>
+        ) : null}
         {subtitle ? (
           <Animated.Text
             numberOfLines={1}
