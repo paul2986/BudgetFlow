@@ -2,16 +2,23 @@
 import React, { useState, useCallback, createContext, useContext } from 'react';
 import { haptics } from '../utils/haptics';
 
+export interface ToastAction {
+  label: string;
+  onPress: () => void;
+}
+
 export interface ToastMessage {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
   duration?: number;
+  /** A trailing text button (e.g. Undo). Pressing it also dismisses the toast. */
+  action?: ToastAction;
 }
 
 interface ToastContextType {
   toasts: ToastMessage[];
-  showToast: (message: string, type?: 'success' | 'error' | 'info', duration?: number) => string;
+  showToast: (message: string, type?: 'success' | 'error' | 'info', duration?: number, action?: ToastAction) => string;
   hideToast: (id: string) => void;
   clearAllToasts: () => void;
 }
@@ -34,13 +41,14 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', duration?: number) => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', duration?: number, action?: ToastAction) => {
     const id = `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newToast: ToastMessage = {
       id,
       message,
       type,
       duration,
+      action,
     };
 
     if (type === 'success') haptics.success();

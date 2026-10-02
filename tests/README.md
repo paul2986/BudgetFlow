@@ -4,7 +4,7 @@ Two suites, both run with [Vitest](https://vitest.dev).
 
 | Command | What it covers | Needs |
 | --- | --- | --- |
-| `npm test` | `tests/unit`: the budget merge rules, device storage (categories, deletes, lock, older data formats, importing a budget) and the Excel export/import (workbook round trip, bad rows, files re-saved by other apps) | Nothing |
+| `npm test` | `tests/unit`: the budget merge rules, the bulk-edit rules, device storage (categories, deletes, lock, older data formats, importing a budget) and the Excel export/import (workbook round trip, bad rows, files re-saved by other apps) | Nothing |
 | `npm run test:db` | `tests/db`: who can do what with shared budgets, budgets syncing between devices and people, and the admin overview (who may ask, that it carries no budget content, that it adds up) | A local Supabase |
 
 ## Database tests

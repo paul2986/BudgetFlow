@@ -4,6 +4,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import Icon from './Icon';
 import { type, space, radius, elevation, motion } from '../styles/tokens';
+import type { ToastAction } from '../hooks/useToast';
 
 interface ToastProps {
   message: string;
@@ -11,6 +12,7 @@ interface ToastProps {
   visible: boolean;
   onHide: () => void;
   duration?: number;
+  action?: ToastAction;
 }
 
 /**
@@ -19,7 +21,7 @@ interface ToastProps {
  * Motion: springs up from the bottom edge and leaves the same way (spatial
  * consistency); a plain cross-fade under Reduce Motion. Tap to dismiss early.
  */
-export default function Toast({ message, type: kind, visible, onHide, duration = 4000 }: ToastProps) {
+export default function Toast({ message, type: kind, visible, onHide, duration = 4000, action }: ToastProps) {
   const { tokens } = useTheme();
   const reduceMotion = useReducedMotion();
   const opacity = useRef(new Animated.Value(0)).current;
@@ -94,6 +96,27 @@ export default function Toast({ message, type: kind, visible, onHide, duration =
       >
         <Icon name={severity.icon as any} size={20} style={{ color: severity.color, marginRight: space.s2 }} />
         <Text style={[type.bodyMed, { color: tokens.colors.text, flex: 1 }]}>{message}</Text>
+        {action ? (
+          <Pressable
+            onPress={() => {
+              action.onPress();
+              hideToast();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={action.label}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+            style={({ pressed }) => ({
+              minHeight: 44,
+              justifyContent: 'center',
+              marginLeft: space.s3,
+              marginRight: -space.s1,
+              paddingHorizontal: space.s2,
+              opacity: pressed ? 0.5 : 1,
+            })}
+          >
+            <Text style={[type.bodyMed, { color: tokens.colors.brand }]}>{action.label}</Text>
+          </Pressable>
+        ) : null}
       </Pressable>
     </Animated.View>
   );

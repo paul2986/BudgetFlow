@@ -6,6 +6,7 @@ export { default as AmountText } from './AmountText';
 export { default as Avatar } from './Avatar';
 export { default as Card } from './Card';
 export { default as ChoicePills } from './ChoicePills';
+export { default as Checkbox } from './Checkbox';
 export { default as Chip } from './Chip';
 export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as DateField } from './DateField';

@@ -31,6 +31,7 @@ export default function ToastContainer({ toasts, onHideToast }: ToastContainerPr
             visible={true}
             onHide={() => onHideToast(toast.id)}
             duration={toast.duration}
+            action={toast.action}
           />
         </View>
       ))}
