@@ -111,6 +111,10 @@ export function useEditorTransitions(width: number, enabled: boolean) {
         last.current = { state, focusKey, transition };
       }
       const { moving, under } = last.current.transition;
+      // A plain tab-to-tab swap has nothing to slide: leave it with no transition at all, so
+      // it's instant and the tab view only keeps simple two-state screens (no animated
+      // activity states to fall out of step when taps come in quickly).
+      if (!moving) return {};
 
       const options: Options = { transitionSpec: reduced ? FADE : SPRING };
       // Web only. Native detaches every screen not in the transition and
