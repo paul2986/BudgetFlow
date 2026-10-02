@@ -41,7 +41,6 @@ export interface AdminOverview {
   };
   health: {
     largest_budget_bytes: number;
-    legacy_user_data_with_budgets: number;
     budgets_without_owner: number;
   };
 }

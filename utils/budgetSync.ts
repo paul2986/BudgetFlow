@@ -6,7 +6,6 @@ import {
   loadSyncedBudgetIds,
   saveAppData,
   saveSyncedBudgetIds,
-  validateAppData,
 } from './storage';
 
 // Each budget syncs as its own server row (public.budgets), readable and
@@ -170,32 +169,6 @@ const createBudget = async (budget: Budget): Promise<boolean> => {
   throw error;
 };
 
-// Before shared budgets, the account's budgets lived in user_data; the
-// migration copied them to their own rows. A device still on the old version
-// may keep writing there, so fold those edits into budgets that still exist on
-// the server, then empty user_data. Budgets found only there are not brought
-// back: the old device uploads its own copy once it updates.
-const readLegacyBudgets = async (
-  userId: string
-): Promise<{ budgets: Budget[]; clear: (() => Promise<void>) | null }> => {
-  const { data: row, error } = await supabase
-    .from('user_data')
-    .select('app_data, revision')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (error || !row || !Array.isArray(row.app_data?.budgets) || row.app_data.budgets.length === 0) {
-    return { budgets: [], clear: null };
-  }
-  const clear = async () => {
-    await supabase
-      .from('user_data')
-      .update({ app_data: { version: 2, budgets: [], activeBudgetId: '' } })
-      .eq('user_id', userId)
-      .eq('revision', row.revision);
-  };
-  return { budgets: validateAppData(row.app_data).budgets, clear };
-};
-
 // Fold the sync result into the device copy as it is now: anything saved on
 // this device while the sync was talking to the server is merged in, not lost.
 // `settled` are removals the server has now carried out.
@@ -236,10 +209,9 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     // Never upload one account's device data as another's (see claimDeviceData).
     if ((await getDeviceOwner()) !== userId) throw new Error('This device’s data belongs to another account');
     const snapshot = await load();
-    const [budgetsRes, membersRes, legacy] = await Promise.all([
+    const [budgetsRes, membersRes] = await Promise.all([
       supabase.from('budgets').select('id, data, revision'),
       supabase.from('budget_members').select('budget_id, user_id, role, joined_at'),
-      readLegacyBudgets(userId),
     ]);
     if (budgetsRes.error) throw budgetsRes.error;
     if (membersRes.error) throw membersRes.error;
@@ -258,11 +230,6 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
 
     const server = new Map((budgetsRes.data as ServerBudget[]).map((b) => [b.id, b]));
     const localById = new Map(snapshot.budgets.map((b) => [b.id, b]));
-    for (const old of legacy.budgets) {
-      if (!server.has(old.id)) continue;
-      const mine = localById.get(old.id);
-      localById.set(old.id, mine ? mergeBudget(mine, old) : old);
-    }
     const pendingRemovals = snapshot.deletedBudgets || {};
     const settled = new Set<string>();
     const knownSyncedIds = await loadSyncedBudgetIds();
@@ -323,7 +290,6 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     if (nowSyncedIds.length !== knownSyncedIds.length || nowSyncedIds.some((id) => !knownSyncedIds.includes(id))) {
       await saveSyncedBudgetIds(nowSyncedIds);
     }
-    if (legacy.clear) await legacy.clear();
 
     let activeBudgetId = snapshot.activeBudgetId;
     if (!result.some((b) => b.id === activeBudgetId)) activeBudgetId = result[0]?.id || '';

@@ -184,28 +184,6 @@ describe('two tabs on one device', () => {
   });
 });
 
-describe('moving off user_data', () => {
-  it('merges old-version edits into existing budgets, ignores budgets only found there, then empties it', async () => {
-    const alice = await createUser('alice');
-    // As the migration left things: the budget has its own row, and user_data
-    // still holds a copy that a not-yet-updated device has since edited.
-    const budget = makeBudget();
-    await admin.from('budgets').insert({ id: budget.id, data: budget, updated_by: alice.id });
-    await admin.from('budget_members').insert({ budget_id: budget.id, user_id: alice.id, role: 'owner' });
-    const oldEdit = { ...budget, modifiedAt: 2, expenses: [makeExpense({ description: 'From old phone', updatedAt: 2 })] };
-    const ghost = makeBudget({ name: 'Ghost' });
-    await admin.from('user_data').insert({ user_id: alice.id, app_data: { version: 2, activeBudgetId: budget.id, budgets: [oldEdit, ghost] } });
-
-    const phone = await createDevice(alice);
-    const data = await phone.sync();
-    expect(data.budgets.map((b) => b.name)).toEqual(['Family']);
-    expect(descriptions(find(data, budget.id))).toEqual(['From old phone']);
-    expect(await serverBudget(ghost.id)).toBeNull();
-    const { data: row } = await admin.from('user_data').select('app_data').eq('user_id', alice.id).single();
-    expect(row?.app_data.budgets).toEqual([]);
-  });
-});
-
 describe('two people', () => {
   it('an invited editor gets the budget and both see each other’s edits', async () => {
     const { alice, phone, budget } = await aliceWithBudget();
