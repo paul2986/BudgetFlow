@@ -215,6 +215,7 @@ function RootLayoutContent() {
             <Tabs.Screen name="budget-lock" options={{ href: null }} />
             <Tabs.Screen name="manage-categories" options={{ href: null }} />
             <Tabs.Screen name="currency" options={{ href: null }} />
+            <Tabs.Screen name="admin" options={{ href: null }} />
             <Tabs.Screen name="share-budget" options={{ href: null }} />
             <Tabs.Screen name="import-budget" options={{ href: null }} />
             <Tabs.Screen name="invite/[token]" options={{ href: null }} />

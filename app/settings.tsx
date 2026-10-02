@@ -7,6 +7,7 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
+import { useIsAdmin } from '../hooks/useIsAdmin';
 import { Alert } from '../utils/alert';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
 import { useLargeTitle } from '../hooks/useLargeTitle';
@@ -41,6 +42,7 @@ export default function SettingsScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
   const { signOut, deleteAccount } = useAuth();
+  const { isAdmin } = useIsAdmin(user?.id);
 
   const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -191,6 +193,20 @@ export default function SettingsScreen() {
               />
             </View>
           </ListGroup>
+
+          {/* Only admin accounts get this; the server checks it again on every request. */}
+          {isAdmin ? (
+            <ListGroup header="Admin">
+              <ListRow
+                title="Admin dashboard"
+                caption="Users, budgets and app health"
+                icon="shield-checkmark-outline"
+                chevron
+                onPress={() => router.push('/admin')}
+                showSeparator={false}
+              />
+            </ListGroup>
+          ) : null}
 
           {/* Irreversible actions sit apart at the bottom, after an extra gap,
               so they're never mistaken for everyday controls. */}
