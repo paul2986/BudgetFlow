@@ -26,7 +26,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     userInterfaceStyle: 'automatic',
     ios: {
         supportsTablet: true,
-        bundleIdentifier: 'com.budgetflow.app',
+        // A build to your own phone with a free Apple ID can't use the real identifier (it's
+        // registered to another team), so set IOS_BUNDLE_ID and APPLE_TEAM_ID in .env.local
+        // (git-ignored). Unset, these are the app's real values.
+        bundleIdentifier: process.env.IOS_BUNDLE_ID || 'com.budgetflow.app',
+        appleTeamId: process.env.APPLE_TEAM_ID || undefined,
         infoPlist: {
             ITSAppUsesNonExemptEncryption: false,
             NSFaceIDUsageDescription:
