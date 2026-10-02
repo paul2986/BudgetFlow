@@ -25,7 +25,7 @@ export default function CreditCardPayoffScreen() {
 
   const [balanceInput, setBalanceInput] = useState<string>('');
   const [aprInput, setAprInput] = useState<string>('');
-  const [paymentInput, setPaymentInput] = useState<string>('0.00');
+  const [paymentInput, setPaymentInput] = useState<string>('');
 
   const [errors, setErrors] = useState<{ balance?: string; apr?: string; payment?: string }>({});
   const [result, setResult] = useState<CreditCardPayoffResult | null>(null);
@@ -88,19 +88,8 @@ export default function CreditCardPayoffScreen() {
       newErrors.apr = 'Enter APR as 0 or a positive percent.';
     }
     
-    // Only show payment error if the field is truly empty or has been modified from default
-    // Don't show error for default value of 0.00
-    if (paymentInput.trim() === '') {
+    if (p === null || p < 0) {
       newErrors.payment = 'Enter a positive monthly payment.';
-    } else if (p !== null && p < 0) {
-      // Only show error for negative values (though CurrencyInput should prevent this)
-      newErrors.payment = 'Enter a positive monthly payment.';
-    } else if (p === null) {
-      // Only show error if parsing failed and it's not the default 0.00
-      const cleanedPayment = paymentInput.replace(/[^0-9.]/g, '');
-      if (cleanedPayment !== '' && cleanedPayment !== '0' && cleanedPayment !== '0.00') {
-        newErrors.payment = 'Enter a positive monthly payment.';
-      }
     }
 
     console.log('Validation errors:', newErrors);
@@ -178,7 +167,7 @@ export default function CreditCardPayoffScreen() {
   const handleReset = () => {
     setBalanceInput('');
     setAprInput('');
-    setPaymentInput('0.00');
+    setPaymentInput('');
     setErrors({});
     setResult(null);
     setShowResults(false);
