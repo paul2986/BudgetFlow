@@ -142,6 +142,47 @@ const CURRENCY_STORAGE_KEY = 'app_currency';
 let globalCurrency: Currency = CURRENCIES[0];
 let globalCurrencyListeners: Set<(currency: Currency) => void> = new Set();
 
+// The saved choice is read from storage once and shared: every component that uses
+// the hook used to read it again on mount (a list of expenses mounts dozens at once).
+let currencyLoaded = false;
+let currencyLoadPromise: Promise<void> | null = null;
+
+const loadSavedCurrency = (): Promise<void> => {
+  if (!currencyLoadPromise) {
+    currencyLoadPromise = (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(CURRENCY_STORAGE_KEY);
+        if (saved) {
+          const found = CURRENCIES.find((c) => c.code === JSON.parse(saved).code);
+          if (found) globalCurrency = found;
+        }
+      } catch (error) {
+        console.error('useCurrency: Error loading currency:', error);
+      } finally {
+        currencyLoaded = true;
+      }
+    })();
+  }
+  return currencyLoadPromise;
+};
+
+// Building an Intl.NumberFormat is slow, and a screen formats dozens of amounts per
+// render, so each currency's formatter is built once.
+const formatters = new Map<string, Intl.NumberFormat>();
+const formatterFor = (code: string): Intl.NumberFormat => {
+  let formatter = formatters.get(code);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    formatters.set(code, formatter);
+  }
+  return formatter;
+};
+
 const notifyListeners = (currency: Currency) => {
   console.log('useCurrency: Notifying', globalCurrencyListeners.size, 'listeners of currency change:', currency);
   globalCurrencyListeners.forEach(listener => {
@@ -163,10 +204,19 @@ export const displaySymbol = (symbol: string) => `\u200E\u2068${symbol}\u2069`;
 
 export const useCurrency = () => {
   const [currency, setCurrencyState] = useState<Currency>(globalCurrency);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!currencyLoaded);
 
   useEffect(() => {
-    loadCurrency();
+    if (currencyLoaded) return;
+    let cancelled = false;
+    loadSavedCurrency().then(() => {
+      if (cancelled) return;
+      setCurrencyState(globalCurrency);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -183,31 +233,6 @@ export const useCurrency = () => {
       globalCurrencyListeners.delete(listener);
     };
   }, []);
-
-  const loadCurrency = async () => {
-    try {
-      console.log('useCurrency: Loading currency from storage...');
-      const savedCurrency = await AsyncStorage.getItem(CURRENCY_STORAGE_KEY);
-      if (savedCurrency) {
-        const parsedCurrency = JSON.parse(savedCurrency);
-        const foundCurrency = CURRENCIES.find(c => c.code === parsedCurrency.code);
-        if (foundCurrency) {
-          console.log('useCurrency: Loaded currency:', foundCurrency);
-          globalCurrency = foundCurrency;
-          setCurrencyState(foundCurrency);
-          // Don't notify listeners here as this is initial load
-        }
-      } else {
-        console.log('useCurrency: No saved currency found, using default GBP');
-        globalCurrency = CURRENCIES[0]; // GBP is now first in the list
-        setCurrencyState(CURRENCIES[0]);
-      }
-    } catch (error) {
-      console.error('useCurrency: Error loading currency:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const saveCurrency = useCallback(async (newCurrency: Currency) => {
     try {
@@ -227,12 +252,7 @@ export const useCurrency = () => {
 
   const formatCurrency = useCallback((amount: number) => {
     try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency.code,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(amount);
+      return formatterFor(currency.code).format(amount);
     } catch (error) {
       console.error('useCurrency: Error formatting currency:', error);
       // Fallback to simple formatting
