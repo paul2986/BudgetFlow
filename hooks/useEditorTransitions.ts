@@ -41,6 +41,8 @@ const EDITOR_ROUTES = new Set([
   'budget-lock',
   'manage-categories',
   'currency',
+  'feedback',
+  'feedback-thread',
   'import-budget',
   // The calculators open from the Tools hub the same way.
   'tools/credit-card',
