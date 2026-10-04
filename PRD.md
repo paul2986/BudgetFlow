@@ -140,7 +140,7 @@ The chosen method drives per-person "share of household expenses" and "remaining
 
 ## 8. Financial Tools
 
-A Tools screen hosts the financial calculators as a card per tool (`/tools`); each opens its own screen (`/tools/credit-card`, `/tools/savings`, `/tools/mortgage`, `/tools/budget-review`).
+A Tools screen hosts the financial calculators as a card per tool (`/tools`); each opens its own screen (`/tools/credit-card`, `/tools/savings`, `/tools/mortgage`, `/tools/budget-review`, `/tools/debt-help`).
 
 ### Credit Card Payoff Calculator
 
@@ -180,6 +180,17 @@ Compares the active budget with the 50/30/20 rule (Elizabeth Warren and Amelia W
 - **Edge cases:** a locked budget shows an unlock prompt and computes nothing; no income, no expenses and no budget each have an empty state with a way forward; spending beyond income shows a warning, and the bars share a scale so the budget's bar runs past the target's.
 - **Links:** with money left over, the banner offers an amount to put into Savings and "See what $X/mo could grow into" opens the savings calculator with that amount already in the regular deposit (monthly; the interest rate is left for the user). The amount is the unallocated money, capped at what Savings is short of its 20% target (Savings already holds counts, so it is the gap, not the full 20%), rounded down to whole units. Once Savings meets the target it is all the unallocated money, because Savings is a floor. "Copy results" copies a plain-text summary.
 - Maths lives in `utils/budgetReview.ts` and is unit-tested; the bars and cards are plain views (no new native dependency).
+
+### Debt Help (UK)
+
+Signposts people in the UK to free, impartial debt advice. It is a list of services, not a calculator, and it does not advise.
+
+- **Shown to UK users only:** the app has no country setting, so the Tools card appears when the currency is pounds (GBP, the default). The screen itself works at `/tools/debt-help` whatever the currency.
+- **Where do you live?** England, Wales, Scotland or Northern Ireland (pills; the choice isn't saved). The list shows only the services that cover that nation, because the rules and some services differ: National Debtline doesn't cover Northern Ireland, and Citizens Advice has a separate line for England, Wales and Scotland while Advice NI covers Northern Ireland.
+- **Services:** StepChange and National Debtline (charities), Citizens Advice (England, Wales or Scotland) or Advice NI, and MoneyHelper's debt advice locator (government-backed). Each card names who runs it (Charity or Government-backed), where it helps, what it does, a free phone number in the button text (so it can be read and dialled by hand where a tap can't call) and a link to its site. Opening hours are deliberately not shown; they change, so the card points to the website.
+- **Around the list:** what to expect when talking to an adviser, a "Before you pay anyone" warning about fee-charging firms with a link to the FCA register, and a note that Budget Flow isn't a debt adviser, earns nothing from the links and sends nothing from a budget to these services. The note carries the date the details were last checked.
+- **Data:** the services are hand-checked constants in `utils/debtHelp.ts` (`CHECKED_ON` says when). A unit test keeps the links `https`, the numbers free (0800/0808) and unique, and each nation's list sensible. Links and calls go through `utils/openLink.ts`, which allows only `https:` and `tel:`.
+- **Not done:** no affiliate or referral links, no tracking, and nothing is read from the budget on this screen.
 
 ## 9. Categories Management
 

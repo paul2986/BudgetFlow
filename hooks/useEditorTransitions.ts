@@ -46,6 +46,7 @@ const EDITOR_ROUTES = new Set([
   'tools/credit-card',
   'tools/savings',
   'tools/mortgage',
+  'tools/debt-help',
 ]);
 
 /**
