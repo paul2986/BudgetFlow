@@ -352,8 +352,8 @@ ${lines.join('\n')}`;
             >
               <Icon name="warning" size={18} color={tokens.colors.danger} />
               <Text style={[type.caption, { flex: 1, color: tokens.colors.text }]}>
-                You’re spending {formatCurrency(Math.abs(leftoverMonthly))}/mo more than you earn, so your bar runs past the target and
-                the shares above add up to more than 100%. The rule assumes spending stays within income.
+                You’re spending {formatCurrency(Math.abs(leftoverMonthly))}/mo more than you earn, which is why the shares above add up to
+                more than 100%. The 50/30/20 rule works best once spending is within income.
               </Text>
             </View>
           ) : saving ? (
