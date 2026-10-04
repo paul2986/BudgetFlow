@@ -7,6 +7,7 @@ import {
   resolveBucket,
   reviewBudget,
   statusFor,
+  suggestSaving,
   type BucketId,
 } from '../../utils/budgetReview';
 import type { Expense, Frequency, Person } from '../../types/budget';
@@ -254,5 +255,52 @@ describe('category choices', () => {
     const expenses = [expense(1000, 'Rent')];
     const r = reviewBudget([person(4000)], expenses, { buckets: { Pets: choice('needs') } })!;
     expect(r).toEqual(reviewBudget([person(4000)], expenses)!);
+  });
+});
+
+describe('suggestSaving', () => {
+  const suggest = (income: number, expenses: Expense[]) => suggestSaving(reviewBudget([person(income)], expenses)!);
+
+  it('offers the whole 20% target when there is more than enough free', () => {
+    // 5000 income, nothing saved, 3500 spent: 1500 free, 1000 target.
+    expect(suggest(5000, [expense(3500, 'Rent')])).toEqual({ amount: 1000, mode: 'reaches', pctAfter: 20 });
+  });
+
+  it('offers all the free money when it falls short of the target', () => {
+    // 4600 spent: 400 free against a 1000 target.
+    expect(suggest(5000, [expense(4600, 'Rent')])).toEqual({ amount: 400, mode: 'short', pctAfter: 8 });
+  });
+
+  it('counts what Savings already holds, so the amount is the gap, not the full target', () => {
+    // 600 saved, 3700 other, 700 free: gap to 1000 is 400, not the 700 free.
+    expect(suggest(5000, [expense(3700, 'Rent'), expense(600, 'Savings')])).toEqual({ amount: 400, mode: 'reaches', pctAfter: 20 });
+  });
+
+  it('offers all the free money once Savings already meets its target', () => {
+    // 1100 saved (22%), 3600 spent elsewhere, 300 free.
+    expect(suggest(5000, [expense(3600, 'Rent'), expense(1100, 'Savings')])).toEqual({ amount: 300, mode: 'bonus', pctAfter: 28 });
+  });
+
+  it('treats a gap under one unit as the target met', () => {
+    // 999.5 saved against 1000: free money is a bonus, not a 0 top-up.
+    expect(suggest(5000, [expense(3500, 'Rent'), expense(999.5, 'Savings')])).toEqual({ amount: 500, mode: 'bonus', pctAfter: 30 });
+  });
+
+  it('follows a category moved into Savings', () => {
+    const r = reviewBudget([person(5000)], [expense(3500, 'Rent'), expense(500, 'Loan')], { buckets: { Loan: { bucket: 'savings', updatedAt: 1 } } })!;
+    // 500 saved, 1000 free, gap 500.
+    expect(suggestSaving(r)).toEqual({ amount: 500, mode: 'reaches', pctAfter: 20 });
+  });
+
+  it('rounds down to whole units so it never promises more than is free', () => {
+    // 4999.5 spent: 0.5 free, under one unit.
+    expect(suggest(5000, [expense(4999.5, 'Rent')])).toBeNull();
+    // 4000.4 spent: 999.6 free, target 1000: offers 999, which still rounds to 20%.
+    expect(suggest(5000, [expense(4000.4, 'Rent')])).toEqual({ amount: 999, mode: 'reaches', pctAfter: 20 });
+  });
+
+  it('offers nothing when nothing is free or the budget is overspent', () => {
+    expect(suggest(5000, [expense(5000, 'Rent')])).toBeNull();
+    expect(suggest(5000, [expense(5200, 'Rent')])).toBeNull();
   });
 });

@@ -225,3 +225,40 @@ export const reviewBudget = (
     onTrackCount: buckets.filter((b) => b.status === 'onTrack').length,
   };
 };
+
+/**
+ * How `suggestSaving` reached its amount:
+ * - `reaches`: the amount closes the gap to the Savings target, with money to spare or none.
+ * - `short`: all the free money, and Savings still falls under its target.
+ * - `bonus`: Savings already meets its target, so the free money is extra.
+ */
+export type SavingMode = 'reaches' | 'short' | 'bonus';
+
+export interface SavingSuggestion {
+  /** Whole currency units per month, rounded down so it never promises more than is free. */
+  amount: number;
+  mode: SavingMode;
+  /** Savings as a share of income if the amount went in, rounded like `shownPct`. */
+  pctAfter: number;
+}
+
+/**
+ * The monthly amount to hand to the savings calculator: unallocated money, up to
+ * what Savings is short of its target. Savings is a floor, so once it's met the
+ * free money is all offered. Returns null when nothing is free to move.
+ */
+export const suggestSaving = (review: BudgetReview): SavingSuggestion | null => {
+  const savings = review.buckets.find((b) => b.id === 'savings');
+  if (!savings || review.overspent || review.incomeMonthly <= 0) return null;
+
+  // A gap under one unit is a rounding sliver: the target is met, as far as anyone can tell.
+  const gap = savings.targetMonthly - savings.monthly;
+  const closing = gap >= 1;
+  const free = review.leftoverMonthly;
+  const amount = Math.floor(closing ? Math.min(gap, free) : free);
+  if (amount < 1) return null;
+
+  const pctAfter = Math.round(((savings.monthly + amount) / review.incomeMonthly) * 100);
+  const mode: SavingMode = !closing ? 'bonus' : pctAfter >= savings.targetPct ? 'reaches' : 'short';
+  return { amount, mode, pctAfter };
+};

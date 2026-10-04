@@ -3,6 +3,7 @@ import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import ToolLayout from '../../components/tools/ToolLayout';
+import { useChartFormat } from '../../components/charts/useChartFormat';
 import AllocationBar, { type AllocationSegment } from '../../components/tools/AllocationBar';
 import BucketCard from '../../components/tools/BucketCard';
 import CategoryBucketSheet from '../../components/tools/CategoryBucketSheet';
@@ -22,6 +23,7 @@ import {
   furthestOff,
   missPoints,
   reviewBudget,
+  suggestSaving,
   type BucketId,
   type BudgetReview,
   type CategoryShare,
@@ -34,6 +36,7 @@ const headline = (onTrack: number): string =>
 export default function BudgetReviewScreen() {
   const { tokens } = useTheme();
   const { formatCurrency } = useCurrency();
+  const money = useChartFormat();
   const { showToast } = useToast();
   const { data, activeBudget, sharing, setCategoryBucket } = useBudgetData();
   const { isLocked, authenticateForBudget } = useBudgetLock();
@@ -76,6 +79,11 @@ export default function BudgetReviewScreen() {
   const openCategory = useCallback((name: string) => {
     // Same hand-off as the dashboard's category breakdown.
     router.navigate({ pathname: '/expenses', params: { category: name, fromDashboard: 'true', _t: String(Date.now()) } });
+  }, []);
+
+  const openSavings = useCallback((deposit: number) => {
+    // The `_t` stamp makes a repeat visit with the same amount look like a new hand-off, as on the dashboard.
+    router.navigate({ pathname: '/tools/savings', params: { deposit: String(deposit), _t: String(Date.now()) } });
   }, []);
 
   const saveChoice = useCallback(
@@ -222,7 +230,7 @@ ${lines.join('\n')}`;
     const savings = buckets.find((b) => b.id === 'savings')!;
     const worst = furthestOff(review);
     const leftoverPct = incomeMonthly > 0 ? Math.max(0, (leftoverMonthly / incomeMonthly) * 100) : 0;
-    const savingsIfAllSaved = Math.round(((savings.monthly + Math.max(0, leftoverMonthly)) / incomeMonthly) * 100);
+    const saving = suggestSaving(review);
 
     // Both bars share one scale so they line up: income normally, spending when it runs past income.
     const scale = Math.max(incomeMonthly, spendingMonthly);
@@ -344,7 +352,7 @@ ${lines.join('\n')}`;
                 the shares above add up to more than 100%. The rule assumes spending stays within income.
               </Text>
             </View>
-          ) : leftoverMonthly >= 1 ? (
+          ) : saving ? (
             <View
               style={{
                 marginTop: space.s4,
@@ -356,14 +364,18 @@ ${lines.join('\n')}`;
               <View style={{ flexDirection: 'row', gap: space.s2 }}>
                 <Icon name="information-circle" size={18} color={tokens.colors.brand} />
                 <Text style={[type.caption, { flex: 1, color: tokens.colors.text }]}>
-                  {formatCurrency(leftoverMonthly)}/mo isn’t assigned to anything. If it all went to savings, Savings would be{' '}
-                  {savingsIfAllSaved}% of your income.
+                  {formatCurrency(leftoverMonthly)}/mo isn’t assigned to anything.{' '}
+                  {saving.mode === 'reaches'
+                    ? `Putting ${money.whole(saving.amount)}/mo of it into Savings would bring it to its ${TARGET_PCT.savings}% target.`
+                    : saving.mode === 'short'
+                      ? `Putting all of it into Savings would take it from ${savings.shownPct}% to ${saving.pctAfter}%, still under the ${TARGET_PCT.savings}% target.`
+                      : `Savings already reaches its ${TARGET_PCT.savings}% target. Putting all of it in would make Savings ${saving.pctAfter}% of your income.`}
                 </Text>
               </View>
               <Button
                 variant="ghost"
-                text="See what it could grow into"
-                onPress={() => router.navigate('/tools/savings')}
+                text={`See what ${money.whole(saving.amount)}/mo could grow into`}
+                onPress={() => openSavings(saving.amount)}
                 style={{ marginTop: space.s1 }}
               />
             </View>
