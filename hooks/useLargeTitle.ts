@@ -106,8 +106,9 @@ export function useLargeTitle(): LargeTitleState {
     setGeometry,
     scrollProps: {
       ref,
-      // Left to rubber-band like every other scroller. The header's title
-      // follows a pull past the top (see StandardHeader).
+      // Left to rubber-band like every other scroller. The header stays put
+      // (the interpolations in StandardHeader clamp at 0) while the page
+      // springs beneath it, as on the screens with a plain header.
       style: SCROLL_STYLE,
       onScroll,
       scrollEventThrottle: 16,

@@ -240,19 +240,11 @@ export default function StandardHeader({
     const d = collapseDistance;
     const y = large.scrollY;
     const range = { inputRange: [0, d], extrapolate: 'clamp' as const };
-    // Pulled past the top (the scroller rubber-bands) the title rides down with the
-    // content, one for one, as a UIKit large title does; past the collapse it clamps.
-    const withPull = (collapsed: number) => ({
-      inputRange: [-1, 0, d],
-      outputRange: [1, 0, collapsed],
-      extrapolateLeft: 'extend' as const,
-      extrapolateRight: 'clamp' as const,
-    });
     // The fill and hairline arrive as the title lands.
     chromeOpacity = y.interpolate({ inputRange: [d * 0.5, d], outputRange: [0, 1], extrapolate: 'clamp' });
     const titleScale = y.interpolate({ ...range, outputRange: [1, scale] });
-    const titleY = y.interpolate(withPull(titleShiftCol));
-    const subY = y.interpolate(withPull(subShiftCol));
+    const titleY = y.interpolate({ ...range, outputRange: [0, titleShiftCol] });
+    const subY = y.interpolate({ ...range, outputRange: [0, subShiftCol] });
     // Cut titles hand over between the two labels while the large one is mid-shrink.
     const handOver = { inputRange: [d * 0.5, d * 0.9], extrapolate: 'clamp' as const };
     const largeOpacity = truncatedAtRest ? y.interpolate({ ...handOver, outputRange: [1, 0] }) : 1;
