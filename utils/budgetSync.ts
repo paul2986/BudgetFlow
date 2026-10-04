@@ -4,6 +4,7 @@ import {
   addCategoriesToBudget,
   getDeviceOwner,
   loadSyncedBudgetIds,
+  mergeCategoryBuckets,
   saveAppData,
   saveSyncedBudgetIds,
 } from './storage';
@@ -95,6 +96,7 @@ export const mergeBudget = (local: Budget, remote: Budget): Budget => {
     deletions,
     customCategories: categories.customCategories,
     deletedCategories: categories.deletedCategories,
+    categoryBuckets: mergeCategoryBuckets(local.categoryBuckets, remote.categoryBuckets),
     modifiedAt: Math.max(localMod, remoteMod),
     lock: local.lock,
   };

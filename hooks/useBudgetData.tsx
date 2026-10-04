@@ -15,8 +15,9 @@ import {
   claimDeviceData,
   saveCustomExpenseCategories as storageSaveCustomCategories,
   renameCustomExpenseCategory as storageRenameCustomCategory,
+  setCategoryBucket as storageSetCategoryBucket,
 } from '../utils/storage';
-import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget, BudgetSharing } from '../types/budget';
+import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget, BudgetSharing, BucketId } from '../types/budget';
 import { supabase } from '../utils/supabase';
 import { syncBudgets, stableStringify } from '../utils/budgetSync';
 import { applyBulkEdit, type BulkEditPatch, type BulkEditResult } from '../utils/bulkEdit';
@@ -658,6 +659,17 @@ const useBudgetDataInternal = () => {
     [queueSave, syncFullAppData]
   );
 
+  // Which budget-review bucket a category counts towards (null: its default),
+  // shared with everyone on the budget.
+  const setCategoryBucket = useCallback(
+    async (category: string, bucket: BucketId | null) => queueSave(async () => {
+      const res = await storageSetCategoryBucket(category, bucket);
+      if (res.success) await syncFullAppData(await loadAppData());
+      return res;
+    }),
+    [queueSave, syncFullAppData]
+  );
+
   const setActiveBudget = useCallback(
     async (budgetId: string) => queueSave(async () => {
       const res = await storageSetActiveBudget(budgetId);
@@ -1161,6 +1173,7 @@ const useBudgetDataInternal = () => {
     sharing,
     saveCustomCategories,
     renameCustomCategory,
+    setCategoryBucket,
     // existing ops scoped to active budget
     addPerson,
     removePerson,

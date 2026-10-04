@@ -173,9 +173,10 @@ Compares the active budget with the 50/30/20 rule (Elizabeth Warren and Amelia W
 
 - **Explains the rule on screen:** a card first on a phone and beside the results on wide screens, saying what each bucket covers, that the shares are of after-tax income, and that it is a guideline.
 - **No inputs:** reads the active budget (all people and all expenses, household and personal). Shares are of total income; amounts are per month, from the same helpers as the Overview, so totals reconcile. Expenses past their end date are left out.
-- **Sorting:** Needs = Rent, Mortgage, Utilities, Groceries, Transport, Healthcare, Loan, Credit Card (the app can't tell a minimum debt payment from an extra one, so debt counts as a need). Wants = Entertainment, Clothing, Takeaways, Eating Out, Misc and any custom category (flagged "custom, counted as a want" in the list). Savings = Savings, Investments. A category can't be moved between buckets yet.
+- **Sorting:** Needs = Rent, Mortgage, Utilities, Groceries, Transport, Healthcare, Loan, Credit Card (the app can't tell a minimum debt payment from an extra one, so debt counts as a need). Wants = Entertainment, Clothing, Takeaways, Eating Out, Misc and any custom category (flagged "custom, counts as a want" until moved). Savings = Savings, Investments. These are the defaults: any category can be moved to another bucket (below).
 - **Summary:** "n of three on target", which bucket is furthest off, and two stacked bars on one scale (the 50/30/20 target above, the budget below, with an "Unallocated" segment for income not assigned to anything). Income, spending and left over (or over income by) sit beneath.
 - **Bucket cards:** share of income and money per month against the target, a meter with a target tick, a status badge, the gap in money and a disclosure listing the categories (tap one to open Expenses filtered to it). Needs and Wants are ceilings and Savings is a floor; within 5 points of the target is "slightly over/under", beyond that "over/under target". Status is judged on the rounded percentage that is shown.
+- **Moving a category:** tapping a category in a bucket card's list opens a sheet to choose Needs, Wants or Savings, put it back to its default, or show its expenses. The choice is stored on the budget (`categoryBuckets`, keyed by category name, last write wins per category) and syncs, so everyone sharing the budget sees the same review; the sheet says so on a shared budget. Renaming a custom category keeps its choice, deleting one clears it, and a new budget inherits the current budget's choices. Excel export and import don't carry them. A choice made on an app build older than this feature is lost the next time that build saves the budget.
 - **Edge cases:** a locked budget shows an unlock prompt and computes nothing; no income, no expenses and no budget each have an empty state with a way forward; spending beyond income shows a warning, and the bars share a scale so the budget's bar runs past the target's.
 - **Links:** with money left over, "See what it could grow into" opens the savings calculator. "Copy results" copies a plain-text summary.
 - Maths lives in `utils/budgetReview.ts` and is unit-tested; the bars and cards are plain views (no new native dependency).
@@ -185,6 +186,7 @@ Compares the active budget with the 50/30/20 rule (Elizabeth Warren and Amelia W
 - Ships with a default category list (§5.1).
 - Managed via a dedicated Manage Categories screen and the Categories section in Settings.
 - Category tags drive expense tagging and filtering/reporting.
+- Creating or editing a custom category also sets which budget-review bucket it counts as (Needs, Wants or Savings; Wants by default), and each custom category's row shows it (§8).
 
 ---
 

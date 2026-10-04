@@ -97,6 +97,22 @@ export interface Budget {
   // Categories travel with the budget, so everyone sharing it sees the same list.
   customCategories?: CustomCategory[];
   deletedCategories?: Record<string, number>; // category name -> deletion epoch millis
+  // Which budget-review bucket each category counts towards when it isn't the
+  // default; keyed by normalized category name. Shared with everyone on the budget.
+  categoryBuckets?: Record<string, CategoryBucketEntry>;
+}
+
+// The 50/30/20 buckets a category can count towards in the budget review.
+export type BucketId = 'needs' | 'wants' | 'savings';
+
+// Where one category counts in the budget review, when the people sharing the
+// budget have chosen something other than the default. `bucket: null` means
+// "back to the default" and is kept (rather than deleted) so an older choice
+// on another device can't bring the override back. `updatedAt` (epoch millis)
+// decides merges.
+export interface CategoryBucketEntry {
+  bucket: BucketId | null;
+  updatedAt: number;
 }
 
 // A user-created expense category. `name` is the normalized name and doubles

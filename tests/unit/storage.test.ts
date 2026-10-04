@@ -90,6 +90,115 @@ describe('custom categories', () => {
   });
 });
 
+describe('category buckets', () => {
+  const now = Date.now();
+
+  it('cleans up what it loads: normalises names, drops bad entries and old resets, omits an empty field', async () => {
+    seed(
+      app([
+        makeBudget({
+          categoryBuckets: {
+            'eating  out': { bucket: 'savings', updatedAt: now },
+            Pets: { bucket: 'sideways', updatedAt: now },
+            Gifts: 'needs',
+            Old: { bucket: null, updatedAt: 1 },
+            Fresh: { bucket: null, updatedAt: now },
+            '  ': { bucket: 'needs', updatedAt: now },
+          } as any,
+        }),
+        makeBudget({ categoryBuckets: { Old: { bucket: null, updatedAt: 1 } } }),
+      ])
+    );
+    const [a, b] = (await storage.loadAppData()).budgets;
+    expect(a.categoryBuckets).toEqual({
+      'Eating Out': { bucket: 'savings', updatedAt: now },
+      Fresh: { bucket: null, updatedAt: now },
+    });
+    expect('categoryBuckets' in b).toBe(false);
+  });
+
+  it('keeps the latest of two entries that normalise to one name', () => {
+    expect(
+      storage.sanitizeCategoryBuckets({ pets: { bucket: 'needs', updatedAt: 1 }, PETS: { bucket: 'wants', updatedAt: 2 } })
+    ).toEqual({ Pets: { bucket: 'wants', updatedAt: 2 } });
+  });
+
+  it('records a choice on the active budget only, bumping its modified time', async () => {
+    const active = makeBudget({ modifiedAt: 1 });
+    const other = makeBudget({ modifiedAt: 1 });
+    seed(app([active, other], active.id));
+    expect((await storage.setCategoryBucket('childcare', 'needs')).success).toBe(true);
+    const [a, o] = (await storage.loadAppData()).budgets;
+    expect(a.categoryBuckets?.Childcare?.bucket).toBe('needs');
+    expect(a.modifiedAt).toBeGreaterThan(1);
+    expect(o.categoryBuckets).toBeUndefined();
+    expect(o.modifiedAt).toBe(1);
+  });
+
+  it('writes nothing when the choice would change nothing', async () => {
+    const active = makeBudget({ modifiedAt: 1, categoryBuckets: { Loan: { bucket: 'savings', updatedAt: 1 } } });
+    seed(app([active]));
+    await storage.setCategoryBucket('Loan', 'savings'); // already so
+    await storage.setCategoryBucket('Rent', null); // never changed
+    const [a] = (await storage.loadAppData()).budgets;
+    expect(a.modifiedAt).toBe(1);
+    expect(a.categoryBuckets).toEqual({ Loan: { bucket: 'savings', updatedAt: 1 } });
+  });
+
+  it('remembers a reset, so an older choice elsewhere cannot bring it back', async () => {
+    seed(app([makeBudget({ categoryBuckets: { Loan: { bucket: 'savings', updatedAt: 1 } } })]));
+    await storage.setCategoryBucket('Loan', null);
+    const [a] = (await storage.loadAppData()).budgets;
+    expect(a.categoryBuckets?.Loan?.bucket).toBeNull();
+    expect(a.categoryBuckets?.Loan?.updatedAt).toBeGreaterThan(1);
+  });
+
+  it('follows a renamed category and resets the old name', async () => {
+    const active = makeBudget({
+      customCategories: [{ name: 'Pets', updatedAt: 1 }],
+      categoryBuckets: { Pets: { bucket: 'needs', updatedAt: 1 } },
+      expenses: [makeExpense({ id: 'e1', categoryTag: 'Pets', updatedAt: 1 })],
+    });
+    seed(app([active]));
+    expect((await storage.renameCustomExpenseCategory('Pets', 'Animals')).success).toBe(true);
+    const [a] = (await storage.loadAppData()).budgets;
+    expect(a.categoryBuckets?.Animals?.bucket).toBe('needs');
+    expect(a.categoryBuckets?.Pets?.bucket).toBeNull();
+  });
+
+  it('renaming a category with no choice adds none', async () => {
+    seed(app([makeBudget({ customCategories: [{ name: 'Pets', updatedAt: 1 }] })]));
+    await storage.renameCustomExpenseCategory('Pets', 'Animals');
+    const [a] = (await storage.loadAppData()).budgets;
+    expect(a.categoryBuckets).toBeUndefined();
+  });
+
+  it('forgets the choice of a deleted custom category', async () => {
+    const active = makeBudget({
+      customCategories: [{ name: 'Pets', updatedAt: 1 }],
+      categoryBuckets: { Pets: { bucket: 'needs', updatedAt: 1 }, Loan: { bucket: 'savings', updatedAt: 1 } },
+    });
+    seed(app([active]));
+    await storage.saveCustomExpenseCategories([]);
+    const [a] = (await storage.loadAppData()).budgets;
+    expect(a.categoryBuckets?.Pets?.bucket).toBeNull();
+    expect(a.categoryBuckets?.Loan?.bucket).toBe('savings');
+  });
+
+  it('gives a new budget the current budget’s choices', async () => {
+    seed(app([makeBudget({ categoryBuckets: { Loan: { bucket: 'savings', updatedAt: 1 } } })]));
+    const { budget } = await storage.addBudget('Holiday');
+    expect(budget?.categoryBuckets).toEqual({ Loan: { bucket: 'savings', updatedAt: 1 } });
+  });
+
+  it('carries the choices into a duplicate', async () => {
+    const original = makeBudget({ categoryBuckets: { Loan: { bucket: 'savings', updatedAt: 1 } } });
+    seed(app([original]));
+    const { budget } = await storage.duplicateBudget(original.id);
+    expect(budget?.categoryBuckets).toEqual({ Loan: { bucket: 'savings', updatedAt: 1 } });
+  });
+});
+
 describe('removing budgets', () => {
   it('queues a deleted budget for removal on the server', async () => {
     const a = makeBudget();

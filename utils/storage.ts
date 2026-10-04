@@ -1,7 +1,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ImportedBudget } from './budgetWorkbook/import';
-import { AppDataV2, Budget, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
+import { AppDataV2, BucketId, Budget, CategoryBucketEntry, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
 
 // Storage keys for versions
 const STORAGE_KEYS = {
@@ -194,9 +194,18 @@ const withCustomCategories = (budget: Budget, categories: string[]): Budget => {
     .filter((name) => !kept.some((c) => c.name === name))
     .map((name) => ({ name, updatedAt: now }));
   const changed = added.length > 0 || kept.length !== current.length;
-  return changed
-    ? { ...budget, customCategories: sanitizeCustomCategories([...kept, ...added]), deletedCategories, modifiedAt: now }
-    : budget;
+  if (!changed) return budget;
+  // A deleted category's bucket choice goes with it, so a category added later
+  // under the same name starts from the default.
+  const removed = current.filter((c) => !next.has(c.name)).map((c) => c.name);
+  const categoryBuckets = resetCategoryBuckets(budget.categoryBuckets, removed, now);
+  return {
+    ...budget,
+    customCategories: sanitizeCustomCategories([...kept, ...added]),
+    deletedCategories,
+    modifiedAt: now,
+    ...(categoryBuckets ? { categoryBuckets } : {}),
+  };
 };
 
 const replaceBudget = (appData: AppDataV2, budget: Budget): AppDataV2 => ({
@@ -209,6 +218,25 @@ export const saveCustomExpenseCategories = async (categories: string[]): Promise
   const active = getActiveBudget(appData);
   if (!active) return { success: false, error: new Error('No active budget') };
   return await saveAppData(replaceBudget(appData, withCustomCategories(active, categories)));
+};
+
+// Choose which budget-review bucket a category counts towards on the active
+// budget (null: back to the default). Shared with everyone on the budget.
+export const setCategoryBucket = async (category: string, bucket: BucketId | null): Promise<{ success: boolean; error?: Error }> => {
+  try {
+    const name = normalizeCategoryName(category);
+    const appData = await loadAppData();
+    const active = getActiveBudget(appData);
+    if (!active) return { success: false, error: new Error('No active budget') };
+    // Nothing to record when it would change nothing.
+    if ((active.categoryBuckets?.[name]?.bucket ?? null) === bucket) return { success: true };
+    const now = Date.now();
+    const categoryBuckets = sanitizeCategoryBuckets({ ...active.categoryBuckets, [name]: { bucket, updatedAt: now } });
+    return await saveAppData(replaceBudget(appData, { ...active, categoryBuckets, modifiedAt: now }));
+  } catch (error) {
+    console.error('storage: setCategoryBucket error', error);
+    return { success: false, error: error as Error };
+  }
 };
 
 export const renameCustomExpenseCategory = async (oldName: string, newName: string): Promise<{ success: boolean; error?: Error }> => {
@@ -255,7 +283,16 @@ export const renameCustomExpenseCategory = async (oldName: string, newName: stri
       { ...active, expenses },
       customCategories.map(cat => (cat === normalizedOldName ? normalizedNewName : cat))
     );
-    return await saveAppData(replaceBudget(appData, renamed));
+    // Its bucket choice follows the new name (withCustomCategories has already
+    // reset the old one).
+    const choice = active.categoryBuckets?.[normalizedOldName]?.bucket ?? null;
+    const withChoice: Budget = choice
+      ? {
+          ...renamed,
+          categoryBuckets: sanitizeCategoryBuckets({ ...renamed.categoryBuckets, [normalizedNewName]: { bucket: choice, updatedAt: now } }),
+        }
+      : renamed;
+    return await saveAppData(replaceBudget(appData, withChoice));
   } catch (error) {
     console.error('storage: renameCustomExpenseCategory error', error);
     return { success: false, error: error as Error };
@@ -494,6 +531,8 @@ export const validateAppData = (data: any): AppDataV2 => {
       lastUnlockAt: typeof b?.lock?.lastUnlockAt === 'string' ? b.lock.lastUnlockAt : undefined,
     };
 
+    const categoryBuckets = sanitizeCategoryBuckets(b?.categoryBuckets);
+
     const now = Date.now();
     const createdAt = typeof b?.createdAt === 'number' ? b.createdAt : now;
     const modifiedAt = typeof b?.modifiedAt === 'number' ? b.modifiedAt : createdAt;
@@ -510,6 +549,7 @@ export const validateAppData = (data: any): AppDataV2 => {
       deletions: sanitizeDeletions(b?.deletions),
       customCategories: sanitizeCustomCategories(b?.customCategories),
       deletedCategories: sanitizeDeletions(b?.deletedCategories),
+      ...(categoryBuckets ? { categoryBuckets } : {}),
     };
   };
 
@@ -572,6 +612,72 @@ export const sanitizeCustomCategories = (raw: any): CustomCategory[] => {
     if (!existing || updatedAt > existing.updatedAt) byName.set(name, { name, updatedAt });
   }
   return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+};
+
+const BUCKET_IDS: BucketId[] = ['needs', 'wants', 'savings'];
+// Far more than anyone sorts by hand; a bound so a bad copy can't bloat the budget.
+const MAX_CATEGORY_BUCKETS = 300;
+
+// Normalize names, drop invalid entries, dedupe (keeping the latest stamp) and
+// sort by name, so two devices holding the same choices produce identical JSON.
+// A "back to default" entry is dropped once it is old enough that no device can
+// still hold an older override (the same horizon as deletion records). Returns
+// undefined when nothing is left, so budgets without choices stay free of the field.
+export const sanitizeCategoryBuckets = (raw: any): Record<string, CategoryBucketEntry> | undefined => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const now = Date.now();
+  const byName = new Map<string, CategoryBucketEntry>();
+  for (const [key, value] of Object.entries(raw)) {
+    if (!key.trim() || !value || typeof value !== 'object') continue;
+    const { bucket, updatedAt } = value as Partial<CategoryBucketEntry>;
+    if (bucket !== null && !BUCKET_IDS.includes(bucket as BucketId)) continue;
+    const stamp = typeof updatedAt === 'number' ? updatedAt : 0;
+    if (bucket === null && now - stamp > TOMBSTONE_TTL_MS) continue;
+    const name = normalizeCategoryName(key);
+    const existing = byName.get(name);
+    if (!existing || stamp > existing.updatedAt) byName.set(name, { bucket: bucket as BucketId | null, updatedAt: stamp });
+  }
+  if (byName.size === 0) return undefined;
+  const newest = Array.from(byName.entries()).sort((a, b) => b[1].updatedAt - a[1].updatedAt).slice(0, MAX_CATEGORY_BUCKETS);
+  return Object.fromEntries(newest.sort((a, b) => a[0].localeCompare(b[0])));
+};
+
+// Union two sets of category choices, the later choice winning per category. A
+// tie (the same millisecond on two devices) is settled by value, so every device
+// reaches the same answer and the budgets never keep rewriting each other.
+export const mergeCategoryBuckets = (
+  a?: Record<string, CategoryBucketEntry>,
+  b?: Record<string, CategoryBucketEntry>
+): Record<string, CategoryBucketEntry> | undefined => {
+  const out: Record<string, CategoryBucketEntry> = { ...(sanitizeCategoryBuckets(a) || {}) };
+  for (const [name, entry] of Object.entries(sanitizeCategoryBuckets(b) || {})) {
+    const mine = out[name];
+    const wins =
+      !mine ||
+      entry.updatedAt > mine.updatedAt ||
+      (entry.updatedAt === mine.updatedAt && String(entry.bucket) > String(mine.bucket));
+    if (wins) out[name] = entry;
+  }
+  return sanitizeCategoryBuckets(out);
+};
+
+// Put the named categories' choices back to the default (a recent "default"
+// entry, so the reset syncs), for when the category itself goes away.
+const resetCategoryBuckets = (
+  buckets: Record<string, CategoryBucketEntry> | undefined,
+  names: string[],
+  now: number
+): Record<string, CategoryBucketEntry> | undefined => {
+  if (!buckets) return buckets;
+  const next = { ...buckets };
+  let touched = false;
+  for (const name of names) {
+    if (next[name]?.bucket) {
+      next[name] = { bucket: null, updatedAt: now };
+      touched = true;
+    }
+  }
+  return touched ? sanitizeCategoryBuckets(next) : buckets;
 };
 
 // Fold the legacy device-only category list into the app data, then drop the
@@ -760,10 +866,17 @@ export const setActiveBudget = async (budgetId: string): Promise<{ success: bool
 
 export const addBudget = async (name: string): Promise<{ success: boolean; error?: Error; budget?: Budget }> => {
   const appData = await loadAppData();
-  // Start with the current budget's custom categories, as they were once shared by every budget.
+  // Start with the current budget's custom categories, as they were once shared by every budget,
+  // and how its categories are sorted in the budget review.
   const now = Date.now();
-  const inherited = (getActiveBudget(appData)?.customCategories || []).map((c) => ({ name: c.name, updatedAt: now }));
-  const newBudget = { ...createEmptyBudget(name || 'New Budget'), customCategories: inherited };
+  const current = getActiveBudget(appData);
+  const inherited = (current?.customCategories || []).map((c) => ({ name: c.name, updatedAt: now }));
+  const categoryBuckets = sanitizeCategoryBuckets(current?.categoryBuckets);
+  const newBudget = {
+    ...createEmptyBudget(name || 'New Budget'),
+    customCategories: inherited,
+    ...(categoryBuckets ? { categoryBuckets } : {}),
+  };
   const budgets = appData.budgets && Array.isArray(appData.budgets) ? appData.budgets : [];
   const newAppData: AppDataV2 = { ...appData, budgets: [...budgets, newBudget], activeBudgetId: newBudget.id };
   const res = await saveAppData(newAppData);

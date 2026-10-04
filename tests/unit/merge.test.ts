@@ -75,6 +75,51 @@ describe('mergeBudget', () => {
     expect(mergeBudget(readded, remote).customCategories?.map((c) => c.name)).toEqual(['Gifts', 'Pets']);
   });
 
+  it('keeps category bucket choices from both sides, the later choice winning per category', () => {
+    const now = Date.now();
+    const base = makeBudget();
+    const local = {
+      ...base,
+      categoryBuckets: { Childcare: { bucket: 'needs' as const, updatedAt: now - 1000 }, Loan: { bucket: 'savings' as const, updatedAt: now - 1000 } },
+    };
+    const remote = {
+      ...base,
+      categoryBuckets: { Childcare: { bucket: 'wants' as const, updatedAt: now }, Misc: { bucket: 'needs' as const, updatedAt: now - 500 } },
+    };
+    const merged = mergeBudget(local, remote);
+    expect(merged.categoryBuckets).toEqual({
+      Childcare: { bucket: 'wants', updatedAt: now },
+      Loan: { bucket: 'savings', updatedAt: now - 1000 },
+      Misc: { bucket: 'needs', updatedAt: now - 500 },
+    });
+  });
+
+  it('lets a later reset beat an older choice, and an even later choice beat the reset', () => {
+    const now = Date.now();
+    const base = makeBudget();
+    const chose = { ...base, categoryBuckets: { Loan: { bucket: 'savings' as const, updatedAt: now - 2000 } } };
+    const reset = { ...base, categoryBuckets: { Loan: { bucket: null, updatedAt: now - 1000 } } };
+    expect(mergeBudget(chose, reset).categoryBuckets?.Loan).toEqual({ bucket: null, updatedAt: now - 1000 });
+    expect(mergeBudget(reset, chose).categoryBuckets?.Loan).toEqual({ bucket: null, updatedAt: now - 1000 });
+    const again = { ...base, categoryBuckets: { Loan: { bucket: 'wants' as const, updatedAt: now } } };
+    expect(mergeBudget(reset, again).categoryBuckets?.Loan?.bucket).toBe('wants');
+  });
+
+  it('settles a tie the same way from either side', () => {
+    const now = Date.now();
+    const base = makeBudget();
+    const a = { ...base, categoryBuckets: { Loan: { bucket: 'needs' as const, updatedAt: now } } };
+    const b = { ...base, categoryBuckets: { Loan: { bucket: 'savings' as const, updatedAt: now } } };
+    expect(stableStringify(mergeBudget(a, b).categoryBuckets)).toBe(stableStringify(mergeBudget(b, a).categoryBuckets));
+  });
+
+  it('leaves the field off when neither side has any choices', () => {
+    const base = makeBudget();
+    const merged = mergeBudget(base, base);
+    expect(merged.categoryBuckets).toBeUndefined();
+    expect('categoryBuckets' in JSON.parse(JSON.stringify(merged))).toBe(false);
+  });
+
   it('always keeps this device’s lock', () => {
     const base = makeBudget();
     const local = { ...base, lock: { locked: true, autoLockMinutes: 5 }, modifiedAt: 1 };
