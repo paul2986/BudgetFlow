@@ -7,6 +7,7 @@ import { useChartFormat } from '../../components/charts/useChartFormat';
 import AllocationBar, { type AllocationSegment } from '../../components/tools/AllocationBar';
 import BucketCard from '../../components/tools/BucketCard';
 import CategoryBucketSheet from '../../components/tools/CategoryBucketSheet';
+import DebtHelpNudge from '../../components/tools/DebtHelpNudge';
 import { BUCKET_META, statusLabel } from '../../components/tools/bucketMeta';
 import Button from '../../components/Button';
 import Icon from '../../components/Icon';
@@ -16,6 +17,7 @@ import { useCurrency } from '../../hooks/useCurrency';
 import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useBudgetLock } from '../../hooks/useBudgetLock';
+import { useDebtHelpNudge } from '../../hooks/useDebtHelpNudge';
 import {
   BUCKET_ORDER,
   TARGET_PCT,
@@ -52,6 +54,8 @@ export default function BudgetReviewScreen() {
     () => (activeBudget && !locked ? reviewBudget(data?.people ?? [], data?.expenses ?? [], { buckets: choices }) : null),
     [activeBudget, locked, data, choices]
   );
+
+  const debtHelp = useDebtHelpNudge(review);
 
   // The category open in the sheet, read from the latest review so it follows a move.
   const selected = useMemo(() => {
@@ -381,6 +385,14 @@ ${lines.join('\n')}`;
             </View>
           ) : null}
         </Card>
+
+        {debtHelp.signal ? (
+          <DebtHelpNudge
+            signal={debtHelp.signal}
+            onOpen={() => router.navigate('/tools/debt-help')}
+            onDismiss={debtHelp.dismiss}
+          />
+        ) : null}
 
         {buckets.map((b) => (
           <BucketCard key={b.id} bucket={b} onOpenCategory={(c) => setSelectedName(c.name)} />
