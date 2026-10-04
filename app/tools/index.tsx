@@ -7,6 +7,8 @@ import { Card } from '../../components/ui';
 import { useLargeTitle } from '../../hooks/useLargeTitle';
 import { useThemedStyles } from '../../hooks/useThemedStyles';
 import { useTheme } from '../../hooks/useTheme';
+import { useCurrency } from '../../hooks/useCurrency';
+import { isUkCurrency } from '../../utils/debtHelp';
 import { type, space, radius } from '../../styles/tokens';
 
 /**
@@ -14,15 +16,17 @@ import { type, space, radius } from '../../styles/tokens';
  * each opening its own screen so it can be linked to and backed out of.
  */
 
-type ToolTone = 'creditCard' | 'income' | 'mortgage' | 'brand';
+type ToolTone = 'creditCard' | 'income' | 'mortgage' | 'brand' | 'neutral';
 
 interface ToolEntry {
-  route: '/tools/credit-card' | '/tools/savings' | '/tools/mortgage' | '/tools/budget-review';
+  route: '/tools/credit-card' | '/tools/savings' | '/tools/mortgage' | '/tools/budget-review' | '/tools/debt-help';
   title: string;
   caption: string;
   icon: string;
-  /** Reuses the app's own accents: credit card pink, savings income green, mortgage purple, budget review brand indigo. */
+  /** Reuses the app's own accents: credit card pink, savings income green, mortgage purple, budget review brand indigo; debt help is neutral, since it's help, not a debt or a status. */
   tone: ToolTone;
+  /** Shown only to UK users (currency is pounds). */
+  ukOnly?: boolean;
 }
 
 const TOOLS: ToolEntry[] = [
@@ -54,21 +58,31 @@ const TOOLS: ToolEntry[] = [
     icon: 'pie-chart-outline',
     tone: 'brand',
   },
+  {
+    route: '/tools/debt-help',
+    title: 'Debt help',
+    caption: 'Free, impartial debt advice in the UK, by phone, web chat or online.',
+    icon: 'help-buoy-outline',
+    tone: 'neutral',
+    ukOnly: true,
+  },
 ];
 
 export default function ToolsHubScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { tokens } = useTheme();
   const largeTitle = useLargeTitle();
+  const { currency, loading: currencyLoading } = useCurrency();
 
+  const tools = TOOLS.filter((tool) => !tool.ukOnly || (!currencyLoading && isUkCurrency(currency.code)));
   const columns = breakpoint.isExpanded ? 3 : breakpoint.isMedium ? 2 : 1;
   const rows: ToolEntry[][] = [];
-  for (let i = 0; i < TOOLS.length; i += columns) rows.push(TOOLS.slice(i, i + columns));
+  for (let i = 0; i < tools.length; i += columns) rows.push(tools.slice(i, i + columns));
 
-  const accent = (tone: ToolTone) => ({
-    color: tokens.colors[tone],
-    background: tokens.colors[`${tone}Subtle` as const],
-  });
+  const accent = (tone: ToolTone) =>
+    tone === 'neutral'
+      ? { color: tokens.colors.textMuted, background: tokens.colors.surfaceSunken }
+      : { color: tokens.colors[tone], background: tokens.colors[`${tone}Subtle` as const] };
 
   return (
     <View style={themedStyles.container}>
