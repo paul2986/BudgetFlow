@@ -11,6 +11,7 @@ import StandardHeader from '../components/StandardHeader';
 import Icon from '../components/Icon';
 import { EmptyState, ListGroup, ListRow, Skeleton, StatCard } from '../components/ui';
 import { AdminOverview, fetchAdminOverview } from '../utils/admin';
+import { AdminFeedbackCounts, fetchAdminFeedbackCounts } from '../utils/feedback';
 import { describeFrequencies, formatBytes, formatCount } from '../utils/adminFormat';
 import { type, radius, space, tabularNums } from '../styles/tokens';
 
@@ -68,6 +69,8 @@ export default function AdminScreen() {
   const { showToast } = useToast();
 
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  // Only for the inbox row: if it can't load, the row still opens the inbox.
+  const [feedbackCounts, setFeedbackCounts] = useState<AdminFeedbackCounts | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -75,6 +78,9 @@ export default function AdminScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    fetchAdminFeedbackCounts()
+      .then(setFeedbackCounts)
+      .catch((error) => console.error('Admin: Load feedback counts error:', error));
     try {
       setOverview(await fetchAdminOverview());
       setFailed(false);
@@ -273,7 +279,24 @@ export default function AdminScreen() {
           <RefreshControl refreshing={loading && !!overview} onRefresh={load} tintColor={tokens.colors.textMuted} />
         }
       >
-        <View style={{ width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center' }}>{renderBody()}</View>
+        <View style={{ width: '100%', maxWidth: MAX_WIDTH, alignSelf: 'center' }}>
+          <ListGroup header="Feedback">
+            <ListRow
+              title="Feedback inbox"
+              caption={
+                feedbackCounts
+                  ? `${formatCount(feedbackCounts.needs_you)} waiting for you · ${formatCount(feedbackCounts.total)} in total`
+                  : 'Read and reply to ideas people send'
+              }
+              icon="chatbubbles-outline"
+              iconColor={feedbackCounts && feedbackCounts.needs_you > 0 ? tokens.colors.brand : undefined}
+              chevron
+              onPress={() => router.push('/admin-feedback')}
+              showSeparator={false}
+            />
+          </ListGroup>
+          {renderBody()}
+        </View>
       </ScrollView>
     </View>
   );

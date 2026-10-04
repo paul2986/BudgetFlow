@@ -8,6 +8,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useIsAdmin } from '../hooks/useIsAdmin';
+import { useFeedbackBadges } from '../hooks/useFeedbackBadges';
 import { Alert } from '../utils/alert';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
 import { useLargeTitle } from '../hooks/useLargeTitle';
@@ -19,7 +20,7 @@ import {
   ListRow,
   SegmentedControl,
 } from '../components/ui';
-import { type, space } from '../styles/tokens';
+import { type, radius, space } from '../styles/tokens';
 import { appVersionLabel } from '../utils/appVersion';
 
 /**
@@ -43,6 +44,7 @@ export default function SettingsScreen() {
   const { showToast } = useToast();
   const { signOut, deleteAccount } = useAuth();
   const { isAdmin } = useIsAdmin(user?.id);
+  const { unreadReplies, needsYou } = useFeedbackBadges(user?.id, isAdmin);
 
   const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -194,12 +196,35 @@ export default function SettingsScreen() {
             </View>
           </ListGroup>
 
+          <ListGroup header="Feedback">
+            <ListRow
+              title="Send feedback"
+              caption={
+                unreadReplies > 0
+                  ? `${unreadReplies} new ${unreadReplies === 1 ? 'reply' : 'replies'}`
+                  : 'Share an idea or suggestion'
+              }
+              icon="chatbubble-ellipses-outline"
+              iconColor={unreadReplies > 0 ? tokens.colors.brand : undefined}
+              trailing={
+                unreadReplies > 0 ? (
+                  <View style={{ width: 10, height: 10, borderRadius: radius.full, backgroundColor: tokens.colors.brand }} />
+                ) : undefined
+              }
+              chevron
+              onPress={() => router.push('/feedback')}
+              accessibilityLabel={`Send feedback${unreadReplies > 0 ? `, ${unreadReplies} new ${unreadReplies === 1 ? 'reply' : 'replies'}` : ''}`}
+              showSeparator={false}
+            />
+          </ListGroup>
+
           {/* Only admin accounts get this; the server checks it again on every request. */}
           {isAdmin ? (
             <ListGroup header="Admin">
               <ListRow
                 title="Admin dashboard"
-                caption="Users, budgets and app health"
+                caption={needsYou > 0 ? `${needsYou} feedback waiting · Users, budgets and app health` : 'Feedback, users, budgets and app health'}
+                captionLines={2}
                 icon="shield-checkmark-outline"
                 chevron
                 onPress={() => router.push('/admin')}
