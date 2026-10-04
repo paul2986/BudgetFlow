@@ -23,9 +23,12 @@ import IndividualBreakdownsSection from '../components/IndividualBreakdownsSecti
 import ExpiringSection from '../components/ExpiringSection';
 import ExpenseBreakdownSection from '../components/ExpenseBreakdownSection';
 import DebtRepaymentSection from '../components/DebtRepaymentSection';
+import DebtHelpNudge from '../components/tools/DebtHelpNudge';
 import { Card, Input, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
 import { takePendingInvite } from '../utils/sharing';
+import { reviewBudget } from '../utils/budgetReview';
+import { useDebtHelpNudge } from '../hooks/useDebtHelpNudge';
 
 /**
  * Overview (UI_AUDIT Phase 4). One shell — header + scroll column — with one
@@ -180,6 +183,14 @@ export default function HomeScreen() {
     // refreshTrigger forces a recalculation after background syncs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDataReady, hasBudgets, activeBudget, data, people, expenses, refreshTrigger]);
+
+  // Free debt advice, offered quietly when the budget looks stretched (UK only; see useDebtHelpNudge).
+  const categoryBuckets = activeBudget?.categoryBuckets;
+  const review = useMemo(
+    () => (calculations && !budgetLocked ? reviewBudget(people, expenses, { buckets: categoryBuckets }) : null),
+    [calculations, budgetLocked, people, expenses, categoryBuckets]
+  );
+  const debtHelp = useDebtHelpNudge(review);
 
   const handleViewModeChange = useCallback((mode: 'daily' | 'monthly' | 'yearly') => {
     setGlobalViewMode(mode);
@@ -402,6 +413,16 @@ export default function HomeScreen() {
                 onViewModeChange={handleViewModeChange}
               />
             </DashboardSection>
+
+            {debtHelp.signal ? (
+              <View style={{ marginBottom: space.s7 }}>
+                <DebtHelpNudge
+                  signal={debtHelp.signal}
+                  onOpen={() => router.navigate('/tools/debt-help')}
+                  onDismiss={debtHelp.dismiss}
+                />
+              </View>
+            ) : null}
 
             <DashboardSection
               title="Individual breakdowns"

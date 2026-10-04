@@ -118,6 +118,7 @@ A summary dashboard for the active budget, shown once it has at least one person
 
 - **"Left to spend"** headline with a **Daily / Monthly / Yearly** view-mode toggle.
 - **Overview section** — income vs. expenses vs. remaining.
+- **Debt help prompt** — for UK users (currency is pounds), a quiet card under the Overview section offering free debt advice when the budget looks stretched (see Debt Help, §8). Not shown otherwise.
 - **Individual breakdowns** — per-person contribution / share summaries.
 - **Expense breakdown** — spending grouped by category / type.
 - **Person breakdown chart** — visual split across people.
@@ -183,14 +184,16 @@ Compares the active budget with the 50/30/20 rule (Elizabeth Warren and Amelia W
 
 ### Debt Help (UK)
 
-Signposts people in the UK to free, impartial debt advice. It is a list of services, not a calculator, and it does not advise.
+Signposts people in the UK to free, impartial debt advice. It is a list of services, not a calculator, and it does not advise. It can also be offered quietly from the Overview and Budget review when a budget looks stretched (below).
 
 - **Shown to UK users only:** the app has no country setting, so the Tools card appears when the currency is pounds (GBP, the default). The screen itself works at `/tools/debt-help` whatever the currency.
 - **Where do you live?** England, Wales, Scotland or Northern Ireland (pills; the choice isn't saved). The list shows only the services that cover that nation, because the rules and some services differ: National Debtline doesn't cover Northern Ireland, and Citizens Advice has a separate line for England, Wales and Scotland while Advice NI covers Northern Ireland.
 - **Services:** StepChange and National Debtline (charities), Citizens Advice (England, Wales or Scotland) or Advice NI, and MoneyHelper's debt advice locator (government-backed). Each card names who runs it (Charity or Government-backed), where it helps, what it does, a free phone number in the button text (so it can be read and dialled by hand where a tap can't call) and a link to its site. Opening hours are deliberately not shown; they change, so the card points to the website.
 - **Around the list:** what to expect when talking to an adviser, a "Before you pay anyone" warning about fee-charging firms with a link to the FCA register, and a note that Budget Flow isn't a debt adviser, earns nothing from the links and sends nothing from a budget to these services. The note carries the date the details were last checked.
 - **Data:** the services are hand-checked constants in `utils/debtHelp.ts` (`CHECKED_ON` says when). A unit test keeps the links `https`, the numbers free (0800/0808) and unique, and each nation's list sensible. Links and calls go through `utils/openLink.ts`, which allows only `https:` and `tel:`.
-- **Not done:** no affiliate or referral links, no tracking, and nothing is read from the budget on this screen.
+- **A quiet prompt where it matters:** on the Overview (under the Overview section) and in Budget review (under "How you compare"), a card titled "Money feeling tight?" offers "See free debt help" (opens this screen) and "Not now". It appears only for UK users (currency is pounds) and only when the monthly review shows a sign, judged on the rounded percentage the message quotes: spending at least **5%** above income (message: "about N% more than your income"), or loan and credit card payments at least **30%** of income (message: "take about N% of your income"). Mortgage payments are left out because they are secured and usually a housing cost; overspending takes priority when both apply. A slightly-over month does not raise it. The thresholds are prompts to look at help, not a diagnosis, and live in `utils/debtHelpNudge.ts`.
+- **"Not now"** hides the prompt everywhere for 30 days on that device, then it comes back if the signs persist. The time is a per-device preference (`debt_help_nudge_dismissed_at`), not part of any budget, so it isn't synced or exported. A dismissal dated in the future (the clock moved) is ignored. The prompt is calm: a neutral icon, plain words, no warning colour.
+- **Not done:** no affiliate or referral links, no tracking, and nothing is read from the budget on the Debt help screen. Nothing leaves the device when the prompt is shown or dismissed. There is no permanent "never show this" switch yet.
 
 ## 9. Categories Management
 
