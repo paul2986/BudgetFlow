@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import ToolLayout from '../../components/tools/ToolLayout';
 import YearTable from '../../components/tools/YearTable';
@@ -44,6 +45,16 @@ export default function SavingsScreen() {
   const [rateInput, setRateInput] = useState('');
   const [yearsInput, setYearsInput] = useState('20');
   const [touched, setTouched] = useState<{ rate?: boolean; years?: boolean }>({});
+
+  // The Budget review hands over the monthly amount it suggests saving. This screen stays mounted
+  // between visits, so a fresh hand-off has to replace whatever deposit was typed before.
+  const params = useLocalSearchParams<{ deposit?: string; _t?: string }>();
+  useEffect(() => {
+    const handed = parseAmount(params.deposit ?? '');
+    if (handed === null || handed <= 0) return;
+    setDepositInput(cleanDecimal(String(handed)));
+    setFrequency('monthly');
+  }, [params.deposit, params._t]);
 
   const start = parseAmount(startInput) ?? 0;
   const deposit = parseAmount(depositInput) ?? 0;
