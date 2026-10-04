@@ -1,4 +1,4 @@
-import { Expense, Person } from '../types/budget';
+import type { BucketId, Budget, Expense, Person } from '../types/budget';
 import { calculateAnnualAmount, calculateTotalIncome, isExpenseActive } from './calculations';
 
 /**
@@ -10,7 +10,7 @@ import { calculateAnnualAmount, calculateTotalIncome, isExpenseActive } from './
  * only), so the figures reconcile with the dashboard.
  */
 
-export type BucketId = 'needs' | 'wants' | 'savings';
+export type { BucketId };
 export type BucketStatus = 'onTrack' | 'close' | 'off';
 
 export const BUCKET_ORDER: BucketId[] = ['needs', 'wants', 'savings'];
@@ -24,7 +24,8 @@ export const CLOSE_MARGIN = 5;
 /**
  * Where each built-in category lands. Loan and Credit Card sit in Needs because
  * the app can't tell a minimum payment (a need) from an extra one (saving).
- * Anything not listed, including custom categories, counts as a want.
+ * Anything not listed, including custom categories, counts as a want. People
+ * sharing a budget can move any category to another bucket (Budget.categoryBuckets).
  */
 const BUCKET_BY_CATEGORY: Record<string, BucketId> = {
   rent: 'needs',
@@ -46,19 +47,49 @@ const BUCKET_BY_CATEGORY: Record<string, BucketId> = {
 
 const categoryKey = (tag: string | undefined): string => (tag || 'Misc').trim().toLowerCase() || 'misc';
 
-/** The bucket a category counts towards, and whether that's a built-in decision or the custom-category default. */
+/** The default bucket for a category, and whether that's a built-in decision or the custom-category default. */
 export const bucketForCategory = (tag: string | undefined): { bucket: BucketId; custom: boolean } => {
   const known = BUCKET_BY_CATEGORY[categoryKey(tag)];
   return known ? { bucket: known, custom: false } : { bucket: 'wants', custom: true };
 };
+
+/** The budget's category choices by lower-cased name, leaving out "back to default" entries. */
+export type CategoryBucketLookup = ReadonlyMap<string, BucketId>;
+
+export const categoryBucketLookup = (choices: Budget['categoryBuckets']): CategoryBucketLookup => {
+  const lookup = new Map<string, BucketId>();
+  for (const [name, entry] of Object.entries(choices ?? {})) {
+    if (entry?.bucket) lookup.set(categoryKey(name), entry.bucket);
+  }
+  return lookup;
+};
+
+/** Where a category counts once the budget's own choices are applied. */
+export const resolveBucket = (
+  tag: string | undefined,
+  lookup?: CategoryBucketLookup
+): { bucket: BucketId; defaultBucket: BucketId; custom: boolean; moved: boolean } => {
+  const { bucket: defaultBucket, custom } = bucketForCategory(tag);
+  const chosen = lookup?.get(categoryKey(tag));
+  const bucket = chosen ?? defaultBucket;
+  return { bucket, defaultBucket, custom, moved: bucket !== defaultBucket };
+};
+
+/** What to store for a choice: picking a category's default bucket clears the choice (null). */
+export const bucketToStore = (tag: string | undefined, chosen: BucketId): BucketId | null =>
+  chosen === bucketForCategory(tag).bucket ? null : chosen;
 
 export interface CategoryShare {
   name: string;
   monthly: number;
   /** Share of income, in percent. */
   pct: number;
-  /** A custom category, counted as a want by default. */
+  /** A custom category, counted as a want unless it has been moved. */
   custom: boolean;
+  /** Where it would count with no choice made. */
+  defaultBucket: BucketId;
+  /** Counted somewhere other than its default. */
+  moved: boolean;
 }
 
 export interface BucketReview {
@@ -109,17 +140,30 @@ export const furthestOff = (review: BudgetReview): BucketReview | null => {
   return worst;
 };
 
+export interface ReviewOptions {
+  /** The date to judge "active" by; today unless a test says otherwise. */
+  asOf?: string;
+  /** The budget's own choices of where categories count (Budget.categoryBuckets). */
+  buckets?: Budget['categoryBuckets'];
+}
+
 /**
  * Review the budget against 50/30/20. Returns null when there is no income to
  * measure against. An empty expense list is a valid review (all zeros), left to
  * the caller to present.
  */
-export const reviewBudget = (people: Person[], expenses: Expense[], asOf?: string): BudgetReview | null => {
+export const reviewBudget = (
+  people: Person[],
+  expenses: Expense[],
+  { asOf, buckets: choices }: ReviewOptions = {}
+): BudgetReview | null => {
   const incomeAnnual = cents(calculateTotalIncome(people ?? []));
   if (incomeAnnual <= 0) return null;
 
   const annualByBucket: Record<BucketId, number> = { needs: 0, wants: 0, savings: 0 };
-  const categoryAnnual: Record<BucketId, Map<string, { name: string; annual: number; custom: boolean }>> = {
+  const lookup = categoryBucketLookup(choices);
+  type CategoryTotal = { name: string; annual: number; custom: boolean; defaultBucket: BucketId };
+  const categoryAnnual: Record<BucketId, Map<string, CategoryTotal>> = {
     needs: new Map(),
     wants: new Map(),
     savings: new Map(),
@@ -129,13 +173,13 @@ export const reviewBudget = (people: Person[], expenses: Expense[], asOf?: strin
     if (!expense || typeof expense.amount !== 'number' || isNaN(expense.amount)) continue;
     if (!isExpenseActive(expense, asOf)) continue;
     const annual = cents(calculateAnnualAmount(expense.amount, expense.frequency));
-    const { bucket, custom } = bucketForCategory(expense.categoryTag);
+    const { bucket, custom, defaultBucket } = resolveBucket(expense.categoryTag, lookup);
     annualByBucket[bucket] += annual;
 
     const key = categoryKey(expense.categoryTag);
     const entry = categoryAnnual[bucket].get(key);
     if (entry) entry.annual += annual;
-    else categoryAnnual[bucket].set(key, { name: (expense.categoryTag || 'Misc').trim() || 'Misc', annual, custom });
+    else categoryAnnual[bucket].set(key, { name: (expense.categoryTag || 'Misc').trim() || 'Misc', annual, custom, defaultBucket });
   }
 
   const incomeMonthly = monthly(incomeAnnual);
@@ -148,7 +192,14 @@ export const reviewBudget = (people: Person[], expenses: Expense[], asOf?: strin
     const targetMonthly = Math.round((incomeAnnual * targetPct) / 100 / 12) / 100;
     const categories: CategoryShare[] = Array.from(categoryAnnual[id].values())
       .sort((a, b) => b.annual - a.annual)
-      .map((c) => ({ name: c.name, monthly: monthly(c.annual), pct: (c.annual / incomeAnnual) * 100, custom: c.custom }));
+      .map((c) => ({
+        name: c.name,
+        monthly: monthly(c.annual),
+        pct: (c.annual / incomeAnnual) * 100,
+        custom: c.custom,
+        defaultBucket: c.defaultBucket,
+        moved: c.defaultBucket !== id,
+      }));
     return {
       id,
       targetPct,

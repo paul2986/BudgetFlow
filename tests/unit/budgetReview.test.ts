@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { bucketForCategory, furthestOff, reviewBudget, statusFor, type BucketId } from '../../utils/budgetReview';
+import {
+  bucketForCategory,
+  bucketToStore,
+  categoryBucketLookup,
+  furthestOff,
+  resolveBucket,
+  reviewBudget,
+  statusFor,
+  type BucketId,
+} from '../../utils/budgetReview';
 import type { Expense, Frequency, Person } from '../../types/budget';
 
 const person = (monthlyIncome: number, id = 'p1'): Person => ({
@@ -141,7 +150,7 @@ describe('reviewBudget', () => {
         expense(300, 'Loan', { endDate: '2099-01-01' }),
         expense(100, 'Utilities'),
       ],
-      '2026-10-02'
+      { asOf: '2026-10-02' }
     )!;
     expect(bucket(r, 'needs').monthly).toBe(400);
   });
@@ -196,3 +205,54 @@ describe('furthestOff', () => {
   });
 });
 
+describe('category choices', () => {
+  const choice = (bucket: BucketId | null) => ({ bucket, updatedAt: 1 });
+
+  it('applies a choice whatever the case, and says where the category moved from', () => {
+    const lookup = categoryBucketLookup({ Childcare: choice('needs'), Loan: choice('savings') });
+    expect(resolveBucket('childcare', lookup)).toEqual({ bucket: 'needs', defaultBucket: 'wants', custom: true, moved: true });
+    expect(resolveBucket('Loan', lookup)).toMatchObject({ bucket: 'savings', defaultBucket: 'needs', custom: false, moved: true });
+    expect(resolveBucket('Rent', lookup)).toMatchObject({ bucket: 'needs', moved: false });
+    expect(resolveBucket('Rent')).toMatchObject({ bucket: 'needs', moved: false });
+  });
+
+  it('ignores "back to default" entries', () => {
+    const lookup = categoryBucketLookup({ Loan: choice(null) });
+    expect(lookup.size).toBe(0);
+    expect(resolveBucket('Loan', lookup)).toMatchObject({ bucket: 'needs', moved: false });
+  });
+
+  it('stores nothing when the choice is the default', () => {
+    expect(bucketToStore('Loan', 'needs')).toBeNull();
+    expect(bucketToStore('Loan', 'savings')).toBe('savings');
+    expect(bucketToStore('Childcare', 'wants')).toBeNull();
+    expect(bucketToStore('Childcare', 'needs')).toBe('needs');
+  });
+
+  it('moves a category’s spending to the chosen bucket and marks it moved', () => {
+    const expenses = [expense(2000, 'Rent'), expense(500, 'Childcare'), expense(300, 'Eating Out')];
+    const before = reviewBudget([person(4000)], expenses)!;
+    expect(bucket(before, 'wants').monthly).toBe(800);
+
+    const after = reviewBudget([person(4000)], expenses, { buckets: { Childcare: choice('needs') } })!;
+    expect(bucket(after, 'needs').monthly).toBe(2500);
+    expect(bucket(after, 'wants').monthly).toBe(300);
+    expect(after.spendingMonthly).toBe(before.spendingMonthly);
+    const moved = bucket(after, 'needs').categories.find((c) => c.name === 'Childcare')!;
+    expect(moved).toMatchObject({ moved: true, defaultBucket: 'wants', custom: true });
+    expect(bucket(after, 'needs').categories.find((c) => c.name === 'Rent')!.moved).toBe(false);
+  });
+
+  it('lets a built-in category move too', () => {
+    const r = reviewBudget([person(4000)], [expense(400, 'Loan')], { buckets: { Loan: choice('savings') } })!;
+    expect(bucket(r, 'savings').monthly).toBe(400);
+    expect(bucket(r, 'needs').monthly).toBe(0);
+    expect(bucket(r, 'savings').status).toBe('off');
+  });
+
+  it('changes nothing for a category with no expenses', () => {
+    const expenses = [expense(1000, 'Rent')];
+    const r = reviewBudget([person(4000)], expenses, { buckets: { Pets: choice('needs') } })!;
+    expect(r).toEqual(reviewBudget([person(4000)], expenses)!);
+  });
+});

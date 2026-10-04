@@ -232,6 +232,38 @@ describe('two people', () => {
     expect(await phone.storage.getCustomExpenseCategories()).toEqual(['Pets']);
   });
 
+  it('where categories count in the review travels with the budget; later choices win and resets stick', async () => {
+    const { alice, phone, budget } = await aliceWithBudget();
+    const { device: bob } = await joinWithDevice(alice, budget.id);
+    await phone.storage.setActiveBudget(budget.id);
+    await bob.storage.setActiveBudget(budget.id);
+    const choices = async (device: Device) => (find(await device.load(), budget.id)?.categoryBuckets ?? {}) as Record<string, { bucket: string | null }>;
+
+    // Different categories on each device, both kept.
+    await phone.storage.setCategoryBucket('Childcare', 'needs');
+    await bob.storage.setCategoryBucket('Loan', 'savings');
+    await phone.sync();
+    await bob.sync();
+    await phone.sync();
+    for (const device of [phone, bob]) {
+      const seen = await choices(device);
+      expect(seen.Childcare?.bucket).toBe('needs');
+      expect(seen.Loan?.bucket).toBe('savings');
+    }
+
+    // The same category: the later choice wins on both.
+    await bob.storage.setCategoryBucket('Childcare', 'wants');
+    await bob.sync();
+    await phone.sync();
+    expect((await choices(phone)).Childcare?.bucket).toBe('wants');
+
+    // A reset on one device reaches the other.
+    await phone.storage.setCategoryBucket('Loan', null);
+    await phone.sync();
+    await bob.sync();
+    expect((await choices(bob)).Loan?.bucket).toBeNull();
+  });
+
   it('an outsider’s sync sees nothing', async () => {
     await aliceWithBudget();
     const eve = await createDevice(await createUser('eve'));

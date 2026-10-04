@@ -5,6 +5,7 @@ import * as Clipboard from 'expo-clipboard';
 import ToolLayout from '../../components/tools/ToolLayout';
 import AllocationBar, { type AllocationSegment } from '../../components/tools/AllocationBar';
 import BucketCard from '../../components/tools/BucketCard';
+import CategoryBucketSheet from '../../components/tools/CategoryBucketSheet';
 import { BUCKET_META, statusLabel } from '../../components/tools/bucketMeta';
 import Button from '../../components/Button';
 import Icon from '../../components/Icon';
@@ -14,7 +15,17 @@ import { useCurrency } from '../../hooks/useCurrency';
 import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useBudgetLock } from '../../hooks/useBudgetLock';
-import { BUCKET_ORDER, TARGET_PCT, furthestOff, missPoints, reviewBudget, type BudgetReview } from '../../utils/budgetReview';
+import {
+  BUCKET_ORDER,
+  TARGET_PCT,
+  bucketToStore,
+  furthestOff,
+  missPoints,
+  reviewBudget,
+  type BucketId,
+  type BudgetReview,
+  type CategoryShare,
+} from '../../utils/budgetReview';
 import { type, space, radius, tabularNums } from '../../styles/tokens';
 
 const headline = (onTrack: number): string =>
@@ -24,17 +35,29 @@ export default function BudgetReviewScreen() {
   const { tokens } = useTheme();
   const { formatCurrency } = useCurrency();
   const { showToast } = useToast();
-  const { data, activeBudget } = useBudgetData();
+  const { data, activeBudget, sharing, setCategoryBucket } = useBudgetData();
   const { isLocked, authenticateForBudget } = useBudgetLock();
   const [authenticating, setAuthenticating] = useState(false);
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [savingChoice, setSavingChoice] = useState(false);
 
   const budgetName = activeBudget?.name || 'your budget';
   const locked = !!activeBudget && isLocked(activeBudget);
 
+  const choices = activeBudget?.categoryBuckets;
   const review = useMemo(
-    () => (activeBudget && !locked ? reviewBudget(data?.people ?? [], data?.expenses ?? []) : null),
-    [activeBudget, locked, data]
+    () => (activeBudget && !locked ? reviewBudget(data?.people ?? [], data?.expenses ?? [], { buckets: choices }) : null),
+    [activeBudget, locked, data, choices]
   );
+
+  // The category open in the sheet, read from the latest review so it follows a move.
+  const selected = useMemo(() => {
+    const match = (review?.buckets ?? [])
+      .map((b) => ({ bucket: b.id, category: b.categories.find((c) => c.name === selectedName) }))
+      .find((m) => m.category);
+    return match?.category ? { category: match.category, bucket: match.bucket } : null;
+  }, [review, selectedName]);
+  const shared = !!activeBudget && (sharing[activeBudget.id]?.memberCount ?? 1) > 1;
 
   const handleUnlock = useCallback(async () => {
     if (!activeBudget || authenticating) return;
@@ -54,6 +77,22 @@ export default function BudgetReviewScreen() {
     // Same hand-off as the dashboard's category breakdown.
     router.navigate({ pathname: '/expenses', params: { category: name, fromDashboard: 'true', _t: String(Date.now()) } });
   }, []);
+
+  const saveChoice = useCallback(
+    async (category: CategoryShare, bucket: BucketId | null) => {
+      setSavingChoice(true);
+      try {
+        const res = await setCategoryBucket(category.name, bucket);
+        if (!res.success) showToast('Couldn’t save that change. Please try again.', 'error');
+      } catch (e) {
+        console.log('BudgetReview: save choice error', e);
+        showToast('Couldn’t save that change. Please try again.', 'error');
+      } finally {
+        setSavingChoice(false);
+      }
+    },
+    [setCategoryBucket, showToast]
+  );
 
   const handleCopy = async (r: BudgetReview) => {
     const lines = r.buckets.map((b) => {
@@ -332,12 +371,13 @@ ${lines.join('\n')}`;
         </Card>
 
         {buckets.map((b) => (
-          <BucketCard key={b.id} bucket={b} onOpenCategory={openCategory} />
+          <BucketCard key={b.id} bucket={b} onOpenCategory={(c) => setSelectedName(c.name)} />
         ))}
 
         <Text style={[type.caption, { color: tokens.colors.textMuted, marginHorizontal: space.s2 }]}>
           A guideline, not advice. Expenses are counted per month from the active budget, and ones that have ended are left out. Loan
-          and Credit Card payments count as Needs (minimum payments); Misc and custom categories count as Wants.
+          and Credit Card payments start in Needs (minimum payments); Misc and custom categories start in Wants. Tap a category under
+          “What’s in it” to move it; the change is shared with everyone on the budget.
         </Text>
 
         <Button text="Copy results" onPress={() => handleCopy(review)} variant="secondary" style={{ marginTop: 0 }} />
@@ -346,11 +386,29 @@ ${lines.join('\n')}`;
   })();
 
   return (
-    <ToolLayout
-      title="Budget review"
-      intro={`Compare ${budgetName} with the 50/30/20 rule.`}
-      inputs={explainer}
-      results={results}
-    />
+    <>
+      <ToolLayout
+        title="Budget review"
+        intro={`Compare ${budgetName} with the 50/30/20 rule.`}
+        inputs={explainer}
+        results={results}
+      />
+      <CategoryBucketSheet
+        visible={!!selected}
+        onClose={() => setSelectedName(null)}
+        category={selected?.category ?? null}
+        bucket={selected?.bucket ?? 'wants'}
+        shared={shared}
+        saving={savingChoice}
+        onChoose={(bucket) => selected && saveChoice(selected.category, bucketToStore(selected.category.name, bucket))}
+        onReset={() => selected && saveChoice(selected.category, null)}
+        onShowExpenses={() => {
+          if (!selected) return;
+          const name = selected.category.name;
+          setSelectedName(null);
+          openCategory(name);
+        }}
+      />
+    </>
   );
 }

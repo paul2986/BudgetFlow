@@ -5,7 +5,7 @@ import { Card } from '../ui';
 import { useTheme } from '../../hooks/useTheme';
 import { useCurrency } from '../../hooks/useCurrency';
 import { type, space, radius, tabularNums } from '../../styles/tokens';
-import type { BucketReview } from '../../utils/budgetReview';
+import type { BucketReview, CategoryShare } from '../../utils/budgetReview';
 import { BUCKET_META, STATUS_ICON, statusLabel } from './bucketMeta';
 
 /**
@@ -16,7 +16,8 @@ import { BUCKET_META, STATUS_ICON, statusLabel } from './bucketMeta';
 
 interface BucketCardProps {
   bucket: BucketReview;
-  onOpenCategory: (name: string) => void;
+  /** Tapping a category row: the screen opens its "counts as" sheet. */
+  onOpenCategory: (category: CategoryShare) => void;
 }
 
 /** Text for how far a bucket is from its target, in money. */
@@ -26,6 +27,10 @@ const gapText = (b: BucketReview, format: (n: number) => string): string => {
   if (b.id === 'savings') return b.gapMonthly < 0 ? `${amount} short of target` : `${amount} above target`;
   return b.gapMonthly > 0 ? `${amount} above target` : `${amount} under target`;
 };
+
+/** Why a category sits where it does, when that isn't the obvious default. */
+const categoryNote = (c: CategoryShare): string =>
+  c.moved ? `Moved from ${BUCKET_META[c.defaultBucket].name}` : c.custom ? 'Custom, counts as a want' : '';
 
 /** A track with the fill up to your share and a tick at the target. Scale: twice the target, or more if you are beyond it. */
 function TargetMeter({ bucket, color }: { bucket: BucketReview; color: string }) {
@@ -165,9 +170,9 @@ export default function BucketCard({ bucket, onOpenCategory }: BucketCardProps) 
             {bucket.categories.map((c, i) => (
               <Pressable
                 key={c.name}
-                onPress={() => onOpenCategory(c.name)}
+                onPress={() => onOpenCategory(c)}
                 accessibilityRole="button"
-                accessibilityLabel={`${c.name}, ${formatCurrency(c.monthly)} a month, ${c.pct.toFixed(1)}% of income${c.custom ? ', a custom category counted as a want' : ''}. Show these expenses`}
+                accessibilityLabel={`${c.name}, ${formatCurrency(c.monthly)} a month, ${c.pct.toFixed(1)}% of income. ${categoryNote(c) ? `${categoryNote(c)}. ` : ''}Change which bucket it counts towards`}
                 style={({ pressed }) => ({
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -184,11 +189,11 @@ export default function BucketCard({ bucket, onOpenCategory }: BucketCardProps) 
                     {c.name}
                   </Text>
                   <Text style={[type.caption, tabularNums, { color: tokens.colors.textMuted }]}>
-                    {c.pct < 0.1 ? '<0.1' : c.pct.toFixed(1)}% of income{c.custom ? ' · custom, counted as a want' : ''}
+                    {c.pct < 0.1 ? '<0.1' : c.pct.toFixed(1)}% of income{categoryNote(c) ? ` · ${categoryNote(c).toLowerCase()}` : ''}
                   </Text>
                 </View>
                 <Text style={[type.bodyMed, tabularNums, { color: tokens.colors.text }]}>{formatCurrency(c.monthly)}</Text>
-                <Icon name="chevron-forward" size={16} color={tokens.colors.textFaint} />
+                <Icon name="swap-horizontal-outline" size={18} color={tokens.colors.textFaint} />
               </Pressable>
             ))}
           </View>

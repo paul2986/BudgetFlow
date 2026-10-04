@@ -1,21 +1,23 @@
 
 import { useEffect, useState, useCallback } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Text } from 'react-native';
 import { Alert } from '../utils/alert';
 import StandardHeader from '../components/StandardHeader';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
-import { DEFAULT_CATEGORIES } from '../types/budget';
+import { DEFAULT_CATEGORIES, type BucketId } from '../types/budget';
 import { getCustomExpenseCategories, normalizeCategoryName } from '../utils/storage';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router } from 'expo-router';
-import { Chip, EmptyState, IconButton, Input, ListGroup, ListRow, Sheet, Skeleton } from '../components/ui';
-import { space } from '../styles/tokens';
+import { Chip, EmptyState, IconButton, Input, ListGroup, ListRow, SegmentedControl, Sheet, Skeleton } from '../components/ui';
+import { BUCKET_META, BUCKET_OPTIONS } from '../components/tools/bucketMeta';
+import { bucketToStore, categoryBucketLookup, resolveBucket } from '../utils/budgetReview';
+import { space, type } from '../styles/tokens';
 
 export default function ManageCategoriesScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { tokens } = useTheme();
-  const { data, customCategories, saveCustomCategories, renameCustomCategory } = useBudgetData();
+  const { data, activeBudget, customCategories, saveCustomCategories, renameCustomCategory, setCategoryBucket } = useBudgetData();
 
   const [customs, setCustoms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,11 @@ export default function ManageCategoriesScreen() {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newCategoryInput, setNewCategoryInput] = useState<string>('');
   const [creating, setCreating] = useState(false);
+  // Where each category counts in the budget review (shared with the budget).
+  const [newCategoryBucket, setNewCategoryBucket] = useState<BucketId>('wants');
+  const [renameBucket, setRenameBucket] = useState<BucketId>('wants');
+  const bucketLookup = categoryBucketLookup(activeBudget?.categoryBuckets);
+  const bucketOf = (category: string): BucketId => resolveBucket(category, bucketLookup).bucket;
 
   const refresh = useCallback(async () => {
     try {
@@ -83,6 +90,7 @@ export default function ManageCategoriesScreen() {
   const handleRename = (category: string) => {
     setCategoryToRename(category);
     setNewCategoryName(category);
+    setRenameBucket(bucketOf(category));
     setRenameModalVisible(true);
   };
 
@@ -92,23 +100,34 @@ export default function ManageCategoriesScreen() {
       return;
     }
 
-    if (newCategoryName.trim() === categoryToRename) {
+    const nameChanged = newCategoryName.trim() !== categoryToRename;
+    const bucketChanged = renameBucket !== bucketOf(categoryToRename);
+    if (!nameChanged && !bucketChanged) {
       setRenameModalVisible(false);
       return;
     }
 
     setRenaming(true);
     try {
-      const result = await renameCustomCategory(categoryToRename, newCategoryName.trim());
-      
-      if (result.success) {
-        await refresh();
-        setRenameModalVisible(false);
-        setCategoryToRename('');
-        setNewCategoryName('');
-      } else {
-        Alert.alert('Error', result.error?.message || 'Failed to rename category. Please try again.');
+      let name = categoryToRename;
+      if (nameChanged) {
+        const result = await renameCustomCategory(categoryToRename, newCategoryName.trim());
+        if (!result.success) {
+          Alert.alert('Error', result.error?.message || 'Failed to rename category. Please try again.');
+          return;
+        }
+        name = normalizeCategoryName(newCategoryName.trim());
       }
+      if (bucketChanged) {
+        const result = await setCategoryBucket(name, bucketToStore(name, renameBucket));
+        if (!result.success) {
+          Alert.alert('Error', 'The category was saved, but where it counts couldn’t be changed. Please try again.');
+        }
+      }
+      await refresh();
+      setRenameModalVisible(false);
+      setCategoryToRename('');
+      setNewCategoryName('');
     } catch (e) {
       console.log('Failed to rename custom category', e);
       Alert.alert('Error', 'Failed to rename category. Please try again.');
@@ -125,6 +144,7 @@ export default function ManageCategoriesScreen() {
 
   const handleCreateCategory = () => {
     setNewCategoryInput('');
+    setNewCategoryBucket('wants');
     setCreateModalVisible(true);
   };
 
@@ -157,6 +177,10 @@ export default function ManageCategoriesScreen() {
       setCustoms(updatedCategories);
       setCreateModalVisible(false);
       setNewCategoryInput('');
+      if (newCategoryBucket !== 'wants') {
+        const placed = await setCategoryBucket(normalized, bucketToStore(normalized, newCategoryBucket));
+        if (!placed.success) Alert.alert('Error', 'The category was added, but where it counts couldn’t be set. You can change it from the category.');
+      }
     } catch (e) {
       console.log('Failed to create custom category', e);
       Alert.alert('Error', 'Failed to create category. Please try again.');
@@ -206,17 +230,17 @@ export default function ManageCategoriesScreen() {
               />
             </ListGroup>
           ) : (
-            <ListGroup header="Your categories" footer="Tap a category to rename it. Categories in use can't be deleted.">
+            <ListGroup header="Your categories" footer="Tap a category to rename it or change where it counts in the budget review. Categories in use can't be deleted.">
               {customs.map((c, i) => {
                 const count = usageCount(c);
                 return (
                   <ListRow
                     key={c}
                     title={c}
-                    caption={count > 0 ? `Used by ${count} ${count === 1 ? 'expense' : 'expenses'}` : 'Not used yet'}
+                    caption={`${count > 0 ? `Used by ${count} ${count === 1 ? 'expense' : 'expenses'}` : 'Not used yet'} · Counts as ${BUCKET_META[bucketOf(c)].name}`}
                     icon="pricetag-outline"
                     onPress={() => handleRename(c)}
-                    accessibilityLabel={`${c}, rename`}
+                    accessibilityLabel={`${c}, counts as ${BUCKET_META[bucketOf(c)].name}, edit`}
                     accessory={
                       <IconButton
                         icon="trash-outline"
@@ -263,18 +287,30 @@ export default function ManageCategoriesScreen() {
             returnKeyType="done"
             onSubmitEditing={handleCreateSubmit}
           />
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s4, marginBottom: space.s2 }]}>
+            Counts as, in the budget review
+          </Text>
+          <SegmentedControl<BucketId>
+            label="Counts as in the budget review"
+            options={BUCKET_OPTIONS}
+            value={newCategoryBucket}
+            onChange={setNewCategoryBucket}
+          />
         </View>
       </Sheet>
 
       <Sheet
         visible={renameModalVisible}
         onClose={handleRenameCancel}
-        title="Rename category"
+        title="Edit category"
         leadingAction={{ label: 'Cancel', onPress: handleRenameCancel, disabled: renaming }}
         trailingAction={{
           label: 'Save',
           onPress: handleRenameSubmit,
-          disabled: !newCategoryName.trim() || newCategoryName.trim() === categoryToRename || renaming,
+          disabled:
+            !newCategoryName.trim() ||
+            (newCategoryName.trim() === categoryToRename && renameBucket === bucketOf(categoryToRename)) ||
+            renaming,
         }}
         width={420}
       >
@@ -294,6 +330,15 @@ export default function ManageCategoriesScreen() {
                 ? `Renaming updates ${usageCount(categoryToRename)} ${usageCount(categoryToRename) === 1 ? 'expense' : 'expenses'}.`
                 : undefined
             }
+          />
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s4, marginBottom: space.s2 }]}>
+            Counts as, in the budget review
+          </Text>
+          <SegmentedControl<BucketId>
+            label="Counts as in the budget review"
+            options={BUCKET_OPTIONS}
+            value={renameBucket}
+            onChange={setRenameBucket}
           />
         </View>
       </Sheet>
