@@ -36,6 +36,19 @@ export const IS_IOS_SAFARI_TAB =
   (navigator as any).standalone === false;
 
 /**
+ * Min height for a scroller's content, so a short page still springs on iOS
+ * web. Native scrollers always rubber-band, but Safari only springs a
+ * scroller whose content overflows it, and a page that fills the screen
+ * exactly (minHeight 100%) does not. One pixel more gives it something to
+ * pull against. Undefined elsewhere (native, desktop, Android), where it
+ * would only add a scrollbar or change nothing.
+ */
+export const BOUNCE_MIN_HEIGHT =
+  Platform.OS === 'web' && typeof navigator !== 'undefined' && typeof (navigator as any).standalone === 'boolean'
+    ? ('calc(100% + 1px)' as unknown as '100%')
+    : undefined;
+
+/**
  * Bottom safe-area inset to pad against. In an iOS Safari tab
  * env(safe-area-inset-bottom) reports the band hidden behind the floating
  * toolbar (measured 121pt), which UI pinned to the visible page already

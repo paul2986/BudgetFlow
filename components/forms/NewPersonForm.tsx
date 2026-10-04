@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TextInput, StyleSheet, Switch } from 'react-nat
 import { useFocusEffect } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
-import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
+import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
 import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import StandardHeader from '../StandardHeader';
@@ -121,7 +121,7 @@ export default function NewPersonForm({ onClose, onCreated }: NewPersonFormProps
             />
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding }}
+                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
                 keyboardShouldPersistTaps="handled"
             >
                 <Input

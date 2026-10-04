@@ -6,7 +6,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
-import { useScrollBottomPadding } from '../hooks/useBreakpoint';
+import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, ListGroup, ListRow } from '../components/ui';
 import { type, space, tabularNums } from '../styles/tokens';
@@ -101,7 +101,7 @@ export default function ImportBudgetScreen() {
         />
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding }}
+          contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
           keyboardShouldPersistTaps="handled"
         >
           {entry ? (

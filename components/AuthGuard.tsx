@@ -14,6 +14,7 @@ import { supabase, emailLinkRedirect, openedFromRecoveryLink, authLinkError } fr
 import { consumeAuthNotice, type AuthNotice } from '../utils/authNotice';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
+import { BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import { useToast } from '../hooks/useToast';
 import Button from './Button';
 import Icon from './Icon';
@@ -395,6 +396,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
                         justifyContent: 'center',
                         alignItems: 'center',
                         padding: space.s6,
+                        minHeight: BOUNCE_MIN_HEIGHT,
                     }}
                     keyboardShouldPersistTaps="handled"
                 >

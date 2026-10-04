@@ -42,8 +42,6 @@ export interface LargeTitleState extends LargeTitleGeometry {
   scrollProps: {
     ref: React.RefObject<ScrollView | null>;
     style: StyleProp<ViewStyle>;
-    bounces: boolean;
-    overScrollMode: 'never';
     onScroll: (...args: any[]) => void;
     scrollEventThrottle: number;
     onScrollEndDrag?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -51,10 +49,7 @@ export interface LargeTitleState extends LargeTitleGeometry {
   };
 }
 
-const SCROLL_STYLE: StyleProp<ViewStyle> = [
-  { flex: 1 },
-  Platform.OS === 'web' ? ({ overscrollBehaviorY: 'none' } as ViewStyle) : null,
-];
+const SCROLL_STYLE: StyleProp<ViewStyle> = { flex: 1 };
 
 export function useLargeTitle(): LargeTitleState {
   const { isCompact } = useBreakpoint();
@@ -111,11 +106,9 @@ export function useLargeTitle(): LargeTitleState {
     setGeometry,
     scrollProps: {
       ref,
-      // The page stays put at the top: no pull-down past the header
-      // (bounce on iOS, overscroll in the PWA's scroller).
+      // Left to rubber-band like every other scroller. The header's title
+      // follows a pull past the top (see StandardHeader).
       style: SCROLL_STYLE,
-      bounces: false,
-      overScrollMode: 'never',
       onScroll,
       scrollEventThrottle: 16,
       ...nativeSettle,

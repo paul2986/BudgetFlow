@@ -3,7 +3,7 @@ import { View, ScrollView, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
-import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
+import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
 import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Alert, confirmDiscard } from '../../utils/alert';
@@ -121,7 +121,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
             />
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding }}
+                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
                 keyboardShouldPersistTaps="handled"
             >
                 <Input label="Name" value={name} onChangeText={setName} placeholder="Name" maxLength={50} />

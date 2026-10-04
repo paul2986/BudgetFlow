@@ -5,7 +5,7 @@ import { View, Text, ScrollView, TextInput } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
-import { useScrollBottomPadding } from '../../hooks/useBreakpoint';
+import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
 import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import Button from '../Button';
 import StandardHeader from '../StandardHeader';
@@ -288,7 +288,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
         <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5 }}
+            contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
             keyboardShouldPersistTaps="handled"
         >
             <Input

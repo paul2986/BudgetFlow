@@ -13,7 +13,7 @@ import CurrencyInput from '../components/CurrencyInput';
 import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
 import { type, space } from '../styles/tokens';
-import { useScrollBottomPadding } from '../hooks/useBreakpoint';
+import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import { useDiscardGuard } from '../hooks/useDiscardGuard';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
 
@@ -287,7 +287,7 @@ function EditIncomeForm() {
     return (
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5 }}
+        contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
         keyboardShouldPersistTaps="handled"
       >
         <Input
