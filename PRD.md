@@ -61,7 +61,7 @@ Users maintain multiple independent budgets and choose which one is active.
 - **Duplicate budget** — clone people, expenses, and settings into a new budget.
 - **Delete budget** — guarded so the active budget cannot be deleted without first switching.
 - **Budget switcher** — quick-switch between budgets.
-- **First-run flow** — when no budget exists, the user is guided to name and create their first budget before reaching the dashboard.
+- **First-run flow** — when no budget exists, the user is guided to name and create their first budget before reaching the dashboard. The welcome screen shows the currency (picked from the device, §13) with a way to change it before the first amount is typed. Until a budget exists, People and Expenses, and their add forms, show "Create your budget first" with a button to Overview rather than an Add button that could only fail. Overview then shows a two-step setup checklist (people and income, then expenses); each step opens its form directly, and saving the first person returns to the checklist with the step ticked.
 
 Each budget stores: `name`, `people[]`, `expenses[]`, `householdSettings`, `createdAt`, `modifiedAt`, optional `lock`, and deletion metadata used for sync.
 
@@ -217,6 +217,7 @@ Cloud sync is **optional** — the app is fully usable offline and local without
 - **Email + password** sign-in and sign-up, surfaced through the auth guard and the Settings "Cloud Sync" section.
 - **Sign out.**
 - Session persistence with automatic token refresh.
+- **Invite links for people without an account** — someone who opens a budget invite link while signed out sees a notice that they've been invited, lands on **Create account** (Sign in is one tap away), and after signing up (and confirming their email) is taken straight to the invitation. The invite is remembered in the browser and also stored on the new account (`pending_invite` in its metadata), so a confirmation email opened in another browser or app (an iPhone's Safari rather than the installed home-screen app) still finds it. Someone who already has an account and taps Create account anyway is moved to Sign in with their email kept and told they already have an account (the server's `user_already_exists` answer, or a sign-up that returns a user with no identities, which some server configurations use to hide which emails exist), rather than shown a raw error or a "Check your email" screen for mail that never comes. Signing in on the invite page goes straight to the invitation. It is cleared once the invitation screen opens, so "Not now" doesn't bring it back. The notice doesn't name the budget: the invite preview needs a signed-in user by design. Native apps have no link to remember; invite links open the web app.
 
 ### 10.2 Sync Behavior
 
@@ -254,7 +255,7 @@ Budgets move in and out of the app as Excel workbooks (`.xlsx`), so a budget can
 
 ## 13. Preferences & Personalization (Settings)
 
-- **Currency selection** — searchable picker across 120+ currencies; drives all currency formatting (symbol + code).
+- **Currency selection** — searchable picker across 120+ currencies; drives all currency formatting (symbol + code). A device with no saved choice starts with its locale's currency, from the region of its language settings (en-US → dollars, de-DE → euros, en-GB → pounds; pounds when the locale names no currency the app offers) and saves it. It is chosen at launch, before any budget syncs down: a device that already holds budgets keeps pounds, the default every earlier version showed, so its numbers don't change meaning. The choice is per device and can be changed on the welcome screen or in Settings. The Debt help card follows the currency (pounds), so it appears for UK locales only.
 - **Theme** — Light / Dark / System, persisted.
 - **About** — app information.
 - Settings uses a responsive split (master/detail on wide screens) with sections: Budgets, Cloud Sync, Categories, Currency, Theme, Financial Tools, About, Danger Zone.

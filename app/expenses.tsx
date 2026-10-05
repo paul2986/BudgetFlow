@@ -10,6 +10,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useCurrency } from '../hooks/useCurrency';
 import Icon from '../components/Icon';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
+import NoBudgetState from '../components/NoBudgetState';
 import { useLargeTitle } from '../hooks/useLargeTitle';
 import ExpenseFilterModal from '../components/ExpenseFilterModal';
 import ExpenseCard from '../components/ExpenseCard';
@@ -60,7 +61,9 @@ const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; l
 ];
 
 export default function ExpensesScreen() {
-  const { data, activeBudget, removeExpense, saving, refreshData } = useBudgetData();
+  const { data, activeBudget, removeExpense, saving, refreshData, loading } = useBudgetData();
+  // Nothing can be added until the first budget exists (it's created on Overview).
+  const noBudget = !loading && !activeBudget;
   const bulk = useBulkExpenseActions();
   const { tokens } = useTheme();
   const largeTitle = useLargeTitle();
@@ -737,7 +740,9 @@ export default function ExpensesScreen() {
         showRightIcon={false}
         loading={busy}
         rightButtons={
-          selecting && !useTable
+          noBudget
+            ? []
+            : selecting && !useTable
             ? [
                 ...(selectedVisible.length > 0
                   ? [
@@ -872,7 +877,9 @@ export default function ExpensesScreen() {
 
           {filteredExpenses.length === 0 ? (
             <ListGroup>
-              {hasActiveFilters ? (
+              {noBudget ? (
+                <NoBudgetState />
+              ) : hasActiveFilters ? (
                 <EmptyState
                   icon="search-outline"
                   title="No matching expenses"

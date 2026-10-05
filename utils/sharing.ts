@@ -92,8 +92,16 @@ export const acceptInvite = async (token: string): Promise<string> => {
 
 // An invite link opened while signed out survives sign-in, including the
 // detour through an email confirmation link (which lands on the home page).
+//
+// Two copies are kept. The browser's own storage covers the same-browser case.
+// A new account also carries the token in its metadata: the confirmation email
+// often opens somewhere else (the phone's browser rather than the installed
+// home-screen app, which keep separate storage), and the account is the one
+// thing both places share.
 const PENDING_INVITE_KEY = 'pending_budget_invite';
+const INVITE_METADATA_KEY = 'pending_invite';
 const INVITE_PATH = /^\/invite\/([0-9a-f-]{36})\/?$/i;
+const INVITE_TOKEN = /^[0-9a-f-]{36}$/i;
 
 export const rememberInviteFromUrl = () => {
   if (Platform.OS !== 'web') return;
@@ -106,13 +114,43 @@ export const rememberInviteFromUrl = () => {
   }
 };
 
-export const takePendingInvite = (): string | null => {
+/** The invite remembered in this browser, if any; leaves it in place. */
+export const peekPendingInvite = (): string | null => {
   if (Platform.OS !== 'web') return null;
   try {
     const token = window.localStorage.getItem(PENDING_INVITE_KEY);
-    window.localStorage.removeItem(PENDING_INVITE_KEY);
-    return token;
+    return token && INVITE_TOKEN.test(token) ? token : null;
   } catch {
     return null;
+  }
+};
+
+/** Account metadata that records the invite a new account is being created for. */
+export const inviteSignUpData = (token: string | null) => (token ? { [INVITE_METADATA_KEY]: token } : undefined);
+
+type AccountWithMetadata = { user_metadata?: Record<string, unknown> } | null | undefined;
+
+/** The invite waiting for this account: the one stored on it, else the one this browser remembers. */
+export const pendingInviteFor = (user: AccountWithMetadata): string | null => {
+  const stored = user?.user_metadata?.[INVITE_METADATA_KEY];
+  if (typeof stored === 'string' && INVITE_TOKEN.test(stored)) return stored;
+  return peekPendingInvite();
+};
+
+/** The invite is being handled now: forget it everywhere so it doesn't reopen after the next sign-in. */
+export const clearPendingInvite = async (user: AccountWithMetadata): Promise<void> => {
+  if (Platform.OS === 'web') {
+    try {
+      window.localStorage.removeItem(PENDING_INVITE_KEY);
+    } catch {
+      // Nothing stored to clear.
+    }
+  }
+  if (user?.user_metadata?.[INVITE_METADATA_KEY] === undefined) return;
+  try {
+    // A null removes the key.
+    await supabase.auth.updateUser({ data: { [INVITE_METADATA_KEY]: null } });
+  } catch {
+    // Worst case the invite offers itself once more, and says "already in".
   }
 };

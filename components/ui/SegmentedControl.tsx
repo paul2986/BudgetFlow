@@ -68,7 +68,9 @@ export default function SegmentedControl<T extends string>({
                 borderRadius: radius.md - 2,
                 alignItems: 'center',
                 justifyContent: 'center',
-                paddingHorizontal: space.s3,
+                // Small, so four labels ("Daily Weekly Monthly Yearly") fit a phone-width
+                // form without the selected, bolder one being cut to "Mont…".
+                paddingHorizontal: space.s1,
                 backgroundColor: selected ? (tokens.isDark ? tokens.colors.borderStrong : tokens.colors.surfaceRaised) : 'transparent',
                 opacity: pressed ? 0.8 : 1,
                 // @ts-ignore web transition

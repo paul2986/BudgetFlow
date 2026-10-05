@@ -310,7 +310,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 label="Description"
                 value={description}
                 onChangeText={setDescription}
-                placeholder="e.g. Council tax"
+                placeholder="e.g. Electricity bill"
                 returnKeyType="next"
                 ref={descriptionRef}
             />

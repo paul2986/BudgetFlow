@@ -1,6 +1,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { currencyCodeForLocales, deviceLocales } from '../utils/currencyLocale';
+import { hasLocalBudgets } from '../utils/storage';
 
 export interface Currency {
   code: string;
@@ -137,8 +139,9 @@ export const CURRENCIES: Currency[] = [
 
 const CURRENCY_STORAGE_KEY = 'app_currency';
 
-// Global currency state to ensure all components stay in sync
-// Default to British Pound (GBP) which is now first in the list
+// Global currency state to ensure all components stay in sync.
+// Pounds is what the app showed before currency followed the device, so it is also
+// the fallback when the device's locale doesn't name a currency the app offers.
 let globalCurrency: Currency = CURRENCIES[0];
 let globalCurrencyListeners: Set<(currency: Currency) => void> = new Set();
 
@@ -147,12 +150,25 @@ let globalCurrencyListeners: Set<(currency: Currency) => void> = new Set();
 let currencyLoaded = false;
 let currencyLoadPromise: Promise<void> | null = null;
 
+// Nothing is saved yet: pick a first currency and save it, so it only happens once.
+// A device that already holds budgets was showing pounds all along, so it keeps them
+// rather than have its numbers change meaning; a fresh device gets its locale's currency.
+const chooseFirstCurrency = async (): Promise<void> => {
+  const code = (await hasLocalBudgets())
+    ? undefined
+    : currencyCodeForLocales(deviceLocales(), CURRENCIES.map((c) => c.code));
+  globalCurrency = CURRENCIES.find((c) => c.code === code) ?? CURRENCIES[0];
+  await AsyncStorage.setItem(CURRENCY_STORAGE_KEY, JSON.stringify(globalCurrency));
+};
+
 const loadSavedCurrency = (): Promise<void> => {
   if (!currencyLoadPromise) {
     currencyLoadPromise = (async () => {
       try {
         const saved = await AsyncStorage.getItem(CURRENCY_STORAGE_KEY);
-        if (saved) {
+        if (!saved) {
+          await chooseFirstCurrency();
+        } else {
           const found = CURRENCIES.find((c) => c.code === JSON.parse(saved).code);
           if (found) globalCurrency = found;
         }
@@ -164,6 +180,14 @@ const loadSavedCurrency = (): Promise<void> => {
     })();
   }
   return currencyLoadPromise;
+};
+
+/**
+ * Starts the first-currency choice at launch. It has to run before any budget
+ * syncs down: that is what tells a fresh device from one that was already in use.
+ */
+export const initCurrency = (): void => {
+  void loadSavedCurrency();
 };
 
 // Building an Intl.NumberFormat is slow, and a screen formats dozens of amounts per

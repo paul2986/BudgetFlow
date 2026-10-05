@@ -7,14 +7,14 @@ import { useThemedStyles } from '../../hooks/useThemedStyles';
 import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { EmptyState, ListGroup, Skeleton } from '../../components/ui';
-import { InvitePreview, acceptInvite, previewInvite, takePendingInvite } from '../../utils/sharing';
+import { InvitePreview, acceptInvite, clearPendingInvite, previewInvite } from '../../utils/sharing';
 import { radius, space } from '../../styles/tokens';
 
 /** Opened from an invite link: says which budget it's for and joins it. */
 export default function InviteScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
-  const { appData, refreshData, setActiveBudget } = useBudgetData();
+  const { appData, refreshData, setActiveBudget, user } = useBudgetData();
   const { token } = useLocalSearchParams<{ token: string }>();
 
   const [preview, setPreview] = useState<InvitePreview | null | undefined>(undefined);
@@ -22,11 +22,12 @@ export default function InviteScreen() {
 
   useEffect(() => {
     // This link is being handled now; don't reopen it after the next sign-in.
-    takePendingInvite();
+    clearPendingInvite(user);
     if (!token) return;
     previewInvite(token)
       .then(setPreview)
       .catch(() => setPreview(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   const alreadyMember = !!preview && appData.budgets.some((b) => b.id === preview.budgetId);
