@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { anonClient, createInvite, createUser, deleteUser, members, serverBudget, TestUser } from '../helpers/localSupabase';
+import { anonClient, createInvite, createUser, deleteUser, members, serverBudget, TestUser, withDb } from '../helpers/localSupabase';
 import { makeBudget, uniqueId } from '../helpers/fixtures';
 
 // Who can do what with shared budgets (supabase/migrations/*_shared_budgets.sql).
@@ -49,6 +49,27 @@ describe('outsiders', () => {
     expect(read.data ?? []).toEqual([]);
     const rpc = await anon.rpc('create_budget', { p_id: uniqueId('budget'), p_data: {} });
     expect(rpc.error).not.toBeNull();
+  });
+});
+
+describe('row-level security', () => {
+  it('never leaves a table switched on with nothing saying what it allows', async () => {
+    // The database linter's "RLS enabled, no policy" notice. A table that is meant
+    // to be closed gets a policy that matches nothing, so the intent is on record.
+    const unfinished = await withDb(async (db) => {
+      const { rows } = await db.query(
+        `select n.nspname || '.' || c.relname as name
+         from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+         where c.relkind = 'r'
+           and c.relrowsecurity
+           and n.nspname in ('public', 'private')
+           and not exists (select 1 from pg_policy p where p.polrelid = c.oid)
+         order by 1`,
+      );
+      return rows.map((row) => row.name);
+    });
+    expect(unfinished).toEqual([]);
   });
 });
 
