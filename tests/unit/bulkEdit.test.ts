@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeExpense } from '../helpers/fixtures';
 import { applyBulkEdit, isBulkPatchEmpty } from '../../utils/bulkEdit';
+import { categoryBucketLookup } from '../../utils/budgetReview';
 
 const NOW = 5_000;
 
@@ -84,6 +85,78 @@ describe('applyBulkEdit', () => {
       const result = applyBulkEdit([a], ['a'], { categoryTag: 'Misc' }, NOW);
       expect(result.changedIds).toEqual([]);
       expect(result.expenses[0]).toBe(a);
+    });
+  });
+
+  describe('counts as', () => {
+    const loan = (id: string, over: Partial<Parameters<typeof makeExpense>[0]> = {}) =>
+      makeExpense({ id, categoryTag: 'Loan', debtRepayment: 'loan', ...over });
+
+    it('sets a bucket on the selected expenses only', () => {
+      const a = loan('a');
+      const b = loan('b');
+      const result = applyBulkEdit([a, b], ['a'], { bucket: 'wants' }, NOW);
+      expect(byId(result.expenses, 'a')).toMatchObject({ bucket: 'wants', updatedAt: NOW });
+      expect(result.expenses[1]).toBe(b);
+      expect(result.changedIds).toEqual(['a']);
+      expect(result.previous).toEqual([a]);
+    });
+
+    it('stores nothing when the bucket is where the category already counts, as the form does', () => {
+      const a = loan('a'); // Loan counts as Needs
+      const result = applyBulkEdit([a], ['a'], { bucket: 'needs' }, NOW);
+      expect(result.changedIds).toEqual([]);
+      expect(result.expenses[0]).toBe(a);
+
+      const pinned = loan('b', { bucket: 'wants' });
+      const [e] = applyBulkEdit([pinned], ['b'], { bucket: 'needs' }, NOW).expenses;
+      expect('bucket' in e).toBe(false);
+    });
+
+    it('judges "where the category counts" with the budget’s own choices', () => {
+      const lookup = categoryBucketLookup({ Loan: { bucket: 'wants', updatedAt: 1 } });
+      const a = loan('a');
+      expect(applyBulkEdit([a], ['a'], { bucket: 'wants' }, NOW, lookup).changedIds).toEqual([]);
+      expect(applyBulkEdit([a], ['a'], { bucket: 'needs' }, NOW, lookup).expenses[0].bucket).toBe('needs');
+    });
+
+    it('null puts every selected expense back to following its category', () => {
+      const a = loan('a', { bucket: 'wants' });
+      const b = makeExpense({ id: 'b', categoryTag: 'Eating Out', bucket: 'needs' });
+      const plain = loan('c');
+      const result = applyBulkEdit([a, b, plain], ['a', 'b', 'c'], { bucket: null }, NOW);
+      expect(result.expenses.map((e) => 'bucket' in e)).toEqual([false, false, false]);
+      expect(result.changedIds).toEqual(['a', 'b']);
+      expect(result.expenses[2]).toBe(plain);
+    });
+
+    it('leaves an expense that already counts there untouched, stamp and all', () => {
+      const a = loan('a', { bucket: 'wants', updatedAt: 10 });
+      const result = applyBulkEdit([a], ['a'], { bucket: 'wants' }, NOW);
+      expect(result.expenses[0]).toBe(a);
+      expect(result.expenses[0].updatedAt).toBe(10);
+    });
+
+    it('is judged against the category the expense ends up in', () => {
+      const a = makeExpense({ id: 'a', categoryTag: 'Misc' }); // Misc counts as Wants
+      const toLoan = applyBulkEdit([a], ['a'], { categoryTag: 'Loan', bucket: 'wants' }, NOW).expenses[0];
+      expect(toLoan.bucket).toBe('wants'); // Loan counts as Needs, so Wants is an override
+      const toGroceries = applyBulkEdit([a], ['a'], { categoryTag: 'Groceries', bucket: 'needs' }, NOW).expenses[0];
+      expect('bucket' in toGroceries).toBe(false); // Groceries already counts as Needs
+    });
+
+    it('drops an own bucket that a new category already counts in, and keeps one it doesn’t', () => {
+      const pinned = loan('a', { bucket: 'wants' });
+      const toEntertainment = applyBulkEdit([pinned], ['a'], { categoryTag: 'Entertainment' }, NOW).expenses[0];
+      expect('bucket' in toEntertainment).toBe(false);
+      const toGroceries = applyBulkEdit([pinned], ['a'], { categoryTag: 'Groceries' }, NOW).expenses[0];
+      expect(toGroceries.bucket).toBe('wants');
+    });
+
+    it('leaves the bucket alone when the patch doesn’t mention it', () => {
+      const a = loan('a', { bucket: 'wants' });
+      const [e] = applyBulkEdit([a], ['a'], { frequency: 'yearly' }, NOW).expenses;
+      expect(e.bucket).toBe('wants');
     });
   });
 
@@ -178,5 +251,11 @@ describe('isBulkPatchEmpty', () => {
   it('is true until a field is chosen', () => {
     expect(isBulkPatchEmpty({})).toBe(true);
     expect(isBulkPatchEmpty({ endDate: { kind: 'remove' } })).toBe(false);
+  });
+
+  it('counts "follow the category" (null) as a choice, but not an absent bucket', () => {
+    expect(isBulkPatchEmpty({ bucket: null })).toBe(false);
+    expect(isBulkPatchEmpty({ bucket: 'wants' })).toBe(false);
+    expect(isBulkPatchEmpty({ bucket: undefined })).toBe(true);
   });
 });

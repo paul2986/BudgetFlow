@@ -67,6 +67,9 @@ export interface Expense {
   categoryTag?: ExpenseCategory; // Optional category tag for filtering/reporting (default 'Misc')
   endDate?: string; // YYYY-MM-DD, optional end date for recurring expenses (frequency != 'one-time')
   debtRepayment?: DebtRepaymentType; // Derived from categoryTag (Loan / Mortgage / Credit Card)
+  // Where this one expense counts in the budget review, when that isn't where its
+  // category counts (a loan that paid for a want). Absent: follow the category.
+  bucket?: BucketId;
   updatedAt?: number; // epoch millis; bumped on add/update for sync merging
 }
 

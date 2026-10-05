@@ -5,19 +5,23 @@ import { Card } from '../ui';
 import { useTheme } from '../../hooks/useTheme';
 import { useCurrency } from '../../hooks/useCurrency';
 import { type, space, radius, tabularNums } from '../../styles/tokens';
-import type { BucketReview, CategoryShare } from '../../utils/budgetReview';
+import type { BucketReview, CategoryShare, ExpenseShare } from '../../utils/budgetReview';
 import { BUCKET_META, STATUS_ICON, statusLabel } from './bucketMeta';
 
 /**
  * One 50/30/20 bucket: where it stands against its target (figures, a meter
  * with a target tick, a status badge that pairs an icon with words) and, behind
- * a disclosure, the categories that make it up.
+ * a disclosure, what makes it up: its categories, then any single expenses that
+ * count here by their own choice (they sit apart because they differ from their
+ * category, and are changed on the expense rather than on the category).
  */
 
 interface BucketCardProps {
   bucket: BucketReview;
   /** Tapping a category row: the screen opens its "counts as" sheet. */
   onOpenCategory: (category: CategoryShare) => void;
+  /** Tapping an expense row: the screen opens that expense to edit. */
+  onOpenExpense: (expense: ExpenseShare) => void;
 }
 
 /** Text for how far a bucket is from its target, in money. */
@@ -31,6 +35,8 @@ const gapText = (b: BucketReview, format: (n: number) => string): string => {
 /** Why a category sits where it does, when that isn't the obvious default. */
 const categoryNote = (c: CategoryShare): string =>
   c.moved ? `Moved from ${BUCKET_META[c.defaultBucket].name}` : c.custom ? 'Custom, counts as a want' : '';
+
+const expenseNote = (e: ExpenseShare): string => `${e.category} · moved from ${BUCKET_META[e.categoryBucket].name}, this expense only`;
 
 /** A track with the fill up to your share and a tick at the target. Scale: twice the target, or more if you are beyond it. */
 function TargetMeter({ bucket, color }: { bucket: BucketReview; color: string }) {
@@ -67,7 +73,7 @@ function TargetMeter({ bucket, color }: { bucket: BucketReview; color: string })
   );
 }
 
-export default function BucketCard({ bucket, onOpenCategory }: BucketCardProps) {
+export default function BucketCard({ bucket, onOpenCategory, onOpenExpense }: BucketCardProps) {
   const { tokens } = useTheme();
   const { formatCurrency } = useCurrency();
   const [open, setOpen] = useState(false);
@@ -79,7 +85,12 @@ export default function BucketCard({ bucket, onOpenCategory }: BucketCardProps) 
   const statusSubtle =
     bucket.status === 'onTrack' ? tokens.colors.incomeSubtle : bucket.status === 'close' ? tokens.colors.warningSubtle : tokens.colors.dangerSubtle;
   const label = statusLabel(bucket.id, bucket.status);
-  const count = bucket.categories.length;
+  // Categories first, then the expenses that chose this bucket for themselves.
+  const rows = [
+    ...bucket.categories.map((category) => ({ kind: 'category' as const, key: `c:${category.name}`, category })),
+    ...bucket.expenses.map((expense) => ({ kind: 'expense' as const, key: `e:${expense.id}`, expense })),
+  ];
+  const count = rows.length;
 
   return (
     <Card>
@@ -146,7 +157,7 @@ export default function BucketCard({ bucket, onOpenCategory }: BucketCardProps) 
           disabled={count === 0}
           accessibilityRole="button"
           accessibilityState={{ expanded: open, disabled: count === 0 }}
-          accessibilityLabel={`${meta.name}, what's in it, ${count} ${count === 1 ? 'category' : 'categories'}. ${open ? 'Hide' : 'Show'}`}
+          accessibilityLabel={`${meta.name}, what's in it, ${count} ${count === 1 ? 'item' : 'items'}. ${open ? 'Hide' : 'Show'}`}
           style={({ pressed }) => ({
             flexDirection: 'row',
             alignItems: 'center',
@@ -167,35 +178,45 @@ export default function BucketCard({ bucket, onOpenCategory }: BucketCardProps) 
 
         {open ? (
           <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.colors.border }}>
-            {bucket.categories.map((c, i) => (
-              <Pressable
-                key={c.name}
-                onPress={() => onOpenCategory(c)}
-                accessibilityRole="button"
-                accessibilityLabel={`${c.name}, ${formatCurrency(c.monthly)} a month, ${c.pct.toFixed(1)}% of income. ${categoryNote(c) ? `${categoryNote(c)}. ` : ''}Change which bucket it counts towards`}
-                style={({ pressed }) => ({
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: space.s3,
-                  minHeight: 52,
-                  paddingVertical: space.s2,
-                  backgroundColor: pressed ? tokens.colors.surfaceHover : 'transparent',
-                  borderBottomWidth: i < count - 1 ? StyleSheet.hairlineWidth : 0,
-                  borderBottomColor: tokens.colors.border,
-                })}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={[type.bodyMed, { color: tokens.colors.text }]} numberOfLines={1}>
-                    {c.name}
-                  </Text>
-                  <Text style={[type.caption, tabularNums, { color: tokens.colors.textMuted }]}>
-                    {c.pct < 0.1 ? '<0.1' : c.pct.toFixed(1)}% of income{categoryNote(c) ? ` · ${categoryNote(c).toLowerCase()}` : ''}
-                  </Text>
-                </View>
-                <Text style={[type.bodyMed, tabularNums, { color: tokens.colors.text }]}>{formatCurrency(c.monthly)}</Text>
-                <Icon name="swap-horizontal-outline" size={18} color={tokens.colors.textFaint} />
-              </Pressable>
-            ))}
+            {rows.map((row, i) => {
+              const isCategory = row.kind === 'category';
+              const name = isCategory ? row.category.name : row.expense.description;
+              const pct = isCategory ? row.category.pct : row.expense.pct;
+              const amount = isCategory ? row.category.monthly : row.expense.monthly;
+              const note = isCategory ? categoryNote(row.category) : expenseNote(row.expense);
+              return (
+                <Pressable
+                  key={row.key}
+                  onPress={() => (isCategory ? onOpenCategory(row.category) : onOpenExpense(row.expense))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${name}, ${formatCurrency(amount)} a month, ${pct.toFixed(1)}% of income. ${note ? `${note}. ` : ''}${
+                    isCategory ? 'Change which bucket it counts towards' : 'Edit this expense'
+                  }`}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: space.s3,
+                    minHeight: 52,
+                    paddingVertical: space.s2,
+                    backgroundColor: pressed ? tokens.colors.surfaceHover : 'transparent',
+                    borderBottomWidth: i < count - 1 ? StyleSheet.hairlineWidth : 0,
+                    borderBottomColor: tokens.colors.border,
+                  })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type.bodyMed, { color: tokens.colors.text }]} numberOfLines={1}>
+                      {name}
+                    </Text>
+                    <Text style={[type.caption, tabularNums, { color: tokens.colors.textMuted }]}>
+                      {pct < 0.1 ? '<0.1' : pct.toFixed(1)}% of income
+                      {note ? ` · ${isCategory ? note.toLowerCase() : note}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={[type.bodyMed, tabularNums, { color: tokens.colors.text }]}>{formatCurrency(amount)}</Text>
+                  <Icon name={isCategory ? 'swap-horizontal-outline' : 'create-outline'} size={18} color={tokens.colors.textFaint} />
+                </Pressable>
+              );
+            })}
           </View>
         ) : null}
       </View>

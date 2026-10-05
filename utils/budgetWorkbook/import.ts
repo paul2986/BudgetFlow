@@ -1,6 +1,7 @@
 import {
   DEFAULT_CATEGORIES,
   debtRepaymentForCategory,
+  type BucketId,
   type Expense,
   type Frequency,
   type HouseholdSettings,
@@ -8,8 +9,9 @@ import {
   type Person,
 } from '../../types/budget';
 import { normalizeCategoryName } from '../storage';
+import { bucketForCategory } from '../budgetReview';
 import { readXlsx, XlsxError, type CellValue, type SheetData, type WorkbookData } from '../xlsx/read';
-import { FREQUENCIES, SHEETS, SUMMARY_LABELS, serialToYmd, todayYmd, ymdToSerial } from './layout';
+import { BUCKET_LABELS, FREQUENCIES, SHEETS, SUMMARY_LABELS, serialToYmd, todayYmd, ymdToSerial } from './layout';
 
 /**
  * Reads a budget workbook (as exported by `buildBudgetWorkbook`, then edited
@@ -302,6 +304,7 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
       starts: { aliases: ['starts', 'start', 'start date', 'date'] },
       ends: { aliases: ['ends', 'end', 'end date'] },
       notes: { aliases: ['notes', 'note'] },
+      bucket: { aliases: ['counts as', 'counts towards', 'bucket'] },
     });
     if ('missing' in found) {
       issues.push({ severity: 'error', sheet: SHEETS.expenses, message: `Couldn’t find a “${titleCase(found.missing[0])}” column.` });
@@ -320,7 +323,8 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
         const startRaw = cell(row, c.starts);
         const endRaw = cell(row, c.ends);
         const notes = textOf(cell(row, c.notes));
-        if (!description && textOf(amountRaw) === '' && textOf(freqRaw) === '' && !typeText && !personName && !categoryText && !notes && textOf(startRaw) === '') return;
+        const bucketText = norm(cell(row, c.bucket));
+        if (!description && textOf(amountRaw) === '' && textOf(freqRaw) === '' && !typeText && !personName && !categoryText && !notes && !bucketText && textOf(startRaw) === '') return;
 
         if (!description) return error(SHEETS.expenses, rowNumber, 'The description is missing.');
         const amount = parseAmount(amountRaw);
@@ -359,6 +363,15 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
 
         const categoryTag = normalizeCategoryName(categoryText);
         if (!DEFAULT_CATEGORIES.includes(categoryTag)) customCategories.add(categoryTag);
+
+        // Counts as: blank follows the category. A named bucket is kept only when it differs from where
+        // the category counts (the workbook doesn't carry the budget's own category choices).
+        let bucket: BucketId | undefined;
+        if (bucketText) {
+          const named = (Object.keys(BUCKET_LABELS) as BucketId[]).find((id) => BUCKET_LABELS[id].toLowerCase() === bucketText);
+          if (!named) warn(SHEETS.expenses, rowNumber, `“${textOf(cell(row, c.bucket))}” isn’t Needs, Wants or Savings, so the expense follows its category.`);
+          else if (named !== bucketForCategory(categoryTag).bucket) bucket = named;
+        }
         const expense: Expense = {
           id: makeId('expense'),
           amount,
@@ -372,6 +385,7 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
         if (personId) expense.personId = personId;
         if (notes) expense.notes = notes.slice(0, 1000);
         if (endYmd) expense.endDate = endYmd;
+        if (bucket) expense.bucket = bucket;
         const debt = debtRepaymentForCategory(categoryTag);
         if (debt) expense.debtRepayment = debt;
         expenses.push(expense);

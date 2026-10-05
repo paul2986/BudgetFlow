@@ -12,7 +12,9 @@ import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
 import { ChoicePills, DateField, Input, SegmentedControl } from '../ui';
 import { type, space } from '../../styles/tokens';
-import { Expense, ExpenseCategory, DEFAULT_CATEGORIES, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
+import { BucketId, Expense, ExpenseCategory, DEFAULT_CATEGORIES, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
+import { categoryBucketLookup, isBucketId, resolveBucket } from '../../utils/budgetReview';
+import { BUCKET_META, BUCKET_OPTIONS } from '../tools/bucketMeta';
 import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName } from '../../utils/storage';
 import { newPersonHandoff } from '../../utils/newPersonHandoff';
 
@@ -44,6 +46,8 @@ type FormValues = {
     frequency: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time';
     personId: string;
     categoryTag: ExpenseCategory;
+    /** The bucket this expense chose for itself, or null to follow its category. */
+    bucket: BucketId | null;
     startDateYMD: string;
     endDate: Date | null;
 };
@@ -55,7 +59,7 @@ interface ExpenseFormProps {
 }
 
 export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps) {
-    const { data, addExpense, updateExpense, removeExpense, saving, refreshTrigger } = useBudgetData();
+    const { data, activeBudget, addExpense, updateExpense, removeExpense, saving, refreshTrigger } = useBudgetData();
     const { tokens } = useTheme();
     const scrollBottomPadding = useScrollBottomPadding();
 
@@ -65,6 +69,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly' | 'one-time'>('monthly');
     const [personId, setPersonId] = useState<string>('');
     const [categoryTag, setCategoryTag] = useState<ExpenseCategory>('Misc');
+    const [bucketChoice, setBucketChoice] = useState<BucketId | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -98,6 +103,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             frequency: 'monthly',
             personId: '',
             categoryTag: 'Misc',
+            bucket: null,
             startDateYMD: toYMD(new Date()),
             endDate: null,
         })
@@ -116,6 +122,11 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const isEditMode = !!id;
     const expenseToEdit = isEditMode ? data.expenses.find(e => e.id === id) : null;
     const descriptionRef = useRef<TextInput>(null);
+
+    // Where the chosen category counts in the budget review, with the budget's own choices applied.
+    const categoryBucket = resolveBucket(categoryTag, categoryBucketLookup(activeBudget?.categoryBuckets));
+    const countsAs = bucketChoice && bucketChoice !== categoryBucket.bucket ? bucketChoice : categoryBucket.bucket;
+    const pickBucket = (next: BucketId) => setBucketChoice(next === categoryBucket.bucket ? null : next);
 
     // New expense: focus the description when the screen appears, not on
     // mount (autoFocus). A fresh form mounts while its screen is still hidden
@@ -154,6 +165,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 frequency: (expenseToEdit.frequency as any) || 'monthly',
                 personId: expenseToEdit.personId || '',
                 categoryTag: normalizeCategoryName((expenseToEdit.categoryTag as any) || 'Misc') as any,
+                bucket: isBucketId(expenseToEdit.bucket) ? expenseToEdit.bucket : null,
                 startDateYMD,
                 endDate: null,
             };
@@ -187,6 +199,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
             setFrequency(loaded.frequency);
             setPersonId(loaded.personId);
             setCategoryTag(loaded.categoryTag);
+            setBucketChoice(loaded.bucket);
             setStartDateYMD(loaded.startDateYMD);
             setEndDate(loaded.endDate);
             setBaseline(snapshotOf({ ...loaded, categoryTag: storedCategoryTag }));
@@ -214,6 +227,8 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 categoryTag: categoryTag || 'Misc',
                 endDate: endDate ? toYMD(endDate) : undefined,
                 debtRepayment: debtRepaymentForCategory(categoryTag),
+                // Only an expense that counts somewhere other than its category's bucket carries one.
+                ...(bucketChoice && bucketChoice !== categoryBucket.bucket ? { bucket: bucketChoice } : {}),
             };
 
             const result = isEditMode ? await updateExpense(expenseData) : await addExpense(expenseData);
@@ -246,7 +261,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     };
 
     const isDirty =
-        snapshotOf({ description, amount, category, frequency, personId, categoryTag, startDateYMD, endDate }) !==
+        snapshotOf({ description, amount, category, frequency, personId, categoryTag, bucket: bucketChoice, startDateYMD, endDate }) !==
         baseline;
     const leave = useDiscardGuard(isDirty);
     const handleCancel = () => confirmDiscard(isDirty, () => leave(onClose));
@@ -350,6 +365,21 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                 onChange={(tag) => setCategoryTag(tag as any)}
                 options={getAllCategories().map(tag => ({ value: tag, label: tag }))}
             />
+
+            <View>
+                <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s2 }]}>Counts as</Text>
+                <SegmentedControl<BucketId>
+                    label="Counts as"
+                    value={countsAs}
+                    onChange={pickBucket}
+                    options={BUCKET_OPTIONS}
+                />
+                <Text style={[type.caption, { color: tokens.colors.textFaint, marginTop: space.s1 }]}>
+                    {countsAs === categoryBucket.bucket
+                        ? `Follows the category: ${categoryTag || 'Misc'} counts as ${BUCKET_META[categoryBucket.bucket].name} in the budget review.`
+                        : `Counts as ${BUCKET_META[countsAs].name} in the budget review, instead of ${BUCKET_META[categoryBucket.bucket].name}. Only this expense.`}
+                </Text>
+            </View>
 
             {frequency !== 'one-time' ? (
                 <DateField

@@ -48,7 +48,7 @@ const family = (): Budget =>
         notes: 'Line one\nLine two & <more>',
         date: '2025-03-04T00:00:00.000Z',
       }),
-      makeExpense({ description: 'Old car loan', amount: 600, categoryTag: 'Loan', debtRepayment: 'loan', endDate: '2026-01-31', date: '2022-01-01T00:00:00.000Z' }),
+      makeExpense({ description: 'Old car loan', amount: 600, categoryTag: 'Loan', debtRepayment: 'loan', bucket: 'wants', endDate: '2026-01-31', date: '2022-01-01T00:00:00.000Z' }),
       makeExpense({ description: 'Holiday', amount: 2400, frequency: 'one-time', categoryTag: 'Entertainment', date: '2026-06-01T00:00:00.000Z' }),
       makeExpense({ description: 'Dog food 🐕', amount: 40, category: 'personal', personId: 'p2', categoryTag: 'Pets', date: '2026-02-01T00:00:00.000Z' }),
       makeExpense({ description: 'Coffee', amount: 3, frequency: 'daily', category: 'personal', personId: 'p3', categoryTag: 'Eating Out', endDate: '2026-12-31', date: '2026-02-01T00:00:00.000Z' }),
@@ -148,6 +148,15 @@ describe('export', () => {
     expect(xml).toMatch(new RegExp(`<c r="A4" s="\\d+" t="s"><v>${index}</v></c>`));
   });
 
+  it('writes Counts as only for an expense that chose a bucket of its own', () => {
+    const rows = sheet(buildBudgetWorkbook(family(), ctx), 'Expenses').rows;
+    const col = rows[0].indexOf('Counts as');
+    expect(col).toBe(10);
+    expect(rows.find((r) => r[0] === 'Old car loan')![col]).toBe('Wants');
+    expect(rows.find((r) => r[0] === 'Mortgage')![col] ?? null).toBeNull();
+    expect(sheet(buildBudgetWorkbook(family(), ctx), 'Lists').rows.flat()).toEqual(expect.arrayContaining(['Counts as', 'Needs', 'Wants', 'Savings']));
+  });
+
   it('gives people with the same name distinct names', () => {
     const budget = makeBudget({ people: [person('a', 'Sam'), person('b', 'Sam'), person('c', ' ')] });
     const names = sheet(buildBudgetWorkbook(budget, ctx), 'People').rows.slice(1, 4).map((r) => r[0]);
@@ -198,7 +207,8 @@ describe('import', () => {
     });
     expect(byName('Mortgage')).toMatchObject({ category: 'household', debtRepayment: 'mortgage', frequency: 'monthly' });
     expect(byName('Mortgage').personId).toBeUndefined();
-    expect(byName('Old car loan')).toMatchObject({ endDate: '2026-01-31', debtRepayment: 'loan' });
+    expect(byName('Old car loan')).toMatchObject({ endDate: '2026-01-31', debtRepayment: 'loan', bucket: 'wants' });
+    expect(byName('Mortgage').bucket).toBeUndefined();
     expect(byName('Holiday')).toMatchObject({ frequency: 'one-time' });
     expect(byName('Holiday').endDate).toBeUndefined();
     expect(byName('Dog food 🐕').categoryTag).toBe('Pets');
@@ -281,6 +291,32 @@ describe('import', () => {
       notes: 'hello',
       date: '2026-10-01T00:00:00.000Z',
     });
+  });
+
+  it('reads Counts as: blank follows the category, and a bucket the category already has is dropped', () => {
+    const bytes = handMade({
+      Expenses: [
+        ['Description', 'Amount', 'Frequency', 'Category', 'Counts as'],
+        ['Sofa loan', 80, 'Monthly', 'Loan', 'Wants'],
+        ['Car loan', 150, 'Monthly', 'Loan', ''],
+        ['Pinned', 60, 'Monthly', 'Loan', 'needs'],
+        ['Extra payment', 100, 'Monthly', 'Loan', ' SAVINGS '],
+        ['Treat', 20, 'Monthly', 'Eating Out', 'Needs'],
+        ['Typo', 10, 'Monthly', 'Loan', 'Sideways'],
+      ],
+    });
+    const result = parseBudgetWorkbook(bytes, { now: NOW });
+    const bucketOf = (d: string) => result.budget!.expenses.find((e) => e.description === d)!.bucket;
+    expect(bucketOf('Sofa loan')).toBe('wants');
+    expect(bucketOf('Car loan')).toBeUndefined();
+    expect(bucketOf('Pinned')).toBeUndefined();
+    expect(bucketOf('Extra payment')).toBe('savings');
+    expect(bucketOf('Treat')).toBe('needs');
+    expect(bucketOf('Typo')).toBeUndefined();
+    expect(result.issues.map((i) => `${i.severity} ${i.sheet}:${i.row} ${i.message}`)).toEqual([
+      'warning Expenses:7 “Sideways” isn’t Needs, Wants or Savings, so the expense follows its category.',
+    ]);
+    expect(result.counts.expenses).toBe(6);
   });
 
   it('reads 1904-based dates', () => {

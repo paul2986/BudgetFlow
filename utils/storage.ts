@@ -51,6 +51,10 @@ const toYMD = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
+// An expense's own budget-review bucket, or nothing when it's missing or not one of the three.
+const sanitizeExpenseBucket = (bucket: any): { bucket: BucketId } | {} =>
+  bucket === 'needs' || bucket === 'wants' || bucket === 'savings' ? { bucket } : {};
+
 const sanitizeEndDate = (frequency: string, endDate: any): string | undefined => {
   if (frequency === 'one-time') return undefined;
   if (typeof endDate !== 'string') return undefined;
@@ -306,12 +310,13 @@ export type ExpensesFilters = {
   filter: 'all' | 'household' | 'personal'; // Expense type filter
   personFilter: string | null; // Person filter
   debtFilter?: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'; // Debt repayment filter
+  bucketFilter?: 'all' | BucketId; // Where the expense counts in the budget review
 };
 
 export const getExpensesFilters = async (): Promise<ExpensesFilters> => {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.EXPENSES_FILTERS);
-    if (!raw) return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all' };
+    if (!raw) return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all', bucketFilter: 'all' };
     const parsed = JSON.parse(raw);
     const category = parsed && typeof parsed.category === 'string' ? normalizeCategoryName(parsed.category) : null;
     const search = parsed && typeof parsed.search === 'string' ? parsed.search : '';
@@ -319,10 +324,11 @@ export const getExpensesFilters = async (): Promise<ExpensesFilters> => {
     const filter = parsed && ['all', 'household', 'personal'].includes(parsed.filter) ? parsed.filter : 'all';
     const personFilter = parsed && typeof parsed.personFilter === 'string' ? parsed.personFilter : null;
     const debtFilter = parsed && ['all', 'any', 'loan', 'mortgage', 'credit_card'].includes(parsed.debtFilter) ? parsed.debtFilter : 'all';
-    return { category, search, hasEndDate, filter, personFilter, debtFilter };
+    const bucketFilter = parsed && BUCKET_IDS.includes(parsed.bucketFilter) ? parsed.bucketFilter : 'all';
+    return { category, search, hasEndDate, filter, personFilter, debtFilter, bucketFilter };
   } catch (e) {
     console.error('storage: getExpensesFilters error', e);
-    return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all' };
+    return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all', bucketFilter: 'all' };
   }
 };
 
@@ -335,6 +341,7 @@ export const saveExpensesFilters = async (filters: ExpensesFilters): Promise<voi
       filter: filters.filter || 'all',
       personFilter: filters.personFilter || null,
       debtFilter: filters.debtFilter || 'all',
+      bucketFilter: filters.bucketFilter && BUCKET_IDS.includes(filters.bucketFilter as BucketId) ? filters.bucketFilter : 'all',
     };
     await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(toSave));
   } catch (e) {
@@ -472,6 +479,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
           categoryTag: sanitizeCategoryTag(e.categoryTag || 'Misc'),
           endDate: sanitizeEndDate(e.frequency, e.endDate),
           debtRepayment: e.debtRepayment,
+          ...sanitizeExpenseBucket(e.bucket),
           updatedAt: typeof e.updatedAt === 'number' ? e.updatedAt : undefined,
         };
       })

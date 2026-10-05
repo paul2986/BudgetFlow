@@ -2,8 +2,9 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Chip } from './ui';
-import { Person } from '../types/budget';
+import { BucketId, Person } from '../types/budget';
 import { type, space } from '../styles/tokens';
+import { BUCKET_META } from './tools/bucketMeta';
 
 /**
  * Expenses filter bar: quick toggles (Household, each person, Debt) plus a
@@ -30,6 +31,8 @@ interface ExpenseFilterBarProps {
   setPersonFilter: (id: string | null) => void;
   debtFilter: DebtFilter;
   setDebtFilter: (d: DebtFilter) => void;
+  bucketFilter: 'all' | BucketId;
+  setBucketFilter: (b: 'all' | BucketId) => void;
   categories: string[];
   onRemoveCategory: (category: string) => void;
   hasEndDateFilter: boolean;
@@ -46,6 +49,8 @@ export default function ExpenseFilterBar({
   setPersonFilter,
   debtFilter,
   setDebtFilter,
+  bucketFilter,
+  setBucketFilter,
   categories,
   onRemoveCategory,
   hasEndDateFilter,
@@ -109,6 +114,14 @@ export default function ExpenseFilterBar({
       {/* Sheet-only filters appear here as removable chips once applied. */}
       {filter === 'personal' ? (
         <Chip label="Personal" icon="person-outline" selected onDismiss={() => setFilter('all')} />
+      ) : null}
+      {bucketFilter !== 'all' ? (
+        <Chip
+          label={`Counts as ${BUCKET_META[bucketFilter].name}`}
+          icon={BUCKET_META[bucketFilter].icon}
+          selected
+          onDismiss={() => setBucketFilter('all')}
+        />
       ) : null}
       {categories.map((category) => (
         <Chip

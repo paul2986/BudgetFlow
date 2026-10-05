@@ -21,6 +21,7 @@ import { Person, Expense, Income, HouseholdSettings, AppDataV2, Budget, BudgetSh
 import { supabase } from '../utils/supabase';
 import { syncBudgets, stableStringify } from '../utils/budgetSync';
 import { applyBulkEdit, type BulkEditPatch, type BulkEditResult } from '../utils/bulkEdit';
+import { categoryBucketLookup } from '../utils/budgetReview';
 import { useAuth } from './useAuth';
 import type { ImportedBudget } from '../utils/budgetWorkbook/import';
 
@@ -992,7 +993,8 @@ const useBudgetDataInternal = () => {
       let outcome: BulkEditResult | undefined;
       const res = await queueSave(async () => {
         const newData = await createDataCopy();
-        const result = applyBulkEdit(newData.expenses, ids, patch);
+        const active = getActiveBudget(await loadAppData());
+        const result = applyBulkEdit(newData.expenses, ids, patch, Date.now(), categoryBucketLookup(active?.categoryBuckets));
         outcome = result;
         if (result.changedIds.length === 0) return { success: true };
         newData.expenses = result.expenses;

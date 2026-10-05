@@ -8,8 +8,10 @@ import { HEADER_HEIGHT } from './StandardHeader';
 import { Sheet } from './ui';
 import { type, space, radius, tabularNums } from '../styles/tokens';
 import { haptics } from '../utils/haptics';
-import { DEFAULT_CATEGORIES } from '../types/budget';
+import { DEFAULT_CATEGORIES, type BucketId, type Expense } from '../types/budget';
 import { normalizeCategoryName } from '../utils/storage';
+import { BUCKET_META } from './tools/bucketMeta';
+import { BUCKET_ORDER } from '../utils/budgetReview';
 
 interface ExpenseFilterModalProps {
   visible: boolean;
@@ -29,7 +31,11 @@ interface ExpenseFilterModalProps {
   setHasEndDateFilter: (hasEndDate: boolean) => void;
   debtFilter: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card';
   setDebtFilter: (debtFilter: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card') => void;
+  bucketFilter: 'all' | BucketId;
+  setBucketFilter: (bucket: 'all' | BucketId) => void;
   // Data
+  /** Where an expense counts in the budget review (its own choice, else its category's). */
+  bucketOf: (expense: Expense) => BucketId;
   people: any[];
   expenses: any[];
   customCategories: string[];
@@ -55,6 +61,9 @@ export default function ExpenseFilterModal({
   setHasEndDateFilter,
   debtFilter,
   setDebtFilter,
+  bucketFilter,
+  setBucketFilter,
+  bucketOf,
   people,
   expenses,
   customCategories,
@@ -70,6 +79,7 @@ export default function ExpenseFilterModal({
   const [tempSearchQuery, setTempSearchQuery] = useState<string>('');
   const [tempHasEndDateFilter, setTempHasEndDateFilter] = useState<boolean>(false);
   const [tempDebtFilter, setTempDebtFilter] = useState<'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'>('all');
+  const [tempBucketFilter, setTempBucketFilter] = useState<'all' | BucketId>('all');
 
   // FIXED: Initialize temp state when modal opens with current filter values
   useEffect(() => {
@@ -80,7 +90,8 @@ export default function ExpenseFilterModal({
         categoryFilter,
         searchQuery,
         hasEndDateFilter,
-        debtFilter
+        debtFilter,
+        bucketFilter
       });
       setTempFilter(filter);
       setTempPersonFilter(personFilter);
@@ -90,8 +101,9 @@ export default function ExpenseFilterModal({
       setTempSearchQuery(searchQuery);
       setTempHasEndDateFilter(hasEndDateFilter);
       setTempDebtFilter(debtFilter || 'all');
+      setTempBucketFilter(bucketFilter || 'all');
     }
-  }, [visible, filter, personFilter, categoryFilter, categoryFilters, searchQuery, hasEndDateFilter, debtFilter]);
+  }, [visible, filter, personFilter, categoryFilter, categoryFilters, searchQuery, hasEndDateFilter, debtFilter, bucketFilter]);
 
   const availableCategories = (() => {
     // Union of defaults + custom + any tag appearing in expenses (normalized)
@@ -104,237 +116,99 @@ export default function ExpenseFilterModal({
     return Array.from(combined);
   })().sort((a, b) => a.localeCompare(b));
 
-  // NEW: Calculate expense counts for each filter option dynamically
+  // Live count for every option: how many expenses would show if that option were
+  // picked, with every other pending choice still applied.
   const expenseCounts = useMemo(() => {
-    console.log('ExpenseFilterModal: Calculating expense counts...');
+    type Pending = {
+      filter: 'all' | 'household' | 'personal';
+      personFilter: string | null;
+      categoryFilters: string[];
+      searchQuery: string;
+      hasEndDateFilter: boolean;
+      debtFilter: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card';
+      bucketFilter: 'all' | BucketId;
+    };
 
-    // Helper function to apply filters and count results
-    const countExpensesWithFilters = (testFilters: {
-      filter?: 'all' | 'household' | 'personal';
-      personFilter?: string | null;
-      categoryFilter?: string | null;
-      categoryFilters?: string[];
-      searchQuery?: string;
-      hasEndDateFilter?: boolean;
-      debtFilter?: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card';
-    }) => {
+    const pending: Pending = {
+      filter: tempFilter,
+      personFilter: tempPersonFilter,
+      categoryFilters: tempCategoryFilters,
+      searchQuery: tempSearchQuery,
+      hasEndDateFilter: tempHasEndDateFilter,
+      debtFilter: tempDebtFilter,
+      bucketFilter: tempBucketFilter,
+    };
+
+    // Apply the pending choices, with `change` swapped in, and count what is left.
+    const countWith = (change: Partial<Pending>): number => {
+      const f: Pending = { ...pending, ...change };
       let filtered = [...expenses];
 
-      // Apply expense type filter
-      if (testFilters.filter === 'household') {
-        filtered = filtered.filter((e) => e.category === 'household');
-      } else if (testFilters.filter === 'personal') {
-        filtered = filtered.filter((e) => e.category === 'personal');
+      if (f.filter === 'household') filtered = filtered.filter((e) => e.category === 'household');
+      else if (f.filter === 'personal') filtered = filtered.filter((e) => e.category === 'personal');
+
+      if (f.personFilter) filtered = filtered.filter((e) => e.personId === f.personFilter);
+
+      if (f.categoryFilters.length > 0) {
+        const selectedCategories = f.categoryFilters.map((cat) => normalizeCategoryName(cat));
+        filtered = filtered.filter((e) => selectedCategories.includes(normalizeCategoryName((e as any).categoryTag || 'Misc')));
       }
 
-      // Apply person filter
-      if (testFilters.personFilter) {
-        filtered = filtered.filter((e) => {
-          if (e.category === 'household') {
-            return e.personId === testFilters.personFilter;
-          }
-          return e.personId === testFilters.personFilter;
-        });
-      }
-
-      // Apply category filter (support both single and multiple)
-      const activeCategories = testFilters.categoryFilters && testFilters.categoryFilters.length > 0
-        ? testFilters.categoryFilters
-        : (testFilters.categoryFilter ? [testFilters.categoryFilter] : []);
-      if (activeCategories.length > 0) {
-        const selectedCategories = activeCategories.map(cat => normalizeCategoryName(cat));
-        filtered = filtered.filter((e) => {
-          const expenseCategory = normalizeCategoryName((e as any).categoryTag || 'Misc');
-          return selectedCategories.includes(expenseCategory);
-        });
-      }
-
-      // Apply search filter
-      if (testFilters.searchQuery && testFilters.searchQuery.trim()) {
-        const q = testFilters.searchQuery.toLowerCase();
+      if (f.searchQuery && f.searchQuery.trim()) {
+        const q = f.searchQuery.toLowerCase();
         filtered = filtered.filter((e) => e.description.toLowerCase().includes(q));
       }
 
-      // Apply end date filter
-      if (testFilters.hasEndDateFilter) {
-        filtered = filtered.filter((e) => {
-          const hasEndDate = e.endDate && e.frequency !== 'one-time';
-          return hasEndDate;
-        });
+      if (f.hasEndDateFilter) filtered = filtered.filter((e) => e.endDate && e.frequency !== 'one-time');
+
+      if (f.debtFilter !== 'all') {
+        filtered = filtered.filter((e) => (f.debtFilter === 'any' ? !!e.debtRepayment : e.debtRepayment === f.debtFilter));
       }
 
-      // Apply debt repayment filter
-      if (testFilters.debtFilter && testFilters.debtFilter !== 'all') {
-        filtered = filtered.filter((e) => {
-          if (testFilters.debtFilter === 'any') {
-            return !!e.debtRepayment;
-          }
-          return e.debtRepayment === testFilters.debtFilter;
-        });
-      }
+      if (f.bucketFilter !== 'all') filtered = filtered.filter((e) => bucketOf(e) === f.bucketFilter);
 
       return filtered.length;
     };
 
-    // Calculate counts for expense types
-    const allCount = countExpensesWithFilters({
-      filter: 'all',
-      personFilter: tempPersonFilter,
-      categoryFilters: tempCategoryFilters,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter,
-      debtFilter: tempDebtFilter
-    });
-
-    const householdCount = countExpensesWithFilters({
-      filter: 'household',
-      personFilter: tempPersonFilter,
-      categoryFilters: tempCategoryFilters,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter,
-      debtFilter: tempDebtFilter
-    });
-
-    const personalCount = countExpensesWithFilters({
-      filter: 'personal',
-      personFilter: tempPersonFilter,
-      categoryFilters: tempCategoryFilters,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter,
-      debtFilter: tempDebtFilter
-    });
-
-    // Calculate counts for people
     const peopleCounts: { [personId: string]: number } = {};
-    people.forEach(person => {
-      peopleCounts[person.id] = countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: person.id,
-        categoryFilters: tempCategoryFilters,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: tempDebtFilter
-      });
+    people.forEach((person) => {
+      peopleCounts[person.id] = countWith({ personFilter: person.id });
     });
 
-    // Count for "All People"
-    const allPeopleCount = countExpensesWithFilters({
-      filter: tempFilter,
-      personFilter: null,
-      categoryFilters: tempCategoryFilters,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter,
-      debtFilter: tempDebtFilter
-    });
-
-    // Calculate counts for categories
     const categoryCounts: { [category: string]: number } = {};
-    availableCategories.forEach(category => {
-      categoryCounts[category] = countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: tempPersonFilter,
-        categoryFilter: category,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: tempDebtFilter
-      });
-    });
-
-    // Count for "All Categories"
-    const allCategoriesCount = countExpensesWithFilters({
-      filter: tempFilter,
-      personFilter: tempPersonFilter,
-      categoryFilter: null,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: tempHasEndDateFilter,
-      debtFilter: tempDebtFilter
-    });
-
-    // Calculate count for end date filter
-    const withEndDateCount = countExpensesWithFilters({
-      filter: tempFilter,
-      personFilter: tempPersonFilter,
-      categoryFilters: tempCategoryFilters,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: true,
-      debtFilter: tempDebtFilter
-    });
-
-    const withoutEndDateCount = countExpensesWithFilters({
-      filter: tempFilter,
-      personFilter: tempPersonFilter,
-      categoryFilters: tempCategoryFilters,
-      searchQuery: tempSearchQuery,
-      hasEndDateFilter: false,
-      debtFilter: tempDebtFilter
-    });
-
-    // Calculate counts for debt repayment tags
-    const debtCounts = {
-      all: countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: tempPersonFilter,
-        categoryFilters: tempCategoryFilters,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: 'all'
-      }),
-      any: countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: tempPersonFilter,
-        categoryFilters: tempCategoryFilters,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: 'any'
-      }),
-      loan: countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: tempPersonFilter,
-        categoryFilters: tempCategoryFilters,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: 'loan'
-      }),
-      mortgage: countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: tempPersonFilter,
-        categoryFilters: tempCategoryFilters,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: 'mortgage'
-      }),
-      credit_card: countExpensesWithFilters({
-        filter: tempFilter,
-        personFilter: tempPersonFilter,
-        categoryFilters: tempCategoryFilters,
-        searchQuery: tempSearchQuery,
-        hasEndDateFilter: tempHasEndDateFilter,
-        debtFilter: 'credit_card'
-      }),
-    };
-
-    console.log('ExpenseFilterModal: Calculated counts:', {
-      expenseTypes: { all: allCount, household: householdCount, personal: personalCount },
-      people: peopleCounts,
-      allPeople: allPeopleCount,
-      categories: categoryCounts,
-      allCategories: allCategoriesCount,
-      endDate: { with: withEndDateCount, without: withoutEndDateCount },
-      debt: debtCounts
+    availableCategories.forEach((category) => {
+      categoryCounts[category] = countWith({ categoryFilters: [category] });
     });
 
     return {
-      expenseTypes: { all: allCount, household: householdCount, personal: personalCount },
+      total: countWith({}),
+      expenseTypes: {
+        all: countWith({ filter: 'all' }),
+        household: countWith({ filter: 'household' }),
+        personal: countWith({ filter: 'personal' }),
+      },
       people: peopleCounts,
-      allPeople: allPeopleCount,
+      allPeople: countWith({ personFilter: null }),
       categories: categoryCounts,
-      allCategories: allCategoriesCount,
-      endDate: { with: withEndDateCount, without: withoutEndDateCount },
-      debt: debtCounts
+      allCategories: countWith({ categoryFilters: [] }),
+      endDate: { with: countWith({ hasEndDateFilter: true }), without: countWith({ hasEndDateFilter: false }) },
+      debt: {
+        all: countWith({ debtFilter: 'all' }),
+        any: countWith({ debtFilter: 'any' }),
+        loan: countWith({ debtFilter: 'loan' }),
+        mortgage: countWith({ debtFilter: 'mortgage' }),
+        credit_card: countWith({ debtFilter: 'credit_card' }),
+      },
+      bucket: {
+        all: countWith({ bucketFilter: 'all' }),
+        needs: countWith({ bucketFilter: 'needs' }),
+        wants: countWith({ bucketFilter: 'wants' }),
+        savings: countWith({ bucketFilter: 'savings' }),
+      },
     };
-  }, [expenses, tempFilter, tempPersonFilter, tempCategoryFilters, tempSearchQuery, tempHasEndDateFilter, tempDebtFilter, people, availableCategories]);
+  }, [expenses, bucketOf, tempFilter, tempPersonFilter, tempCategoryFilters, tempSearchQuery, tempHasEndDateFilter, tempDebtFilter, tempBucketFilter, people, availableCategories]);
 
-  const hasActiveFilters = tempCategoryFilters.length > 0 || !!tempSearchQuery.trim() || (tempFilter !== 'all') || !!tempPersonFilter || tempHasEndDateFilter || (tempDebtFilter !== 'all');
+  const hasActiveFilters = tempCategoryFilters.length > 0 || !!tempSearchQuery.trim() || (tempFilter !== 'all') || !!tempPersonFilter || tempHasEndDateFilter || (tempDebtFilter !== 'all') || (tempBucketFilter !== 'all');
 
   const handleCancel = () => {
     console.log('ExpenseFilterModal: Cancel pressed, resetting temp state');
@@ -347,6 +221,7 @@ export default function ExpenseFilterModal({
     setTempSearchQuery(searchQuery);
     setTempHasEndDateFilter(hasEndDateFilter);
     setTempDebtFilter(debtFilter || 'all');
+    setTempBucketFilter(bucketFilter || 'all');
     onClose();
   };
 
@@ -357,7 +232,8 @@ export default function ExpenseFilterModal({
       tempCategoryFilters,
       tempSearchQuery,
       tempHasEndDateFilter,
-      tempDebtFilter
+      tempDebtFilter,
+      tempBucketFilter
     });
 
     // FIXED: Apply the temporary filter values to the actual state
@@ -371,6 +247,7 @@ export default function ExpenseFilterModal({
     setSearchQuery(tempSearchQuery);
     setHasEndDateFilter(tempHasEndDateFilter);
     setDebtFilter(tempDebtFilter);
+    setBucketFilter(tempBucketFilter);
 
     // FIXED: Build proper announcement message
     let message = 'Filters applied';
@@ -394,6 +271,7 @@ export default function ExpenseFilterModal({
         const debtLabel = tempDebtFilter === 'any' ? 'Any Debt' : tempDebtFilter;
         activeFilters.push(`debt: ${debtLabel}`);
       }
+      if (tempBucketFilter !== 'all') activeFilters.push(`counts as ${BUCKET_META[tempBucketFilter].name}`);
       message = `Filters applied: ${activeFilters.join(', ')}`;
     } else {
       message = 'No filters applied - showing all expenses';
@@ -411,6 +289,7 @@ export default function ExpenseFilterModal({
     setTempSearchQuery(searchQuery);
     setTempHasEndDateFilter(false);
     setTempDebtFilter('all');
+    setTempBucketFilter('all');
   };
 
   const handleCategoryToggle = (category: string) => {
@@ -423,11 +302,10 @@ export default function ExpenseFilterModal({
     });
   };
 
-  // Result count with every pending choice applied (debt counts already
-  // include the other temp filters), shown live on the primary button.
-  const previewCount = expenseCounts.debt[tempDebtFilter];
+  // Result count with every pending choice applied, shown live on the primary button.
+  const previewCount = expenseCounts.total;
   const sheetFiltersActive =
-    tempCategoryFilters.length > 0 || tempFilter !== 'all' || !!tempPersonFilter || tempHasEndDateFilter || tempDebtFilter !== 'all';
+    tempCategoryFilters.length > 0 || tempFilter !== 'all' || !!tempPersonFilter || tempHasEndDateFilter || tempDebtFilter !== 'all' || tempBucketFilter !== 'all';
 
   const content = (
     <ScrollView
@@ -487,6 +365,25 @@ export default function ExpenseFilterModal({
             count={expenseCounts.debt[value]}
             selected={tempDebtFilter === value}
             onPress={() => setTempDebtFilter(value)}
+          />
+        ))}
+      </Section>
+
+      <Section title="Counts as" note="In the budget review">
+        <OptionChip
+          label="All"
+          count={expenseCounts.bucket.all}
+          selected={tempBucketFilter === 'all'}
+          onPress={() => setTempBucketFilter('all')}
+        />
+        {BUCKET_ORDER.map((id) => (
+          <OptionChip
+            key={id}
+            label={BUCKET_META[id].name}
+            icon={BUCKET_META[id].icon}
+            count={expenseCounts.bucket[id]}
+            selected={tempBucketFilter === id}
+            onPress={() => setTempBucketFilter(id)}
           />
         ))}
       </Section>

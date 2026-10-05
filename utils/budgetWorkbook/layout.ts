@@ -1,4 +1,4 @@
-import type { Frequency } from '../../types/budget';
+import type { BucketId, Frequency } from '../../types/budget';
 
 /**
  * What the budget workbook looks like, shared by the exporter and the importer
@@ -32,6 +32,9 @@ export const ANNUAL_MULTIPLIER: Record<Frequency, number> = {
   'one-time': 1,
 };
 
+/** What the Counts as column says; blank means the expense follows its category. */
+export const BUCKET_LABELS: Record<BucketId, string> = { needs: 'Needs', wants: 'Wants', savings: 'Savings' };
+
 export const TYPE_LABELS = { household: 'Household', personal: 'Personal' } as const;
 export const SPLIT_LABELS = { even: 'Even', 'income-based': 'Income-based' } as const;
 
@@ -50,6 +53,7 @@ export const HEADERS = {
     'Starts',
     'Ends',
     'Notes',
+    'Counts as',
   ],
 } as const;
 

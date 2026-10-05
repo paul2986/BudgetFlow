@@ -24,6 +24,19 @@ describe('mergeBudget', () => {
     expect(descriptions(mergeBudget(remote, local))).toEqual(['New']);
   });
 
+  it('carries an expense’s own bucket with the expense, so the later edit decides it', () => {
+    const base = makeBudget();
+    const chosen = { ...base, expenses: [makeExpense({ id: 'a', categoryTag: 'Loan', bucket: 'wants', updatedAt: 100 })] };
+    const cleared = { ...base, expenses: [makeExpense({ id: 'a', categoryTag: 'Loan', updatedAt: 200 })] };
+    for (const merged of [mergeBudget(chosen, cleared), mergeBudget(cleared, chosen)]) {
+      expect(merged.expenses[0].updatedAt).toBe(200);
+      expect(merged.expenses[0].bucket).toBeUndefined();
+    }
+    const later = { ...chosen, expenses: [{ ...chosen.expenses[0], updatedAt: 300 }] };
+    expect(mergeBudget(later, cleared).expenses[0].bucket).toBe('wants');
+    expect(mergeBudget(cleared, later).expenses[0].bucket).toBe('wants');
+  });
+
   it('lets a deletion remove an older copy, but an edit after the deletion wins', () => {
     const now = Date.now();
     const base = makeBudget();
