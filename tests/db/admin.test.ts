@@ -162,7 +162,8 @@ describe('what it says', () => {
         const change = (section: string, key: string) => after[section][key] - before[section][key];
         const frequency = (o: any, key: string) => o.content.expenses_by_frequency[key] ?? 0;
 
-        expect(new Date(after.generated_at).getTime()).toBeLessThanOrEqual(Date.now());
+        // The DB (Docker VM) and the host keep separate clocks, so allow a little skew.
+        expect(new Date(after.generated_at).getTime()).toBeLessThanOrEqual(Date.now() + 2000);
 
         expect(['total', 'confirmed', 'unconfirmed', 'signups_7d', 'signups_30d', 'active_editors_7d', 'active_editors_30d']
           .map((key) => change('users', key))).toEqual([3, 2, 1, 2, 3, 2, 2]);
