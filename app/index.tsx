@@ -14,6 +14,7 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useBudgetLock } from '../hooks/useBudgetLock';
+import { useCurrency, displaySymbol } from '../hooks/useCurrency';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
@@ -26,7 +27,7 @@ import DebtRepaymentSection from '../components/DebtRepaymentSection';
 import DebtHelpNudge from '../components/tools/DebtHelpNudge';
 import { Card, Input, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
-import { takePendingInvite } from '../utils/sharing';
+import { clearPendingInvite, pendingInviteFor } from '../utils/sharing';
 import { reviewBudget } from '../utils/budgetReview';
 import { useDebtHelpNudge } from '../hooks/useDebtHelpNudge';
 
@@ -128,8 +129,9 @@ export default function HomeScreen() {
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
-  const { data, loading, activeBudget, appData, refreshTrigger, refreshData, addBudget } = useBudgetData();
+  const { data, loading, activeBudget, appData, refreshTrigger, refreshData, addBudget, user } = useBudgetData();
   const { isLocked, authenticateForBudget } = useBudgetLock();
+  const { currency } = useCurrency();
 
   const [authenticating, setAuthenticating] = useState(false);
   const [budgetName, setBudgetName] = useState('My budget');
@@ -144,11 +146,16 @@ export default function HomeScreen() {
   const appState = useRef(AppState.currentState);
 
   // Signed in after opening an invite link (perhaps via an email confirmation
-  // link, which lands here): carry on to the invite.
+  // link, which lands here, perhaps in another browser): carry on to the invite.
+  // Once per account, not per render: clearing it updates the user object.
+  const userId = user?.id;
   useEffect(() => {
-    const token = takePendingInvite();
-    if (token) router.push(`/invite/${token}`);
-  }, []);
+    const token = pendingInviteFor(user);
+    if (!token) return;
+    clearPendingInvite(user);
+    router.push(`/invite/${token}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   // Track when data is ready to prevent flickering
   useEffect(() => {
@@ -274,7 +281,7 @@ export default function HomeScreen() {
                 style={{ width: 72, height: 72, borderRadius: radius.lg, marginBottom: space.s5 }}
               />
             </StateIntro>
-            <Card>
+            <Card style={{ marginBottom: space.s4 }}>
               <Input
                 label="Budget name"
                 value={budgetName}
@@ -285,15 +292,32 @@ export default function HomeScreen() {
                 returnKeyType="done"
                 onSubmitEditing={handleCreateBudget}
               />
-              <Button
-                text="Create budget"
-                onPress={handleCreateBudget}
-                loading={creatingBudget}
-                disabled={!budgetName.trim()}
-                size="lg"
-                style={{ marginTop: space.s5 }}
-              />
             </Card>
+            {/* Picked from the device's locale (see useCurrency); shown so a wrong guess
+                is fixed before the first amount is typed. */}
+            <ListGroup footer="Used for every amount. You can change it later in Settings.">
+              <ListRow
+                title="Currency"
+                icon="cash-outline"
+                trailing={
+                  <Text style={[type.body, { color: tokens.colors.textMuted }]}>
+                    {displaySymbol(currency.symbol)} {currency.code}
+                  </Text>
+                }
+                chevron
+                onPress={() => router.push('/currency')}
+                accessibilityLabel={`Currency, ${currency.name}. Change`}
+                showSeparator={false}
+              />
+            </ListGroup>
+            <Button
+              text="Create budget"
+              onPress={handleCreateBudget}
+              loading={creatingBudget}
+              disabled={!budgetName.trim()}
+              size="lg"
+              style={{ marginTop: 0 }}
+            />
           </View>
         );
 
@@ -360,8 +384,11 @@ export default function HomeScreen() {
 
       case 'setup': {
         const doneCount = (hasPeople ? 1 : 0) + (hasExpenses ? 1 : 0);
+        // Straight to the form while there's nobody yet: the People list would only
+        // show an empty state with the same button. Saving closes it back to here.
+        const addPerson = () => router.push('/edit-person');
         const next = !hasPeople
-          ? { label: 'Add people and income', go: () => router.push('/people') }
+          ? { label: 'Add people and income', go: addPerson }
           : { label: 'Add an expense', go: () => router.push('/add-expense') };
         return (
           <View style={narrow}>
@@ -377,9 +404,10 @@ export default function HomeScreen() {
                     ? `${people.length} ${people.length === 1 ? 'person' : 'people'} added`
                     : 'Everyone who shares costs, with their income'
                 }
+                captionLines={2}
                 leading={<StepBadge step={1} done={hasPeople} />}
                 chevron
-                onPress={() => router.push('/people')}
+                onPress={hasPeople ? () => router.push('/people') : addPerson}
                 accessibilityLabel={`Step 1, add people and income, ${hasPeople ? 'done' : 'to do'}`}
               />
               <ListRow
@@ -389,6 +417,7 @@ export default function HomeScreen() {
                     ? `${expenses.length} ${expenses.length === 1 ? 'expense' : 'expenses'} added`
                     : 'Household and personal costs, with how often they’re paid'
                 }
+                captionLines={2}
                 leading={<StepBadge step={2} done={hasExpenses} />}
                 chevron
                 onPress={() => router.push(hasExpenses ? '/expenses' : '/add-expense')}

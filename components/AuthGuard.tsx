@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { supabase, emailLinkRedirect, openedFromRecoveryLink, authLinkError } from '../utils/supabase';
 import { consumeAuthNotice, type AuthNotice } from '../utils/authNotice';
+import { inviteSignUpData, peekPendingInvite } from '../utils/sharing';
+import { isExistingAccountSignUp } from '../utils/signUpResult';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
@@ -28,6 +30,13 @@ import { type, radius, space, elevation } from '../styles/tokens';
  * reset email signs the user in; they then choose a new password before
  * reaching the app. Outcomes that need more than a toast (account created,
  * account deleted) get their own confirmation screen.
+ *
+ * Someone who arrives from a budget invite link is told so, lands on Create
+ * account (most invitees are new), and the invite rides along on the new
+ * account so it survives the confirmation email (see utils/sharing). One who
+ * already has an account and tries to create another is moved to Sign in with
+ * their email kept, rather than told it's taken or sent to wait for an email
+ * that never comes.
  */
 
 interface AuthGuardProps {
@@ -45,8 +54,12 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
     const [password, setPassword] = useState('');
     const [authLoading, setAuthLoading] = useState(false);
     const [resetLoading, setResetLoading] = useState(false);
-    const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+    // An invite link was opened before signing in (utils/sharing keeps its token).
+    const [invite] = useState(() => peekPendingInvite());
+    const [authMode, setAuthMode] = useState<'login' | 'register'>(invite ? 'register' : 'login');
     const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+    // Shown under the email once Create account found it already has an account.
+    const [existingAccountNote, setExistingAccountNote] = useState<string>();
     const passwordRef = useRef<TextInput>(null);
     const [recoveryPending, setRecoveryPending] = useState(openedFromRecoveryLink);
     const [newPassword, setNewPassword] = useState('');
@@ -195,8 +208,17 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                 const { data, error } = await supabase.auth.signUp({
                     email: email.trim(),
                     password,
-                    options: { emailRedirectTo: emailLinkRedirect() },
+                    options: { emailRedirectTo: emailLinkRedirect(), data: inviteSignUpData(invite) },
                 });
+                if (isExistingAccountSignUp(data, error)) {
+                    // Keep the email; the password they chose isn't the one on the account.
+                    setAuthMode('login');
+                    setPassword('');
+                    setFieldErrors({});
+                    setExistingAccountNote('You already have an account with this email. Enter your password to sign in.');
+                    setTimeout(() => passwordRef.current?.focus(), 0);
+                    return;
+                }
                 if (error) throw error;
                 // With email confirmation on there's no session yet: explain the
                 // next step. (If it's off, the new session opens the app.)
@@ -272,7 +294,10 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                     iconColor={tokens.colors.brand}
                     iconBackground={tokens.colors.brandSubtle}
                     title="Check your email"
-                    body={`We sent a confirmation link to ${confirmationEmail}. Open it to finish creating your account.`}
+                    body={
+                        `We sent a confirmation link to ${confirmationEmail}. Open it to finish creating your account` +
+                        (invite ? ', then you’ll be taken to the invitation to join the shared budget.' : '.')
+                    }
                     caption="Can’t find it? Check your spam or junk folder."
                 />
                 <Button
@@ -301,6 +326,8 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
 
     return (
         <AuthShell>
+            {invite ? <InviteNotice mode={authMode} /> : null}
+
             <SegmentedControl
                 label="Sign in or create account"
                 options={[
@@ -311,6 +338,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                 onChange={(mode) => {
                     setAuthMode(mode);
                     setFieldErrors({});
+                    setExistingAccountNote(undefined);
                 }}
                 style={{ marginBottom: space.s6 }}
             />
@@ -321,8 +349,10 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                 onChangeText={(v) => {
                     setEmail(v);
                     if (fieldErrors.email) setFieldErrors((e) => ({ ...e, email: undefined }));
+                    setExistingAccountNote(undefined);
                 }}
                 error={fieldErrors.email}
+                helperText={authMode === 'login' ? existingAccountNote : undefined}
                 placeholder="name@example.com"
                 autoCapitalize="none"
                 keyboardType="email-address"
@@ -377,6 +407,37 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
                 </Pressable>
             )}
         </AuthShell>
+    );
+}
+
+/** Says why a stranger to the app is here: someone shared a budget with them. */
+function InviteNotice({ mode }: { mode: 'login' | 'register' }) {
+    const { tokens } = useTheme();
+
+    return (
+        <View
+            style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.s3,
+                padding: space.s4,
+                marginBottom: space.s5,
+                borderRadius: radius.md,
+                backgroundColor: tokens.colors.brandSubtle,
+            }}
+        >
+            <Icon name="people-outline" size={22} color={tokens.colors.onBrandSubtle} />
+            <View style={{ flex: 1 }}>
+                <Text style={[type.bodyMed, { color: tokens.colors.onBrandSubtle }]}>
+                    You’ve been invited to a shared budget
+                </Text>
+                <Text style={[type.caption, { color: tokens.colors.onBrandSubtle, marginTop: space.s1 }]}>
+                    {mode === 'register'
+                        ? 'Create an account to join it, or choose Sign in if you already have one.'
+                        : 'Sign in and you’ll join it straight away.'}
+                </Text>
+            </View>
+        </View>
     );
 }
 

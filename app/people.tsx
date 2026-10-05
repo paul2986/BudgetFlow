@@ -15,13 +15,14 @@ import {
   calculateHouseholdExpenses
 } from '../utils/calculations';
 import Icon from '../components/Icon';
+import NoBudgetState from '../components/NoBudgetState';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
 import { useLargeTitle } from '../hooks/useLargeTitle';
 import { AmountText, Avatar, EmptyState, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
 
 export default function PeopleScreen() {
-  const { data, saving, refreshData, loading } = useBudgetData();
+  const { data, saving, refreshData, loading, activeBudget } = useBudgetData();
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { formatCurrency, currency } = useCurrency();
@@ -81,6 +82,8 @@ export default function PeopleScreen() {
   };
 
   const ready = isDataLoaded || !loading;
+  // Nothing can be added until the first budget exists (it's created on Overview).
+  const noBudget = ready && !loading && !activeBudget;
   const largeTitle = useLargeTitle();
 
   return (
@@ -90,7 +93,7 @@ export default function PeopleScreen() {
         largeTitle={largeTitle}
         showLeftIcon={false}
         loading={saving}
-        rightButtons={[{ icon: 'add', onPress: handleNavigateToAddPerson, accessibilityLabel: 'Add person' }]}
+        rightButtons={noBudget ? [] : [{ icon: 'add', onPress: handleNavigateToAddPerson, accessibilityLabel: 'Add person' }]}
       />
 
       <Animated.ScrollView
@@ -115,6 +118,10 @@ export default function PeopleScreen() {
               <Skeleton height={64} borderRadius={radius.lg} style={{ marginBottom: space.s3 }} />
               <Skeleton height={128} borderRadius={radius.lg} />
             </View>
+          ) : noBudget ? (
+            <ListGroup style={{ width: '100%' }}>
+              <NoBudgetState />
+            </ListGroup>
           ) : data.people.length === 0 ? (
             <ListGroup style={{ width: '100%' }}>
               <EmptyState
@@ -136,7 +143,10 @@ export default function PeopleScreen() {
                 >
                   <ListRow
                     title={person.name}
-                    caption={`${formatCurrency(monthlyIncome)}/mo income · ${formatCurrency(monthlyRemaining)} left`}
+                    // Two deliberate lines: on a phone one line cut off the "left" figure, and
+                    // letting it wrap left "left" alone on the second.
+                    caption={`${formatCurrency(monthlyIncome)}/mo income\n${formatCurrency(monthlyRemaining)} left`}
+                    captionLines={2}
                     leading={<Avatar name={person.name} seed={person.id} size={44} />}
                     chevron
                     onPress={() => handleEditPerson(person)}

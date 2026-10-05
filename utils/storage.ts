@@ -108,6 +108,22 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
   });
 }
 
+/**
+ * True when this device already holds at least one budget, i.e. it has been
+ * used before. A first launch (or one after sign-out) holds none. Read straight
+ * from storage, without the cache or any sync.
+ */
+export const hasLocalBudgets = async (): Promise<boolean> => {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.APP_DATA_V2);
+    if (!raw) return false;
+    const budgets = JSON.parse(raw)?.budgets;
+    return Array.isArray(budgets) && budgets.length > 0;
+  } catch {
+    return false;
+  }
+};
+
 // Wipe all locally persisted app data from device storage. This is a local-only
 // operation (no cloud interaction) intended for sign-out, so the next account on
 // this device starts from a clean slate instead of inheriting/merging stale data.

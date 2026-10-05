@@ -18,6 +18,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { useTheme, ThemeProvider } from '../hooks/useTheme';
 import { useToast, ToastProvider } from '../hooks/useToast';
 import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
+import { initCurrency } from '../hooks/useCurrency';
 import { useAuth } from '../hooks/useAuth';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import { useEditorTransitions } from '../hooks/useEditorTransitions';
@@ -36,6 +37,10 @@ import '../hooks/useDiscardGuard';
 
 // An invite link opened while signed out is kept until sign-in (see utils/sharing).
 rememberInviteFromUrl();
+
+// A fresh device picks its currency from the locale now, before any budget syncs
+// down and makes it look like a device that was already in use (see useCurrency).
+initCurrency();
 
 /**
  * Root shell (DESIGN.md §2.5–2.6):
