@@ -70,6 +70,15 @@ describe('debtHelpSignal: loan and credit card payments', () => {
     expect(signalFor(2500, [['Rent', 800], ['Loan', 450], ['Credit Card', 400]], moved)?.reason).toBe('debtPayments');
   });
 
+  it('still counts a loan or card payment that a single expense has moved to Wants', () => {
+    const review = reviewBudget(
+      [person(2500)],
+      [expense(800, 'Rent'), { ...expense(450, 'Loan'), bucket: 'wants' }, { ...expense(300, 'Credit Card'), bucket: 'savings' }]
+    );
+    expect(review!.buckets.find((b) => b.id === 'needs')!.categories.map((c) => c.name)).toEqual(['Rent']); // nothing debt left in Needs
+    expect(debtHelpSignal(review)).toEqual({ reason: 'debtPayments', pct: UNSECURED_DEBT_PCT });
+  });
+
   it('puts overspending first when both apply', () => {
     expect(signalFor(2000, [['Rent', 1000], ['Loan', 700], ['Credit Card', 600]])?.reason).toBe('overspent');
   });

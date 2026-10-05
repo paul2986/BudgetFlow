@@ -29,6 +29,7 @@ import {
   type BucketId,
   type BudgetReview,
   type CategoryShare,
+  type ExpenseShare,
 } from '../../utils/budgetReview';
 import { type, space, radius, tabularNums } from '../../styles/tokens';
 
@@ -83,6 +84,10 @@ export default function BudgetReviewScreen() {
   const openCategory = useCallback((name: string) => {
     // Same hand-off as the dashboard's category breakdown.
     router.navigate({ pathname: '/expenses', params: { category: name, fromDashboard: 'true', _t: String(Date.now()) } });
+  }, []);
+
+  const openExpense = useCallback((expense: ExpenseShare) => {
+    router.push({ pathname: '/add-expense', params: { id: expense.id } });
   }, []);
 
   const openSavings = useCallback((deposit: number) => {
@@ -395,13 +400,14 @@ ${lines.join('\n')}`;
         ) : null}
 
         {buckets.map((b) => (
-          <BucketCard key={b.id} bucket={b} onOpenCategory={(c) => setSelectedName(c.name)} />
+          <BucketCard key={b.id} bucket={b} onOpenCategory={(c) => setSelectedName(c.name)} onOpenExpense={openExpense} />
         ))}
 
         <Text style={[type.caption, { color: tokens.colors.textMuted, marginHorizontal: space.s2 }]}>
           A guideline, not advice. Expenses are counted per month from the active budget, and ones that have ended are left out. Loan
           and Credit Card payments start in Needs (minimum payments); Misc and custom categories start in Wants. Tap a category under
-          “What’s in it” to move it; the change is shared with everyone on the budget.
+          “What’s in it” to move all of it; the change is shared with everyone on the budget. To count a single expense differently, such
+          as a loan that paid for a want, open it and change “Counts as”.
         </Text>
 
         <Button text="Copy results" onPress={() => handleCopy(review)} variant="secondary" style={{ marginTop: 0 }} />

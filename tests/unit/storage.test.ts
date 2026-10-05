@@ -199,6 +199,34 @@ describe('category buckets', () => {
   });
 });
 
+describe('an expense’s own bucket', () => {
+  it('survives a load, and a value that isn’t a bucket is dropped', async () => {
+    seed(
+      app([
+        makeBudget({
+          expenses: [
+            makeExpense({ id: 'a', categoryTag: 'Loan', bucket: 'wants' }),
+            makeExpense({ id: 'b', categoryTag: 'Loan', bucket: 'sideways' as any }),
+            makeExpense({ id: 'c', categoryTag: 'Loan', bucket: 3 as any }),
+            makeExpense({ id: 'd', categoryTag: 'Loan' }),
+          ],
+        }),
+      ])
+    );
+    const [budget] = (await storage.loadAppData()).budgets;
+    const byId = Object.fromEntries(budget.expenses.map((e) => [e.id, e]));
+    expect(byId.a.bucket).toBe('wants');
+    for (const id of ['b', 'c', 'd']) expect('bucket' in byId[id]).toBe(false);
+  });
+
+  it('is copied into a duplicate of the budget', async () => {
+    const source = makeBudget({ expenses: [makeExpense({ id: 'a', categoryTag: 'Loan', bucket: 'wants' })] });
+    seed(app([source]));
+    const res = await storage.duplicateBudget(source.id, 'Copy');
+    expect(res.budget?.expenses[0].bucket).toBe('wants');
+  });
+});
+
 describe('removing budgets', () => {
   it('queues a deleted budget for removal on the server', async () => {
     const a = makeBudget();
@@ -291,6 +319,31 @@ describe('expenses sort preference', () => {
     await storage.saveExpensesSort({ by: 'cost', order: 'desc' });
     await storage.claimDeviceData('user-b');
     expect(await storage.getExpensesSort()).toEqual({ by: 'date', order: 'desc' });
+  });
+});
+
+describe('expenses filters', () => {
+  beforeEach(() => device.store.clear());
+
+  it('starts with no bucket filter', async () => {
+    expect((await storage.getExpensesFilters()).bucketFilter).toBe('all');
+  });
+
+  it('remembers a bucket filter, and ignores junk', async () => {
+    const base = { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null } as const;
+    await storage.saveExpensesFilters({ ...base, bucketFilter: 'wants' });
+    expect((await storage.getExpensesFilters()).bucketFilter).toBe('wants');
+
+    await storage.saveExpensesFilters({ ...base, bucketFilter: 'sideways' as any });
+    expect((await storage.getExpensesFilters()).bucketFilter).toBe('all');
+
+    device.store.set('expenses_filters_v1', JSON.stringify({ ...base, bucketFilter: 7 }));
+    expect((await storage.getExpensesFilters()).bucketFilter).toBe('all');
+  });
+
+  it('reads filters saved before the bucket filter existed as unfiltered', async () => {
+    device.store.set('expenses_filters_v1', JSON.stringify({ category: 'Loan', search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'any' }));
+    expect(await storage.getExpensesFilters()).toMatchObject({ category: 'Loan', debtFilter: 'any', bucketFilter: 'all' });
   });
 });
 

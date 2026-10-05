@@ -2,6 +2,7 @@ import { DEFAULT_CATEGORIES, type Budget, type Frequency } from '../../types/bud
 import { buildXlsx, type CellInput, type SheetSpec, type StyleSpec, type WorkbookSpec } from '../xlsx/write';
 import {
   ANNUAL_MULTIPLIER,
+  BUCKET_LABELS,
   FREQUENCIES,
   FREQUENCY_LABELS,
   HEADERS,
@@ -258,9 +259,12 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
     { v: 'Category', s: 'listHead' },
     null,
     { v: 'Split method', s: 'listHead' },
+    null,
+    { v: 'Counts as', s: 'listHead' },
   ]);
   const types = [TYPE_LABELS.household, TYPE_LABELS.personal];
   const splits = [SPLIT_LABELS.even, SPLIT_LABELS['income-based']];
+  const buckets = [BUCKET_LABELS.needs, BUCKET_LABELS.wants, BUCKET_LABELS.savings];
   for (let i = 0; i < listHeight; i++) {
     const cell = (v: string | undefined): CellInput => (v === undefined ? null : { v, s: 'listCell' });
     listRows.push([
@@ -273,13 +277,16 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
       i < categories.length + SPARE_LIST_ROWS ? (i < categories.length ? cell(categories[i]) : { s: 'listCell' }) : null,
       null,
       cell(splits[i]),
+      null,
+      cell(buckets[i]),
     ]);
   }
   listRows.push([]);
   listRows.push([{ v: 'These lists feed the drop-downs on the other sheets. Add your own categories at the end of the Category list.', s: 'note' }]);
+  listRows.push([{ v: 'Counts as is optional: leave it blank and an expense counts where its category does in the app’s 50/30/20 Budget review.', s: 'note' }]);
   const lists: SheetSpec = {
     name: SHEETS.lists,
-    columns: [16, 3, 14, 3, 12, 3, 24, 3, 18],
+    columns: [16, 3, 14, 3, 12, 3, 24, 3, 18, 3, 14],
     rows: listRows,
     rowHeights: { 0: 24 },
     tabColor: COLOR.faint,
@@ -289,6 +296,7 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
   const yesNoRef = `${SHEETS.lists}!$E$2:$E$3`;
   const categoryRef = `${SHEETS.lists}!$G$2:$G$${1 + categories.length + SPARE_LIST_ROWS}`;
   const splitRef = `${SHEETS.lists}!$I$2:$I$${1 + splits.length}`;
+  const bucketRef = `${SHEETS.lists}!$K$2:$K$${1 + buckets.length}`;
   const peopleRef = `${SHEETS.people}!$A$2:$A$${peopleLast}`;
 
   // People --------------------------------------------------------------------
@@ -375,6 +383,7 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
       { v: H[7], s: 'head' },
       { v: H[8], s: 'head' },
       { v: H[9], s: 'head' },
+      { v: H[10], s: 'head' },
     ],
   ];
   expenseRows.forEach((e, i) => {
@@ -393,6 +402,7 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
       { v: start, s: 'date' },
       { v: end, s: 'date' },
       { v: e.notes || null, s: 'text' },
+      { v: e.bucket ? BUCKET_LABELS[e.bucket] : null, s: 'text' },
     ]);
   });
   for (let R = expenseSheetRows.length + 1; R <= expenseLast; R++) {
@@ -407,15 +417,16 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
       { s: 'date' },
       { s: 'date' },
       { s: 'text' },
+      { s: 'text' },
     ]);
   }
   const expensesSheet: SheetSpec = {
     name: SHEETS.expenses,
-    columns: [34, 16, 16, 16, 14, 22, 20, 15, 15, 44],
+    columns: [34, 16, 16, 16, 14, 22, 20, 15, 15, 44, 14],
     rows: expenseSheetRows,
     rowHeights: { 0: 26 },
     freeze: { rows: 1 },
-    autoFilter: `A1:J${expenseLast}`,
+    autoFilter: `A1:K${expenseLast}`,
     validations: [
       { range: range('B', 2, expenseLast), kind: 'decimal', source: 0, errorTitle: 'Amount', error: 'Enter a number, 0 or more.' },
       { range: range('C', 2, expenseLast), kind: 'list', source: freqRef, errorTitle: 'Frequency', error: 'Pick a frequency from the list.' },
@@ -429,9 +440,10 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
         errorTitle: 'New category',
         error: 'That category isn’t on the list. It will be added as a new category when you import. Continue?',
       },
+      { range: range('K', 2, expenseLast), kind: 'list', source: bucketRef, errorTitle: 'Counts as', error: 'Choose Needs, Wants or Savings, or leave it blank to follow the category.' },
     ],
     // Past their end date: greyed out, as the app shows them, and left out of the Summary.
-    conditional: [{ range: `A2:J${expenseLast}`, formula: 'AND($I2<>"",$I2<TODAY())', fontColor: COLOR.faint }],
+    conditional: [{ range: `A2:K${expenseLast}`, formula: 'AND($I2<>"",$I2<TODAY())', fontColor: COLOR.faint }],
     tabColor: '0369A1',
     landscape: true,
   };

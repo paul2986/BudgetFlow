@@ -1,5 +1,5 @@
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Text, View, Animated, AccessibilityInfo, Pressable } from 'react-native';
@@ -22,7 +22,8 @@ import { haptics } from '../utils/haptics';
 import { useBulkExpenseActions } from '../hooks/useBulkExpenseActions';
 import { countLabel, type BulkEditPatch } from '../utils/bulkEdit';
 import { type, space, radius } from '../styles/tokens';
-import { DEFAULT_CATEGORIES, type Expense } from '../types/budget';
+import { DEFAULT_CATEGORIES, type BucketId, type Expense } from '../types/budget';
+import { bucketOfExpense, categoryBucketLookup } from '../utils/budgetReview';
 import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, getExpensesSort, saveExpensesSort, normalizeCategoryName } from '../utils/storage';
 
 
@@ -59,7 +60,7 @@ const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; l
 ];
 
 export default function ExpensesScreen() {
-  const { data, removeExpense, saving, refreshData } = useBudgetData();
+  const { data, activeBudget, removeExpense, saving, refreshData } = useBudgetData();
   const bulk = useBulkExpenseActions();
   const { tokens } = useTheme();
   const largeTitle = useLargeTitle();
@@ -86,6 +87,12 @@ export default function ExpensesScreen() {
   const [searchTerm, setSearchTerm] = useState<string>(''); // debounced
   const [hasEndDateFilter, setHasEndDateFilter] = useState<boolean>(false);
   const [debtFilter, setDebtFilter] = useState<'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'>('all');
+  const [bucketFilter, setBucketFilter] = useState<'all' | BucketId>('all');
+
+  // Where each expense counts in the budget review (its own choice, else its category's).
+  const categoryBuckets = activeBudget?.categoryBuckets;
+  const bucketLookup = useMemo(() => categoryBucketLookup(categoryBuckets), [categoryBuckets]);
+  const bucketOf = useCallback((e: Expense) => bucketOfExpense(e, bucketLookup), [bucketLookup]);
 
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
@@ -163,6 +170,7 @@ export default function ExpensesScreen() {
       setFilter(filters.filter || 'all');
       setPersonFilter(filters.personFilter || null);
       setDebtFilter(filters.debtFilter || 'all');
+      setBucketFilter(filters.bucketFilter || 'all');
 
       filtersLoaded.current = true;
       console.log('ExpensesScreen: Filters loaded successfully');
@@ -227,6 +235,7 @@ export default function ExpensesScreen() {
             setSearchTerm('');
             setHasEndDateFilter(false);
             setDebtFilter('all');
+            setBucketFilter('all');
 
             // Announce the applied filters for accessibility
             const filterMessages = [];
@@ -321,6 +330,7 @@ export default function ExpensesScreen() {
           filter: filter,
           personFilter: personFilter,
           debtFilter: debtFilter,
+          bucketFilter: bucketFilter,
           isDashboardNavigation
         });
         saveExpensesFilters({
@@ -329,12 +339,13 @@ export default function ExpensesScreen() {
           hasEndDate: hasEndDateFilter,
           filter: filter,
           personFilter: personFilter,
-          debtFilter: debtFilter
+          debtFilter: debtFilter,
+          bucketFilter: bucketFilter
         });
       }, 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [categoryFilter, categoryFilters, searchQuery, hasEndDateFilter, filter, personFilter, debtFilter, params.fromDashboard]);
+  }, [categoryFilter, categoryFilters, searchQuery, hasEndDateFilter, filter, personFilter, debtFilter, bucketFilter, params.fromDashboard]);
 
   // Debounce search for filtering performance
   useEffect(() => {
@@ -419,6 +430,7 @@ export default function ExpensesScreen() {
     setPersonFilter(null);
     setHasEndDateFilter(false);
     setDebtFilter('all');
+    setBucketFilter('all');
     announceFilter('All filters cleared');
 
     // Also clear persisted filters
@@ -428,7 +440,8 @@ export default function ExpensesScreen() {
       hasEndDate: false,
       filter: 'all',
       personFilter: null,
-      debtFilter: 'all'
+      debtFilter: 'all',
+      bucketFilter: 'all'
     });
   }, [announceFilter]);
 
@@ -541,6 +554,11 @@ export default function ExpensesScreen() {
     console.log('ExpensesScreen: Debt filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   }
 
+  // Apply the budget-review bucket filter (Needs / Wants / Savings)
+  if (bucketFilter !== 'all') {
+    filteredExpenses = filteredExpenses.filter((e) => bucketOf(e) === bucketFilter);
+  }
+
   // Enhanced sorting logic
   filteredExpenses = filteredExpenses.sort((a, b) => {
     let comparison = 0;
@@ -604,7 +622,7 @@ export default function ExpensesScreen() {
     return sum + calculateMonthlyAmount(e.amount, e.frequency);
   }, 0);
 
-  const hasActiveFilters = !!categoryFilter || categoryFilters.length > 0 || !!searchTerm || (filter !== 'all') || !!personFilter || hasEndDateFilter || (debtFilter !== 'all');
+  const hasActiveFilters = !!categoryFilter || categoryFilters.length > 0 || !!searchTerm || (filter !== 'all') || !!personFilter || hasEndDateFilter || (debtFilter !== 'all') || (bucketFilter !== 'all');
 
   const activeCategories_ = categoryFilters.length > 0 ? categoryFilters : categoryFilter ? [categoryFilter] : [];
   const removeCategory = (category: string) => {
@@ -822,6 +840,8 @@ export default function ExpensesScreen() {
                 setPersonFilter={setPersonFilter}
                 debtFilter={debtFilter}
                 setDebtFilter={setDebtFilter}
+                bucketFilter={bucketFilter}
+                setBucketFilter={setBucketFilter}
                 categories={activeCategories_}
                 onRemoveCategory={removeCategory}
                 hasEndDateFilter={hasEndDateFilter}
@@ -963,6 +983,7 @@ export default function ExpensesScreen() {
         expenses={bulkTargets}
         people={data.people}
         categories={bulkCategories}
+        bucketLookup={bucketLookup}
         busy={bulk.busy}
         onApply={handleBulkApply}
       />
@@ -995,6 +1016,9 @@ export default function ExpensesScreen() {
         setHasEndDateFilter={setHasEndDateFilter}
         debtFilter={debtFilter}
         setDebtFilter={setDebtFilter}
+        bucketFilter={bucketFilter}
+        setBucketFilter={setBucketFilter}
+        bucketOf={bucketOf}
         people={data.people}
         expenses={data.expenses}
         customCategories={customCategories}

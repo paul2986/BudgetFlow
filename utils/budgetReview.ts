@@ -25,7 +25,8 @@ export const CLOSE_MARGIN = 5;
  * Where each built-in category lands. Loan and Credit Card sit in Needs because
  * the app can't tell a minimum payment (a need) from an extra one (saving).
  * Anything not listed, including custom categories, counts as a want. People
- * sharing a budget can move any category to another bucket (Budget.categoryBuckets).
+ * sharing a budget can move any category to another bucket (Budget.categoryBuckets),
+ * and any single expense can count somewhere else again (Expense.bucket).
  */
 const BUCKET_BY_CATEGORY: Record<string, BucketId> = {
   rent: 'needs',
@@ -53,6 +54,9 @@ export const bucketForCategory = (tag: string | undefined): { bucket: BucketId; 
   return known ? { bucket: known, custom: false } : { bucket: 'wants', custom: true };
 };
 
+export const isBucketId = (value: unknown): value is BucketId =>
+  value === 'needs' || value === 'wants' || value === 'savings';
+
 /** The budget's category choices by lower-cased name, leaving out "back to default" entries. */
 export type CategoryBucketLookup = ReadonlyMap<string, BucketId>;
 
@@ -75,6 +79,14 @@ export const resolveBucket = (
   return { bucket, defaultBucket, custom, moved: bucket !== defaultBucket };
 };
 
+/**
+ * Where an expense counts in the review: its own choice, else where its category
+ * counts. The one place the Expenses filter, the bulk edit and the review itself
+ * agree on this.
+ */
+export const bucketOfExpense = (expense: Pick<Expense, 'bucket' | 'categoryTag'>, lookup?: CategoryBucketLookup): BucketId =>
+  isBucketId(expense.bucket) ? expense.bucket : resolveBucket(expense.categoryTag, lookup).bucket;
+
 /** What to store for a choice: picking a category's default bucket clears the choice (null). */
 export const bucketToStore = (tag: string | undefined, chosen: BucketId): BucketId | null =>
   chosen === bucketForCategory(tag).bucket ? null : chosen;
@@ -92,6 +104,19 @@ export interface CategoryShare {
   moved: boolean;
 }
 
+/** One expense counted here by its own choice rather than by its category's. */
+export interface ExpenseShare {
+  id: string;
+  description: string;
+  /** The expense's category, as written. */
+  category: string;
+  monthly: number;
+  /** Share of income, in percent. */
+  pct: number;
+  /** Where its category counts, so the row can say what it was moved from. */
+  categoryBucket: BucketId;
+}
+
 export interface BucketReview {
   id: BucketId;
   targetPct: number;
@@ -103,7 +128,10 @@ export interface BucketReview {
   /** Actual minus target, per month: positive means above the target. */
   gapMonthly: number;
   status: BucketStatus;
+  /** The bucket's categories, not counting expenses that chose a bucket of their own. */
   categories: CategoryShare[];
+  /** Expenses counted here by their own choice, largest first. */
+  expenses: ExpenseShare[];
 }
 
 export interface BudgetReview {
@@ -168,18 +196,38 @@ export const reviewBudget = (
     wants: new Map(),
     savings: new Map(),
   };
+  type ExpenseTotal = Omit<ExpenseShare, 'monthly' | 'pct'> & { annual: number };
+  const ownChoice: Record<BucketId, ExpenseTotal[]> = { needs: [], wants: [], savings: [] };
 
   for (const expense of expenses ?? []) {
     if (!expense || typeof expense.amount !== 'number' || isNaN(expense.amount)) continue;
     if (!isExpenseActive(expense, asOf)) continue;
     const annual = cents(calculateAnnualAmount(expense.amount, expense.frequency));
-    const { bucket, custom, defaultBucket } = resolveBucket(expense.categoryTag, lookup);
+    const resolved = resolveBucket(expense.categoryTag, lookup);
+    const name = (expense.categoryTag || 'Misc').trim() || 'Misc';
+
+    // An expense's own choice beats its category's. One that matches the
+    // category's bucket changes nothing, so it stays in the category's row.
+    const own = isBucketId(expense.bucket) ? expense.bucket : undefined;
+    if (own && own !== resolved.bucket) {
+      annualByBucket[own] += annual;
+      ownChoice[own].push({
+        id: expense.id,
+        description: (expense.description || '').trim() || name,
+        category: name,
+        annual,
+        categoryBucket: resolved.bucket,
+      });
+      continue;
+    }
+
+    const { bucket, custom, defaultBucket } = resolved;
     annualByBucket[bucket] += annual;
 
     const key = categoryKey(expense.categoryTag);
     const entry = categoryAnnual[bucket].get(key);
     if (entry) entry.annual += annual;
-    else categoryAnnual[bucket].set(key, { name: (expense.categoryTag || 'Misc').trim() || 'Misc', annual, custom, defaultBucket });
+    else categoryAnnual[bucket].set(key, { name, annual, custom, defaultBucket });
   }
 
   const incomeMonthly = monthly(incomeAnnual);
@@ -200,6 +248,9 @@ export const reviewBudget = (
         defaultBucket: c.defaultBucket,
         moved: c.defaultBucket !== id,
       }));
+    const expenseShares: ExpenseShare[] = ownChoice[id]
+      .sort((a, b) => b.annual - a.annual || a.description.localeCompare(b.description))
+      .map(({ annual, ...rest }) => ({ ...rest, monthly: monthly(annual), pct: (annual / incomeAnnual) * 100 }));
     return {
       id,
       targetPct,
@@ -210,6 +261,7 @@ export const reviewBudget = (
       gapMonthly: Math.round((bucketMonthly - targetMonthly) * 100) / 100,
       status: statusFor(id, shownPct),
       categories,
+      expenses: expenseShares,
     };
   });
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   bucketForCategory,
+  bucketOfExpense,
   bucketToStore,
   categoryBucketLookup,
   furthestOff,
@@ -255,6 +256,120 @@ describe('category choices', () => {
     const expenses = [expense(1000, 'Rent')];
     const r = reviewBudget([person(4000)], expenses, { buckets: { Pets: choice('needs') } })!;
     expect(r).toEqual(reviewBudget([person(4000)], expenses)!);
+  });
+});
+
+describe('expense choices', () => {
+  const choice = (b: BucketId | null) => ({ bucket: b, updatedAt: 1 });
+  const onlyBucket = (id: BucketId, over: Partial<Expense> = {}, amount = 300, tag = 'Loan') =>
+    expense(amount, tag, { bucket: id, ...over });
+
+  it('counts one expense in its own bucket while the rest of its category stays put', () => {
+    const expenses = [expense(1000, 'Rent'), expense(250, 'Loan', { description: 'Car loan' }), onlyBucket('wants', { description: 'Sofa loan' })];
+    const before = reviewBudget([person(4000)], expenses.map(({ bucket, ...e }) => e))!;
+    const r = reviewBudget([person(4000)], expenses)!;
+
+    expect(bucket(r, 'needs').monthly).toBe(1250);
+    expect(bucket(r, 'wants').monthly).toBe(300);
+    expect(r.spendingMonthly).toBe(before.spendingMonthly);
+
+    // The category row keeps only what follows the category; the choice has a row of its own.
+    expect(bucket(r, 'needs').categories.find((c) => c.name === 'Loan')!.monthly).toBe(250);
+    expect(bucket(r, 'wants').categories).toEqual([]);
+    expect(bucket(r, 'wants').expenses).toEqual([
+      { id: expenses[2].id, description: 'Sofa loan', category: 'Loan', monthly: 300, pct: 7.5, categoryBucket: 'needs' },
+    ]);
+    expect(bucket(r, 'needs').expenses).toEqual([]);
+  });
+
+  it('beats the budget’s choice for the category, and the others still follow that choice', () => {
+    const expenses = [expense(200, 'Loan', { description: 'Kept' }), onlyBucket('wants', { description: 'Sofa loan' })];
+    const r = reviewBudget([person(4000)], expenses, { buckets: { Loan: choice('savings') } })!;
+    expect(bucket(r, 'savings').monthly).toBe(200);
+    expect(bucket(r, 'wants').monthly).toBe(300);
+    expect(bucket(r, 'needs').monthly).toBe(0);
+    expect(bucket(r, 'wants').expenses[0]).toMatchObject({ description: 'Sofa loan', categoryBucket: 'savings' });
+  });
+
+  it('changes nothing when the choice is where the category already counts', () => {
+    const plain = [expense(1000, 'Rent'), expense(300, 'Loan')];
+    const pinned = [expense(1000, 'Rent'), expense(300, 'Loan', { bucket: 'needs' })];
+    const r = reviewBudget([person(4000)], pinned)!;
+    expect(bucket(r, 'needs').expenses).toEqual([]);
+    expect(bucket(r, 'needs').categories.map((c) => c.name)).toEqual(['Rent', 'Loan']);
+    expect(r.buckets.map((b) => b.monthly)).toEqual(reviewBudget([person(4000)], plain)!.buckets.map((b) => b.monthly));
+  });
+
+  it('ignores a value that is not one of the three buckets', () => {
+    const r = reviewBudget([person(4000)], [expense(300, 'Loan', { bucket: 'sideways' as any })])!;
+    expect(bucket(r, 'needs').monthly).toBe(300);
+    expect(bucket(r, 'needs').expenses).toEqual([]);
+  });
+
+  it('leaves out one that has ended, like any other', () => {
+    const r = reviewBudget([person(4000)], [onlyBucket('wants', { endDate: '2026-01-31' })], { asOf: '2026-06-01' })!;
+    expect(bucket(r, 'wants').monthly).toBe(0);
+    expect(bucket(r, 'wants').expenses).toEqual([]);
+  });
+
+  it('lists them largest first, as monthly amounts, and names an untitled one by its category', () => {
+    const r = reviewBudget(
+      [person(4000)],
+      [
+        onlyBucket('wants', { description: 'Small' }, 50),
+        onlyBucket('wants', { description: '   ' }, 12 * 40, 'Credit Card'), // 40/mo when yearly
+        onlyBucket('wants', { description: 'Big' }, 400),
+      ].map((e, i) => (i === 1 ? { ...e, frequency: 'yearly' as Frequency } : e))
+    )!;
+    expect(bucket(r, 'wants').expenses.map((e) => [e.description, e.monthly])).toEqual([
+      ['Big', 400],
+      ['Small', 50],
+      ['Credit Card', 40],
+    ]);
+  });
+
+  it('lets an expense move into Savings, and out of it', () => {
+    const r = reviewBudget([person(4000)], [onlyBucket('savings', { description: 'Extra payment' }, 200), expense(100, 'Savings', { bucket: 'wants' })])!;
+    expect(bucket(r, 'savings').monthly).toBe(200);
+    expect(bucket(r, 'wants').monthly).toBe(100);
+    expect(bucket(r, 'wants').expenses[0]).toMatchObject({ category: 'Savings', categoryBucket: 'savings' });
+  });
+});
+
+describe('bucketOfExpense', () => {
+  const choice = (b: BucketId | null) => ({ bucket: b, updatedAt: 1 });
+
+  it('is the expense’s own choice, else where its category counts', () => {
+    expect(bucketOfExpense({ categoryTag: 'Loan' })).toBe('needs');
+    expect(bucketOfExpense({ categoryTag: 'Loan', bucket: 'wants' })).toBe('wants');
+    expect(bucketOfExpense({ categoryTag: undefined })).toBe('wants');
+    expect(bucketOfExpense({ categoryTag: 'Childcare' })).toBe('wants');
+  });
+
+  it('follows the budget’s category choices, which an own choice still beats', () => {
+    const lookup = categoryBucketLookup({ Loan: choice('savings') });
+    expect(bucketOfExpense({ categoryTag: 'loan' }, lookup)).toBe('savings');
+    expect(bucketOfExpense({ categoryTag: 'Loan', bucket: 'wants' }, lookup)).toBe('wants');
+  });
+
+  it('ignores a value that is not a bucket', () => {
+    expect(bucketOfExpense({ categoryTag: 'Rent', bucket: 'sideways' as any })).toBe('needs');
+  });
+
+  it('agrees with where the review counts each expense', () => {
+    const lookup = categoryBucketLookup({ Pets: choice('needs') });
+    const expenses = [
+      expense(500, 'Rent'),
+      expense(200, 'Loan', { bucket: 'wants' }),
+      expense(100, 'Pets'),
+      expense(50, 'Eating Out'),
+      expense(75, 'Savings', { bucket: 'needs' }),
+    ];
+    const r = reviewBudget([person(5000)], expenses, { buckets: { Pets: choice('needs') } })!;
+    for (const id of ['needs', 'wants', 'savings'] as BucketId[]) {
+      const viaFilter = expenses.filter((e) => bucketOfExpense(e, lookup) === id).reduce((sum, e) => sum + e.amount, 0);
+      expect(bucket(r, id).monthly).toBe(viaFilter);
+    }
   });
 });
 

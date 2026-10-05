@@ -33,13 +33,16 @@ export const debtHelpSignal = (review: BudgetReview | null): DebtHelpSignal | nu
   const overPct = Math.round((-review.leftoverMonthly / review.incomeMonthly) * 100);
   if (overPct >= OVERSPEND_PCT) return { reason: 'overspent', pct: overPct };
 
-  // Wherever a category is counted (Needs by default, but it can be moved), its payments are still debt.
+  // Wherever a payment is counted (Needs by default, but a category or a single
+  // expense can be moved), it is still debt.
   let debtShare = 0;
+  const addIfUnsecuredDebt = (categoryName: string, pct: number) => {
+    const kind = debtRepaymentForCategory(categoryName);
+    if (kind === 'loan' || kind === 'credit_card') debtShare += pct;
+  };
   for (const bucket of review.buckets) {
-    for (const category of bucket.categories) {
-      const kind = debtRepaymentForCategory(category.name);
-      if (kind === 'loan' || kind === 'credit_card') debtShare += category.pct;
-    }
+    for (const category of bucket.categories) addIfUnsecuredDebt(category.name, category.pct);
+    for (const expense of bucket.expenses) addIfUnsecuredDebt(expense.category, expense.pct);
   }
   const debtPct = Math.round(debtShare);
   if (debtPct >= UNSECURED_DEBT_PCT) return { reason: 'debtPayments', pct: debtPct };

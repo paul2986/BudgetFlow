@@ -3,8 +3,10 @@ import { View, Text, ScrollView } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import Button from './Button';
 import { ChoicePills, DateField, Sheet } from './ui';
-import { Expense, Frequency, Person } from '../types/budget';
+import { BucketId, Expense, Frequency, Person } from '../types/budget';
 import { applyBulkEdit, countLabel, isBulkPatchEmpty, type BulkEditPatch } from '../utils/bulkEdit';
+import { bucketOfExpense, type CategoryBucketLookup } from '../utils/budgetReview';
+import { BUCKET_META, BUCKET_OPTIONS } from './tools/bucketMeta';
 import { type, space } from '../styles/tokens';
 
 /**
@@ -46,15 +48,18 @@ interface BulkEditSheetProps {
   people: Person[];
   /** Every category the form offers, custom ones included. */
   categories: string[];
+  /** The budget's own choices of where categories count, to resolve Counts as. */
+  bucketLookup?: CategoryBucketLookup;
   busy: boolean;
   onApply: (patch: BulkEditPatch) => void;
 }
 
-export default function BulkEditSheet({ visible, onClose, expenses, people, categories, busy, onApply }: BulkEditSheetProps) {
+export default function BulkEditSheet({ visible, onClose, expenses, people, categories, bucketLookup, busy, onApply }: BulkEditSheetProps) {
   const { tokens } = useTheme();
   const [frequency, setFrequency] = useState<Frequency | Keep>(KEEP);
   const [who, setWho] = useState<string>(KEEP); // KEEP | 'household' | `person:<id>`
   const [categoryTag, setCategoryTag] = useState<string>(KEEP);
+  const [countsAs, setCountsAs] = useState<string>(KEEP); // KEEP | 'category' (follow it) | BucketId
   const [endMode, setEndMode] = useState<EndDateMode>(KEEP);
   const [endDate, setEndDate] = useState<Date | null>(null);
 
@@ -63,6 +68,7 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
     setFrequency(KEEP);
     setWho(KEEP);
     setCategoryTag(KEEP);
+    setCountsAs(KEEP);
     setEndMode(KEEP);
     setEndDate(null);
   }, [visible]);
@@ -73,14 +79,16 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
     if (who === 'household') p.who = { kind: 'household' };
     else if (who.startsWith('person:')) p.who = { kind: 'person', personId: who.slice('person:'.length) };
     if (categoryTag !== KEEP) p.categoryTag = categoryTag;
+    if (countsAs === 'category') p.bucket = null;
+    else if (countsAs !== KEEP) p.bucket = countsAs as BucketId;
     if (endMode === 'remove') p.endDate = { kind: 'remove' };
     else if (endMode === 'set' && endDate) p.endDate = { kind: 'set', date: toYMD(endDate) };
     return p;
-  }, [frequency, who, categoryTag, endMode, endDate]);
+  }, [frequency, who, categoryTag, countsAs, endMode, endDate]);
 
   const preview = useMemo(
-    () => applyBulkEdit(expenses, expenses.map((e) => e.id), patch),
-    [expenses, patch]
+    () => applyBulkEdit(expenses, expenses.map((e) => e.id), patch, Date.now(), bucketLookup),
+    [expenses, patch, bucketLookup]
   );
 
   const nowFrequency = useMemo(
@@ -97,6 +105,10 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
     [expenses, people]
   );
   const nowCategory = useMemo(() => shared(expenses.map((e) => e.categoryTag || 'Misc')), [expenses]);
+  const nowCountsAs = useMemo(
+    () => shared(expenses.map((e) => BUCKET_META[bucketOfExpense(e, bucketLookup)].name)),
+    [expenses, bucketLookup]
+  );
   const nowEnd = useMemo(() => {
     const recurring = expenses.filter((e) => e.frequency !== 'one-time');
     if (recurring.length === 0) return 'None (all one-time)';
@@ -203,6 +215,18 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
             value={categoryTag}
             onChange={setCategoryTag}
             options={[keepOption, ...categories.map((c) => ({ value: c, label: c }))]}
+          />
+        )}
+
+        {field(
+          'Counts as',
+          nowCountsAs,
+          <ChoicePills<string>
+            label="Counts as"
+            showLabel={false}
+            value={countsAs}
+            onChange={setCountsAs}
+            options={[keepOption, { value: 'category', label: 'Same as category' }, ...BUCKET_OPTIONS.map((o) => ({ ...o, value: o.value as string }))]}
           />
         )}
 

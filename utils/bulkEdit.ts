@@ -1,4 +1,5 @@
-import { Expense, Frequency, debtRepaymentForCategory } from '../types/budget';
+import { BucketId, Expense, Frequency, debtRepaymentForCategory } from '../types/budget';
+import { resolveBucket, type CategoryBucketLookup } from './budgetReview';
 
 /**
  * Bulk edit for the Expenses screen. Every field of the patch is optional;
@@ -16,6 +17,8 @@ export interface BulkEditPatch {
   frequency?: Frequency;
   who?: BulkWho;
   categoryTag?: string;
+  /** A bucket to count in, or null to follow each expense's category. Absent: leave as is. */
+  bucket?: BucketId | null;
   endDate?: BulkEndDate;
 }
 
@@ -35,19 +38,23 @@ export interface BulkEditResult {
 }
 
 export const isBulkPatchEmpty = (patch: BulkEditPatch): boolean =>
-  !patch.frequency && !patch.who && !patch.categoryTag && !patch.endDate;
+  !patch.frequency && !patch.who && !patch.categoryTag && patch.bucket === undefined && !patch.endDate;
 
 const startYMD = (expense: Expense): string => (expense.date || '').slice(0, 10);
 
 const sameValue = (a: unknown, b: unknown) => (a ?? undefined) === (b ?? undefined);
 
-const FIELDS: (keyof Expense)[] = ['frequency', 'category', 'personId', 'categoryTag', 'debtRepayment', 'endDate'];
+const FIELDS: (keyof Expense)[] = ['frequency', 'category', 'personId', 'categoryTag', 'debtRepayment', 'bucket', 'endDate'];
 
 /**
  * Applies `patch` to the expenses whose ids are in `ids`.
  * - Frequency to one-time drops the end date (one-time expenses have none).
  * - Who pays: household clears the person; a person makes it personal.
- * - Category re-derives the debt tag (Loan / Mortgage / Credit Card).
+ * - Category re-derives the debt tag (Loan / Mortgage / Credit Card), and drops
+ *   an own bucket that the new category already counts in.
+ * - Counts as stores a bucket only when it differs from where the expense's
+ *   category counts (the form's rule), and null puts it back to following the
+ *   category. `categoryBuckets` is the budget's own category choices.
  * - End date is judged against the frequency the expense ends up with; it
  *   never applies to one-time expenses or before an expense's start date.
  * - An expense the patch leaves unchanged is returned as the same object with
@@ -58,7 +65,8 @@ export const applyBulkEdit = (
   expenses: Expense[],
   ids: Iterable<string>,
   patch: BulkEditPatch,
-  now: number = Date.now()
+  now: number = Date.now(),
+  categoryBuckets?: CategoryBucketLookup
 ): BulkEditResult => {
   const selected = new Set(ids);
   const changedIds: string[] = [];
@@ -91,6 +99,12 @@ export const applyBulkEdit = (
       const debt = debtRepaymentForCategory(patch.categoryTag);
       if (debt) e.debtRepayment = debt;
       else delete e.debtRepayment;
+      if (e.bucket && e.bucket === resolveBucket(patch.categoryTag, categoryBuckets).bucket) delete e.bucket;
+    }
+
+    if (patch.bucket !== undefined) {
+      if (patch.bucket === null || patch.bucket === resolveBucket(e.categoryTag, categoryBuckets).bucket) delete e.bucket;
+      else e.bucket = patch.bucket;
     }
 
     if (patch.endDate) {
