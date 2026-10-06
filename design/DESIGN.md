@@ -127,6 +127,7 @@ Replace `colors`/`darkColors` in full. All pairs meet WCAG AA at their intended 
 | `expenseSubtle` | `#FFF1F2` | Expense fills |
 | `warning` | `#A16207` | Expiring soon (4.9:1). Yellow-gold, kept clear of the orange `personal` hue |
 | `warningSubtle` | `#FEFCE8` | Warning fills |
+| `caution` | `#D97706` (dark `#FACC15`) | Amber for fills and icons only, e.g. an ending-soon progress bar (3.2:1 on `surfaceSunken`). Not for text: use `warning` |
 | `danger` | `#C81E1E` | Destructive actions only (5.7:1; 5.2:1 on dangerSubtle) |
 | `dangerSubtle` | `#FEF2F2` | Danger fills |
 | `household` | `#0369A1` | Household chip text+icon (5.9:1). Sky blue: never shares the brand indigo |

@@ -445,7 +445,7 @@ export default function HomeScreen() {
 
               <DashboardSection
                 title="Ending & expired"
-                caption="Recurring expenses with end dates coming up or passed."
+                caption="Every expense with an end date, and how far along it is."
                 style={breakpoint.isCompact ? undefined : { flex: 1 }}
               >
                 <View style={[themedStyles.card, { marginBottom: 0, padding: 0, flex: breakpoint.isCompact ? undefined : 1 }]}>

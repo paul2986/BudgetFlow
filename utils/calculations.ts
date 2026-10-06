@@ -17,61 +17,6 @@ export const isExpenseActive = (expense: Expense, asOfDate?: string): boolean =>
   return end >= asOf;
 };
 
-// Returns recurring expenses with an endDate that is either already ended OR
-// will end within the next N days. Sorted by endDate ascending.
-export const getEndingSoon = (expenses: Expense[], days: number = 30): { expiringSoon: Expense[], ended: Expense[] } => {
-  // Add comprehensive null checks for expenses array
-  if (!expenses || !Array.isArray(expenses)) {
-    return { expiringSoon: [], ended: [] };
-  }
-
-  const now = new Date();
-  const startYMD = toYMD(now);
-  const limit = new Date(now);
-  limit.setDate(limit.getDate() + days);
-  const limitYMD = toYMD(limit);
-
-  const expiringSoon: Expense[] = [];
-  const ended: Expense[] = [];
-
-  expenses
-    .filter((e) => e && e.frequency !== 'one-time' && typeof e.endDate === 'string' && e.endDate)
-    .forEach((e) => {
-      const end = (e.endDate as string).slice(0, 10);
-      if (end < startYMD) {
-        ended.push(e);
-      } else if (end >= startYMD && end <= limitYMD) {
-        expiringSoon.push(e);
-      }
-    });
-
-  // Sort both arrays by endDate ascending
-  const sortByEndDate = (a: Expense, b: Expense) => {
-    const ea = (a.endDate as string).slice(0, 10);
-    const eb = (b.endDate as string).slice(0, 10);
-    return ea.localeCompare(eb);
-  };
-
-  expiringSoon.sort(sortByEndDate);
-  ended.sort(sortByEndDate);
-
-  // Remove duplicates by ID
-  const dedupeById = (arr: Expense[]) => {
-    const byId = new Map<string, Expense>();
-    arr.forEach((e) => {
-      if (e && e.id) {
-        byId.set(e.id, e);
-      }
-    });
-    return Array.from(byId.values());
-  };
-
-  return {
-    expiringSoon: dedupeById(expiringSoon),
-    ended: dedupeById(ended)
-  };
-};
-
 const toCents = (num: number): number => Math.round(num * 100);
 const fromCents = (cents: number): number => cents / 100;
 
