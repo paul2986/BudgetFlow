@@ -111,7 +111,8 @@ An expense supports:
 ### 5.3 Active vs. Expiring Expenses
 
 - The app derives whether a recurring expense is currently **active** from its start date and optional end date.
-- An **expiring / ended section** surfaces recurring expenses ending soon (within ~30 days) or already ended, so users can review or renew them.
+- The Overview's **Ending & expired** section lists every recurring expense that has an end date, under two tabs: **Ending** (soonest end first) and **Ended** (most recent first). One-time expenses can't have an end date, so they never appear. Each row shows the actual end date (with the year), a small progress bar for how much of the time from the expense's start date to its end date has passed, and what is left in calendar years, months and days ("1 yr 2 mos 26 days left", "Ends today"). Within 30 days of the end the clock icon becomes a timer and the icon and bar turn amber (the `caution` token), with the time left in words alongside; an ended row's bar is full and muted. The end date is the last day the expense counts, so on that day it is still in Ending. A row's calendar button opens a sheet to change or clear the end date. The maths lives in `utils/expenseEnd.ts`.
+- **End reminders (iPhone and iPad app only).** A notification one period before an expense ends, and another on the day itself, both at 9:00 am local time: a daily expense is reminded the day before, a weekly one a week before, a monthly one a month before, a yearly one a year before. A reminder whose time has already passed when the expense is saved or opened is skipped (a monthly expense ending in 10 days only gets the day-of one). They are local notifications scheduled on the device, not pushed from a server, so they work offline and need no Apple push entitlement; the catch is that a change made on another device reaches this phone's reminders the next time the app is opened and has synced. Every budget on the account is covered (the budget's name is shown when there is more than one), the soonest 60 are scheduled (iOS holds 64), and the list is rebuilt when expenses change and each time the app returns to the front. In a locked budget the notification says only that an expense ends, not which. Turning it on asks iOS for permission (from a "Get reminders" row under the Ending list or **Settings → Reminders**); the choice is per device, off by default, and signing out cancels everything pending. If iOS permission is refused, Settings offers a link to the iOS settings. Planning is in `utils/endReminders.ts`, scheduling in `utils/endReminderScheduler.ts`. The web app has none (a browser can't notify at a time the page is closed).
 
 ---
 
@@ -126,7 +127,7 @@ A summary dashboard for the active budget, shown once it has at least one person
 - **Expense breakdown** — spending grouped by category / type.
 - **Person breakdown chart** — visual split across people.
 - **Debt repayment section** — expenses tagged as loan / mortgage / credit-card repayments.
-- **Expiring section** — recurring expenses ending soon / ended (§5.3).
+- **Ending & expired section** — every expense with an end date, with progress towards it (§5.3).
 - **First-run & loading states** — a welcome experience when no data exists; loading gated to avoid flicker.
 
 ---
@@ -262,6 +263,7 @@ Budgets move in and out of the app as Excel workbooks (`.xlsx`), so a budget can
 - **Currency selection** — searchable picker across 120+ currencies; drives all currency formatting (symbol + code). A device with no saved choice starts with its locale's currency, from the region of its language settings (en-US → dollars, de-DE → euros, en-GB → pounds; pounds when the locale names no currency the app offers) and saves it. It is chosen at launch, before any budget syncs down: a device that already holds budgets keeps pounds, the default every earlier version showed, so its numbers don't change meaning. The choice is per device and can be changed on the welcome screen or in Settings. The Debt help card follows the currency (pounds), so it appears for UK locales only.
 - **Privacy** — a plain-language page (`utils/privacyText.ts`, shown by `components/PrivacyContent`) saying what is stored (account email and a hashed password, budgets, feedback), what stays on the device, who can see a budget (members; the person who runs the app can technically reach the database but the admin screen shows totals only), who else is involved (Supabase; Vercel hosting and cookieless page-view counts on the web version only), and how to export, erase or delete. It is a sheet on the sign-in screen ("How your data is used", readable before an account exists) and Settings → Privacy. A unit test (`tests/unit/privacyText.test.ts`) checks the claims a machine can: the 7-day invite expiry, no analytics SDK but Vercel's, account deletion. It is plain-language disclosure, not a legal policy or terms of service, and has no public URL (the app sits behind sign-in).
 - **Theme** — Light / Dark / System, persisted.
+- **Reminders** (app only) — a switch for end-of-expense notifications (§5.3), kept per device.
 - **About** — app information.
 - Settings uses a responsive split (master/detail on wide screens) with sections: Budgets, Cloud Sync, Categories, Currency, Theme, Financial Tools, About, Danger Zone.
 

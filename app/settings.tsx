@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Text, View, Platform, Animated } from 'react-native';
+import { Text, View, Platform, Animated, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency, displaySymbol } from '../hooks/useCurrency';
@@ -9,6 +9,7 @@ import { useToast } from '../hooks/useToast';
 import { useAuth } from '../hooks/useAuth';
 import { useIsAdmin } from '../hooks/useIsAdmin';
 import { useFeedbackBadges } from '../hooks/useFeedbackBadges';
+import { useEndReminders } from '../hooks/useEndReminders';
 import { Alert } from '../utils/alert';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
 import { useLargeTitle } from '../hooks/useLargeTitle';
@@ -19,9 +20,11 @@ import {
   ListGroup,
   ListRow,
   SegmentedControl,
+  SwitchRow,
 } from '../components/ui';
 import { type, radius, space } from '../styles/tokens';
 import { appVersionLabel } from '../utils/appVersion';
+import { haptics } from '../utils/haptics';
 
 /**
  * Settings (UI_AUDIT Phase 3): one inset-grouped layout at every size, the
@@ -45,6 +48,7 @@ export default function SettingsScreen() {
   const { signOut, deleteAccount } = useAuth();
   const { isAdmin } = useIsAdmin(user?.id);
   const { unreadReplies, needsYou } = useFeedbackBadges(user?.id, isAdmin);
+  const reminders = useEndReminders();
 
   const [confirmSignOutVisible, setConfirmSignOutVisible] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
@@ -52,6 +56,16 @@ export default function SettingsScreen() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const budgetCount = appData?.budgets?.length || 0;
+
+  const handleRemindersChange = async (next: boolean) => {
+    const result = await reminders.setEnabled(next);
+    if (result === 'blocked') {
+      haptics.error();
+      showToast('Notifications are off for Budget Flow. Turn them on in iOS Settings.', 'error');
+    } else if (result === 'on') {
+      haptics.success();
+    }
+  };
 
   const handleClearAllData = () => {
     Alert.alert(
@@ -195,6 +209,33 @@ export default function SettingsScreen() {
               />
             </View>
           </ListGroup>
+
+          {reminders.supported ? (
+            <ListGroup
+              header="Reminders"
+              footer="A notification one period before an expense with an end date finishes (a month for a monthly expense, a week for a weekly one), and another on the day. Set per device."
+            >
+              <SwitchRow
+                icon="notifications-outline"
+                title="Expenses about to end"
+                caption={reminders.enabled ? 'On, at 9:00 am' : 'Off'}
+                value={reminders.enabled}
+                onChange={handleRemindersChange}
+                disabled={!reminders.loaded}
+                showSeparator={reminders.permission === 'denied' && !reminders.enabled}
+              />
+              {reminders.permission === 'denied' && !reminders.enabled ? (
+                <ListRow
+                  title="Notifications are off in iOS"
+                  caption="Open Settings to allow them for Budget Flow"
+                  icon="settings-outline"
+                  chevron
+                  onPress={() => Linking.openSettings()}
+                  showSeparator={false}
+                />
+              ) : null}
+            </ListGroup>
+          ) : null}
 
           <ListGroup header="Feedback">
             <ListRow
