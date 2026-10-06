@@ -21,7 +21,7 @@ export async function openLink(url: string): Promise<boolean> {
     }
     return true;
   } catch (e) {
-    console.log('openLink: could not open', url, e);
+    console.warn('openLink: could not open', url, e);
     return false;
   }
 }

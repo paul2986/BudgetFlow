@@ -7,9 +7,9 @@ module.exports = function (api) {
 
   const plugins = [];
 
-  // Strip console.* from production bundles so verbose/sensitive logging (expense
+  // Strip console.* from production bundles so any stray debug logging (expense
   // ids, amounts, user ids) never ships. Keep error/warn so real failures still
-  // surface and the error logger's console fallback keeps working.
+  // surface.
   if (isProduction) {
     plugins.push(['transform-remove-console', { exclude: ['error', 'warn'] }]);
   }

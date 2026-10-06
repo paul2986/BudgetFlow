@@ -22,7 +22,6 @@ import { initCurrency } from '../hooks/useCurrency';
 import { useAuth } from '../hooks/useAuth';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import { useEditorTransitions } from '../hooks/useEditorTransitions';
-import { setupErrorLogging } from '../utils/errorLogger';
 import { rememberInviteFromUrl } from '../utils/sharing';
 
 import AnimatedSplash from '../components/AnimatedSplash';
@@ -71,10 +70,6 @@ function RootLayoutContent() {
       return () => clearTimeout(timer);
     }
   }, [loading, isInitialLoad]);
-
-  useEffect(() => {
-    setupErrorLogging();
-  }, []);
 
   // Web: page-level background + scrollbar + date-picker theming.
   useEffect(() => {

@@ -33,6 +33,8 @@ module.exports = defineConfig([
       'prefer-const': 'off',
       'react/prop-types': 'warn',
       'no-case-declarations': 'off',
+      // Debug logging stays out of the app; real failures use warn/error.
+      'no-console': ['error', { allow: ['warn', 'error'] }],
       // eslint-plugin-react-hooks 7 added checks that prepare code for React Compiler,
       // which this app doesn't use. They flag patterns that are normal here (an
       // Animated.Value held in a ref and read in render, state reset in an effect)
@@ -45,6 +47,11 @@ module.exports = defineConfig([
       'react-hooks/static-components': 'off',
       'react-hooks/immutability': 'off',
     },
+  },
+  {
+    // Node-side scripts and tests may print.
+    files: ['tests/**', 'scripts/**', 'plugins/**', '*.config.js', '*.config.ts'],
+    rules: { 'no-console': 'off' },
   },
   {
     files: ['metro.config.js'],

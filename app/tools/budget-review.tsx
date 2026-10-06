@@ -88,7 +88,7 @@ export default function BudgetReviewScreen() {
         const res = await setCategoryBucket(category.name, bucket);
         if (!res.success) showToast('Couldn’t save that change. Please try again.', 'error');
       } catch (e) {
-        console.log('BudgetReview: save choice error', e);
+        console.warn('BudgetReview: save choice error', e);
         showToast('Couldn’t save that change. Please try again.', 'error');
       } finally {
         setSavingChoice(false);
@@ -115,7 +115,7 @@ ${lines.join('\n')}`;
       await Clipboard.setStringAsync(text);
       showToast('Results copied to clipboard', 'success');
     } catch (e) {
-      console.log('Copy error', e);
+      console.warn('Copy error', e);
       showToast('Failed to copy', 'error');
     }
   };

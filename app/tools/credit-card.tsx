@@ -34,7 +34,6 @@ export default function CreditCardPayoffScreen() {
   // Minimum payment suggestion state
   const [suggestedMin, setSuggestedMin] = useState<number | null>(null);
 
-
   const parseNumber = (val: string): number | null => {
     if (typeof val !== 'string') return null;
     const cleaned = val.replace(/[^0-9.]/g, '');
@@ -50,7 +49,7 @@ export default function CreditCardPayoffScreen() {
       const opts = nf.resolvedOptions();
       return Math.max(0, opts.maximumFractionDigits || 2);
     } catch (e) {
-      console.log('currencyFractionDigits error, defaulting to 2', e);
+      console.warn('currencyFractionDigits error, defaulting to 2', e);
       return 2;
     }
   }, [currency.code]);
@@ -75,9 +74,6 @@ export default function CreditCardPayoffScreen() {
     const a = aprInput.trim() === '' ? null : parseNumber(aprInput);
     const p = parseNumber(paymentInput);
 
-    console.log('Validation - Balance:', b, 'APR:', a, 'Payment:', p);
-    console.log('Raw inputs - Balance:', balanceInput, 'APR:', aprInput, 'Payment:', paymentInput);
-
     if (b === null || b <= 0) {
       newErrors.balance = 'Enter a positive balance.';
     }
@@ -89,7 +85,6 @@ export default function CreditCardPayoffScreen() {
       newErrors.payment = 'Enter a positive monthly payment.';
     }
 
-    console.log('Validation errors:', newErrors);
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, [balanceInput, aprInput, paymentInput]);
@@ -112,17 +107,13 @@ export default function CreditCardPayoffScreen() {
   };
 
   const handleCalculate = () => {
-    console.log('handleCalculate called');
     if (!validate()) {
-      console.log('Validation failed');
       return;
     }
 
     const b = parseNumber(balanceInput) || 0;
     const a = parseNumber(aprInput) || 0;
     const p = parseNumber(paymentInput) || 0;
-
-    console.log('Calculating with values - Balance:', b, 'APR:', a, 'Payment:', p);
 
     // If payment is 0, show a special "never repaid" result
     if (p === 0) {
@@ -198,7 +189,7 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
       await Clipboard.setStringAsync(copyResultsText);
       showToast('Results copied to clipboard', 'success');
     } catch (e) {
-      console.log('Copy error', e);
+      console.warn('Copy error', e);
       showToast('Failed to copy', 'error');
     }
   };

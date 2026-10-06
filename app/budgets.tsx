@@ -52,7 +52,6 @@ export default function BudgetsScreen() {
   // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('BudgetsScreen: Screen focused, refreshing data');
       refreshData(true);
     }, [refreshData])
   );
@@ -212,9 +211,7 @@ export default function BudgetsScreen() {
     setOperationInProgress(true);
         try {
       const result = await setActiveBudget(budgetId);
-      if (result.success) {
-        console.log('Active budget changed successfully');
-      } else {
+      if (!result.success) {
         showToast(result.error?.message || 'Failed to set active budget', 'error');
       }
     } catch (error) {

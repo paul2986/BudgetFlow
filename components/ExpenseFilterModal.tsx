@@ -80,15 +80,6 @@ export default function ExpenseFilterModal({
   // FIXED: Initialize temp state when modal opens with current filter values
   useEffect(() => {
     if (visible) {
-      console.log('ExpenseFilterModal: Initializing temp state with current filters:', {
-        filter,
-        personFilter,
-        categoryFilter,
-        searchQuery,
-        hasEndDateFilter,
-        debtFilter,
-        bucketFilter
-      });
       setTempFilter(filter);
       setTempPersonFilter(personFilter);
       // Initialize with multiple categories if available, otherwise single category
@@ -207,7 +198,6 @@ export default function ExpenseFilterModal({
   const hasActiveFilters = tempCategoryFilters.length > 0 || !!tempSearchQuery.trim() || (tempFilter !== 'all') || !!tempPersonFilter || tempHasEndDateFilter || (tempDebtFilter !== 'all') || (tempBucketFilter !== 'all');
 
   const handleCancel = () => {
-    console.log('ExpenseFilterModal: Cancel pressed, resetting temp state');
     // Reset temp state to original values and close without applying
     setTempFilter(filter);
     setTempPersonFilter(personFilter);
@@ -222,16 +212,6 @@ export default function ExpenseFilterModal({
   };
 
   const handleApplyFilters = () => {
-    console.log('ExpenseFilterModal: Applying filters:', {
-      tempFilter,
-      tempPersonFilter,
-      tempCategoryFilters,
-      tempSearchQuery,
-      tempHasEndDateFilter,
-      tempDebtFilter,
-      tempBucketFilter
-    });
-
     // FIXED: Apply the temporary filter values to the actual state
     setFilter(tempFilter);
     setPersonFilter(tempPersonFilter);
@@ -277,7 +257,6 @@ export default function ExpenseFilterModal({
   };
 
   const handleClearFilters = () => {
-    console.log('ExpenseFilterModal: Clearing all temp filters');
     setTempFilter('all');
     setTempPersonFilter(null);
     setTempCategoryFilters([]);

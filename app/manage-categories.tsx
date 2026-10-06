@@ -40,7 +40,7 @@ export default function ManageCategoriesScreen() {
       const list = await getCustomExpenseCategories();
       setCustoms(list);
     } catch (e) {
-      console.log('Failed to load custom categories', e);
+      console.warn('Failed to load custom categories', e);
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export default function ManageCategoriesScreen() {
             if (!result.success) throw result.error;
             setCustoms(next);
           } catch (e) {
-            console.log('Failed to delete custom category', e);
+            console.warn('Failed to delete custom category', e);
             Alert.alert('Error', 'Failed to delete category. Please try again.');
           }
         },
@@ -129,7 +129,7 @@ export default function ManageCategoriesScreen() {
       setCategoryToRename('');
       setNewCategoryName('');
     } catch (e) {
-      console.log('Failed to rename custom category', e);
+      console.warn('Failed to rename custom category', e);
       Alert.alert('Error', 'Failed to rename category. Please try again.');
     } finally {
       setRenaming(false);
@@ -182,7 +182,7 @@ export default function ManageCategoriesScreen() {
         if (!placed.success) Alert.alert('Error', 'The category was added, but where it counts couldn’t be set. You can change it from the category.');
       }
     } catch (e) {
-      console.log('Failed to create custom category', e);
+      console.warn('Failed to create custom category', e);
       Alert.alert('Error', 'Failed to create category. Please try again.');
     } finally {
       setCreating(false);

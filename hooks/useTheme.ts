@@ -54,18 +54,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initializeTheme();
   }, []);
 
-  useEffect(() => {
-    console.log('ThemeProvider: System color scheme changed to:', systemColorScheme);
-  }, [systemColorScheme]);
-
-  useEffect(() => {
-    console.log('ThemeProvider: Theme mode changed to:', themeMode);
-  }, [themeMode]);
-
   const loadThemeMode = async () => {
     try {
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      console.log('ThemeProvider: Loaded saved theme from storage:', savedTheme);
       if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
         setThemeModeState(savedTheme as ThemeMode);
       }
@@ -78,10 +69,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const setThemeMode = async (mode: ThemeMode) => {
     try {
-      console.log('ThemeProvider: Saving theme mode to storage:', mode);
       await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
       setThemeModeState(mode);
-      console.log('ThemeProvider: Theme mode saved and state updated');
     } catch (error) {
       console.error('ThemeProvider: Error saving theme mode:', error);
       // Still update the state even if storage fails
@@ -126,14 +115,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [veil, veilOpacity]);
 
   const tokens = useMemo(() => getTokens(isDarkMode), [isDarkMode]);
-
-  useEffect(() => {
-    console.log('ThemeProvider: Computed values updated', {
-      themeMode,
-      systemColorScheme,
-      isDarkMode,
-    });
-  }, [themeMode, systemColorScheme, isDarkMode]);
 
   const contextValue: ThemeContextType = {
     themeMode,

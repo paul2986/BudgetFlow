@@ -28,7 +28,6 @@ import { DEFAULT_CATEGORIES, type BucketId, type Expense } from '../types/budget
 import { bucketOfExpense, categoryBucketLookup } from '../utils/budgetReview';
 import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, getExpensesSort, saveExpensesSort, normalizeCategoryName } from '../utils/storage';
 
-
 // Sort menu: each field offers both directions; the list defaults to newest first.
 const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; label: string }[] }[] = [
   {
@@ -148,7 +147,7 @@ function ExpensesScreenContent() {
     try {
       AccessibilityInfo.announceForAccessibility?.(msg);
     } catch (e) {
-      console.log('Accessibility announce failed', e);
+      console.warn('Accessibility announce failed', e);
     }
   }, []);
 
@@ -157,14 +156,11 @@ function ExpensesScreenContent() {
   // FIXED: Load persisted filters function with better error handling
   const loadPersistedFilters = useCallback(async () => {
     if (filtersLoaded.current) {
-      console.log('ExpensesScreen: Filters already loaded, skipping...');
       return;
     }
 
     try {
-      console.log('ExpensesScreen: Loading persisted filters...');
       const filters = await getExpensesFilters();
-      console.log('ExpensesScreen: Loaded persisted filters:', filters);
 
       setCategoryFilter(filters.category || null);
       setCategoryFilters([]);
@@ -177,7 +173,6 @@ function ExpensesScreenContent() {
       setBucketFilter(filters.bucketFilter || 'all');
 
       filtersLoaded.current = true;
-      console.log('ExpensesScreen: Filters loaded successfully');
     } catch (e) {
       console.error('ExpensesScreen: Failed to load persisted filters:', e);
       filtersLoaded.current = true; // Mark as loaded even on error to prevent infinite retries
@@ -190,7 +185,6 @@ function ExpensesScreenContent() {
       try {
         // Always load custom categories
         const customs = await getCustomExpenseCategories();
-        console.log('ExpensesScreen: Loaded custom categories:', customs);
         setCustomCategories(customs);
 
         // Create a unique key for dashboard params to detect changes
@@ -198,19 +192,9 @@ function ExpensesScreenContent() {
         const isDashboardNavigation = params.fromDashboard === 'true';
         const dashboardParamsChanged = lastDashboardParams.current !== dashboardParamsKey;
 
-        console.log('ExpensesScreen: Navigation analysis:', {
-          isDashboardNavigation,
-          dashboardParamsChanged,
-          currentKey: dashboardParamsKey,
-          lastKey: lastDashboardParams.current,
-          isInitialLoad: isInitialLoad.current,
-          filtersLoaded: filtersLoaded.current
-        });
-
         if (isDashboardNavigation) {
           // FIXED: Apply dashboard filters and mark as loaded
           if (dashboardParamsChanged || isInitialLoad.current) {
-            console.log('ExpensesScreen: Applying filters from dashboard navigation');
             lastDashboardParams.current = dashboardParamsKey;
 
             // Apply filters from URL parameters
@@ -263,7 +247,6 @@ function ExpensesScreenContent() {
           } else if (!filtersLoaded.current) {
             // FIXED: If returning to screen with same dashboard params, load persisted filters
             // This handles the case where user navigates away and comes back
-            console.log('ExpensesScreen: Returning to screen with same dashboard params, loading persisted filters');
             await loadPersistedFilters();
           }
         } else {
@@ -294,11 +277,9 @@ function ExpensesScreenContent() {
     const reloadCustomCategories = async () => {
       try {
         const customs = await getCustomExpenseCategories();
-        console.log('ExpensesScreen: Reloaded custom categories after data change:', customs);
         setCustomCategories(customs);
         // If current category filter is no longer valid, clear it
         if (categoryFilter && !customs.includes(categoryFilter) && !DEFAULT_CATEGORIES.includes(categoryFilter)) {
-          console.log('ExpensesScreen: Clearing invalid category filter:', categoryFilter);
           setCategoryFilter(null);
         }
         // Clear invalid category filters from multiple selection
@@ -306,7 +287,6 @@ function ExpensesScreenContent() {
           customs.includes(cat) || DEFAULT_CATEGORIES.includes(cat)
         );
         if (validCategoryFilters.length !== categoryFilters.length) {
-          console.log('ExpensesScreen: Clearing invalid category filters:', categoryFilters);
           setCategoryFilters(validCategoryFilters);
         }
       } catch (error) {
@@ -323,20 +303,9 @@ function ExpensesScreenContent() {
     // 1. Filters have been loaded (to prevent overwriting during initial load)
     // 2. Not on initial load
     // 3. Either not from dashboard OR dashboard filters have been applied and should be persisted
-    const isDashboardNavigation = params.fromDashboard === 'true';
 
     if (filtersLoaded.current && !isInitialLoad.current) {
       const timeoutId = setTimeout(() => {
-        console.log('ExpensesScreen: Persisting filters:', {
-          category: categoryFilter,
-          search: searchQuery,
-          hasEndDate: hasEndDateFilter,
-          filter: filter,
-          personFilter: personFilter,
-          debtFilter: debtFilter,
-          bucketFilter: bucketFilter,
-          isDashboardNavigation
-        });
         saveExpensesFilters({
           category: categoryFilter,
           search: searchQuery,
@@ -360,13 +329,11 @@ function ExpensesScreenContent() {
   // FIXED: Better focus effect handling with proper filter persistence
   useFocusEffect(
     useCallback(() => {
-      console.log('ExpensesScreen: Focus effect triggered');
-
       if (!hasRefreshedOnFocus.current) {
         hasRefreshedOnFocus.current = true;
         refreshData(true);
         // Also refresh custom categories (in case new one added)
-        getCustomExpenseCategories().then(setCustomCategories).catch((e) => console.log('Failed to refresh custom categories', e));
+        getCustomExpenseCategories().then(setCustomCategories).catch((e) => console.warn('Failed to refresh custom categories', e));
       }
 
       return () => {
@@ -425,7 +392,6 @@ function ExpensesScreenContent() {
   }, []);
 
   const handleClearFilters = useCallback(() => {
-    console.log('ExpensesScreen: Clearing all filters');
     setCategoryFilter(null);
     setCategoryFilters([]);
     setSearchQuery('');
@@ -481,29 +447,15 @@ function ExpensesScreenContent() {
   // Apply filters with proper logic and error handling
   let filteredExpenses = [...data.expenses]; // Create a copy to avoid mutating original
 
-  console.log('ExpensesScreen: Starting filter process with', filteredExpenses.length, 'total expenses');
-  console.log('ExpensesScreen: Current filter state:', {
-    filter,
-    personFilter,
-    categoryFilter,
-    searchTerm,
-    hasEndDateFilter
-  });
-
   // Apply household/personal filter correctly
   if (filter === 'household') {
-    const beforeCount = filteredExpenses.length;
     filteredExpenses = filteredExpenses.filter((e) => e.category === 'household');
-    console.log('ExpensesScreen: Household filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   } else if (filter === 'personal') {
-    const beforeCount = filteredExpenses.length;
     filteredExpenses = filteredExpenses.filter((e) => e.category === 'personal');
-    console.log('ExpensesScreen: Personal filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   }
 
   // Apply person filter with proper logic for household vs personal expenses
   if (personFilter) {
-    const beforeCount = filteredExpenses.length;
     filteredExpenses = filteredExpenses.filter((e) => {
       // For household expenses, only filter if they have a personId assigned
       if (e.category === 'household') {
@@ -512,50 +464,41 @@ function ExpensesScreenContent() {
       // For personal expenses, always filter by personId
       return e.personId === personFilter;
     });
-    console.log('ExpensesScreen: Person filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   }
 
   // Apply category filter (support both single and multiple categories)
   const activeCategories = categoryFilters.length > 0 ? categoryFilters : (categoryFilter ? [categoryFilter] : []);
   if (activeCategories.length > 0) {
-    const beforeCount = filteredExpenses.length;
     const selectedCategories = activeCategories.map(cat => normalizeCategoryName(cat));
     filteredExpenses = filteredExpenses.filter((e) => {
       const expenseCategory = normalizeCategoryName((e as any).categoryTag || 'Misc');
       return selectedCategories.includes(expenseCategory);
     });
-    console.log('ExpensesScreen: Category filter applied. Before:', beforeCount, 'After:', filteredExpenses.length, 'Categories:', activeCategories);
   }
 
   // Apply search filter
   if (searchTerm) {
-    const beforeCount = filteredExpenses.length;
     const q = searchTerm.toLowerCase();
     filteredExpenses = filteredExpenses.filter((e) => e.description.toLowerCase().includes(q));
-    console.log('ExpensesScreen: Search filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   }
 
   // Apply end date filter
   if (hasEndDateFilter) {
-    const beforeCount = filteredExpenses.length;
     filteredExpenses = filteredExpenses.filter((e) => {
       // Only include expenses that have an end date and are not one-time
       const hasEndDate = e.endDate && e.frequency !== 'one-time';
       return hasEndDate;
     });
-    console.log('ExpensesScreen: End date filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   }
 
   // Apply debt repayment filter
   if (debtFilter && debtFilter !== 'all') {
-    const beforeCount = filteredExpenses.length;
     filteredExpenses = filteredExpenses.filter((e) => {
       if (debtFilter === 'any') {
         return !!e.debtRepayment;
       }
       return e.debtRepayment === debtFilter;
     });
-    console.log('ExpensesScreen: Debt filter applied. Before:', beforeCount, 'After:', filteredExpenses.length);
   }
 
   // Apply the budget-review bucket filter (Needs / Wants / Savings)
@@ -616,8 +559,6 @@ function ExpensesScreenContent() {
 
     return sortOrder === 'asc' ? comparison : -comparison;
   });
-
-  console.log('ExpensesScreen: Final filtered expenses count:', filteredExpenses.length);
 
   // `filteredExpenses` is built up by reassignment above; handlers below close over this settled copy.
   const shownExpenses = filteredExpenses;

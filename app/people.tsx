@@ -32,7 +32,6 @@ function PeopleScreenContent() {
   // Track when data has been loaded to prevent flicker
   useFocusEffect(
     useCallback(() => {
-      console.log('PeopleScreen: Screen focused, refreshing data...');
       refreshData();
       // Mark data as loaded after initial load completes
       if (!loading) {
@@ -45,7 +44,6 @@ function PeopleScreenContent() {
   useFocusEffect(
     useCallback(() => {
       if (!loading && !isDataLoaded) {
-        console.log('PeopleScreen: Data loading completed, marking as loaded');
         setIsDataLoaded(true);
       }
     }, [loading, isDataLoaded])

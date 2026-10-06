@@ -117,7 +117,7 @@ Interest earned: ${formatCurrency(projection.interestEarned)}`;
       await Clipboard.setStringAsync(text);
       showToast('Results copied to clipboard', 'success');
     } catch (e) {
-      console.log('Copy error', e);
+      console.warn('Copy error', e);
       showToast('Failed to copy', 'error');
     }
   };

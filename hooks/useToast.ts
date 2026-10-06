@@ -54,19 +54,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (type === 'success') haptics.success();
     else if (type === 'error') haptics.error();
 
-    console.log('ToastProvider: Showing toast:', newToast);
     setToasts(prev => [...prev, newToast]);
 
     return id;
   }, []);
 
   const hideToast = useCallback((id: string) => {
-    console.log('ToastProvider: Hiding toast:', id);
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
 
   const clearAllToasts = useCallback(() => {
-    console.log('ToastProvider: Clearing all toasts');
     setToasts([]);
   }, []);
 
