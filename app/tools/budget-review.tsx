@@ -18,6 +18,7 @@ import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useBudgetLock } from '../../hooks/useBudgetLock';
 import BudgetUnlock from '../../components/BudgetUnlock';
+import UnlockFade from '../../components/UnlockFade';
 import { useDebtHelpNudge } from '../../hooks/useDebtHelpNudge';
 import {
   BUCKET_ORDER,
@@ -405,7 +406,7 @@ ${lines.join('\n')}`;
         title="Budget review"
         intro={`Compare ${budgetName} with the 50/30/20 rule.`}
         inputs={explainer}
-        results={results}
+        results={<UnlockFade locked={locked}>{results}</UnlockFade>}
       />
       <CategoryBucketSheet
         visible={!!selected}

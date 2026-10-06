@@ -15,6 +15,7 @@ import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useBudgetLock } from '../hooks/useBudgetLock';
 import BudgetUnlock from '../components/BudgetUnlock';
+import UnlockFade from '../components/UnlockFade';
 import { useCurrency, displaySymbol } from '../hooks/useCurrency';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
@@ -501,7 +502,7 @@ export default function HomeScreen() {
       >
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
           {showHeader && state !== 'setup' ? <LargeTitle largeTitle={largeTitle} /> : null}
-          {renderBody()}
+          <UnlockFade locked={state === 'locked'}>{renderBody()}</UnlockFade>
         </View>
       </Animated.ScrollView>
     </KeyboardAvoidingView>

@@ -241,7 +241,7 @@ A 4-digit code that hides a budget until it is entered. It is a screen lock for 
 - **Auto-lock** (synced): *Immediately* (as soon as the app is left, or the tab hidden), 1, 5, 15 minutes, 1 hour, or *Never*. Which budgets are unlocked is held in memory, so quitting the app or reloading the page locks again; *Never* alone is remembered on the device. The clock starts when the app goes to the background, not while the Face ID prompt or the notification shade is up.
 - **Changing the code** asks for the current one first. Changing it elsewhere locks every other device again.
 - **Forgot the code** — "Forgot code?" on the lock screen takes the account password (checked without touching the signed-in session) and turns the lock off on every device; a new code can be set straight after.
-- **Lock gate** — a locked budget shows the code pad instead of Overview, Expenses, People and Budget review; the lock settings of a locked budget ask for the code before they open. Add/edit forms already open aren't covered.
+- **Lock gate** — a locked budget shows the code pad instead of Overview, Expenses, People and Budget review (and the lock settings, until the code is given); when the lock opens, what takes its place fades in over about a third of a second rather than appearing at once; the lock settings of a locked budget ask for the code before they open. Add/edit forms already open aren't covered.
 
 ---
 

@@ -5,6 +5,7 @@ import { useBudgetLock } from '../hooks/useBudgetLock';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import StandardHeader from './StandardHeader';
 import BudgetUnlock from './BudgetUnlock';
+import UnlockFade from './UnlockFade';
 import { Card } from './ui';
 import { space } from '../styles/tokens';
 
@@ -18,21 +19,28 @@ export default function LockGate({ title, children }: { title: string; children:
   const { isLocked } = useBudgetLock();
   const { themedStyles, breakpoint } = useThemedStyles();
 
-  if (!activeBudget || !isLocked(activeBudget)) return <>{children}</>;
+  const locked = !!activeBudget && isLocked(activeBudget);
 
+  // The wrapper stays put whether the lock is up or not, so the budget can fade in when it goes.
   return (
-    <View style={themedStyles.container}>
-      <StandardHeader title={title} showLeftIcon={false} showRightIcon={false} />
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
-      >
-        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-          <Card>
-            <BudgetUnlock budget={activeBudget} />
-          </Card>
+    <UnlockFade locked={locked} style={{ flex: 1 }}>
+      {locked && activeBudget ? (
+        <View style={themedStyles.container}>
+          <StandardHeader title={title} showLeftIcon={false} showRightIcon={false} />
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+          >
+            <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+              <Card>
+                <BudgetUnlock budget={activeBudget} />
+              </Card>
+            </View>
+          </ScrollView>
         </View>
-      </ScrollView>
-    </View>
+      ) : (
+        children
+      )}
+    </UnlockFade>
   );
 }
