@@ -25,6 +25,8 @@ export const createDevice = async (user: TestUser, disk = createMemoryStorage(),
   const sync = await import('../../utils/budgetSync');
   const lock = await import('../../utils/budgetLock');
   const lockActions = await import('../../utils/budgetLockActions');
+  // What this device knows of the server's revisions (utils/realtimeGate.ts).
+  const gate = await import('../../utils/realtimeGate');
 
   // What useBudgetData does when the session starts.
   if (claim) await storage.claimDeviceData(user.id);
@@ -36,6 +38,7 @@ export const createDevice = async (user: TestUser, disk = createMemoryStorage(),
     // The budget lock rules and what the lock screens do, on this device.
     lock,
     lockActions,
+    gate,
     sharing: {} as Record<string, BudgetSharing>,
     load: () => storage.loadAppData(),
     // One sync pass (it saves its result to the device).
