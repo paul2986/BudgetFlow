@@ -1,198 +1,127 @@
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
+import { Budget } from '../types/budget';
+import { isBudgetLocked, unlockSession } from '../utils/budgetLock';
+import { authenticateWithBiometrics, getBiometricKind, type BiometricKind } from '../utils/biometrics';
+import {
+  checkCode as checkCodeAction,
+  lockNow as lockNowAction,
+  removeLock as removeLockAction,
+  resetLockWithPassword as resetAction,
+  setAutoLock as setAutoLockAction,
+  setBiometrics as setBiometricsAction,
+  setCode as setCodeAction,
+  unlockAfterBiometrics,
+} from '../utils/budgetLockActions';
+import { useBudgetData } from './useBudgetData';
 
-import { useState, useEffect, useCallback } from 'react';
-import * as LocalAuthentication from 'expo-local-authentication';
-import { Budget, BudgetLockSettings } from '../types/budget';
-import { setBudgetLock, markBudgetUnlocked } from '../utils/storage';
+type Result = { success: boolean; error?: Error };
 
-export interface BudgetLockCapabilities {
-  hasHardware: boolean;
-  hasPasscode: boolean;
-  canUseDevicePasscode: boolean;
-}
+// Face ID can be asked for once at a time: a second request while its prompt is up would fail
+// the first (the lock showing on two screens at once, or a tap on the button during the automatic ask).
+let biometricPromptOpen = false;
 
+/**
+ * Budget lock, for the screens: whether a budget is locked on this device now, and
+ * the things to do about it (see utils/budgetLockActions.ts for what they do).
+ * A change is written to the device and then shown, so every screen using the
+ * budget sees it at once.
+ */
 export function useBudgetLock() {
-  const [capabilities, setCapabilities] = useState<BudgetLockCapabilities>({
-    hasHardware: false,
-    hasPasscode: false,
-    canUseDevicePasscode: false,
-  });
-  const [loading, setLoading] = useState(true);
+  const { refreshData } = useBudgetData();
+  // Re-render, and hand out a new `isLocked`, whenever something is locked or unlocked here,
+  // so a `useMemo` that depends on it re-runs.
+  const unlockVersion = useSyncExternalStore(unlockSession.subscribe, unlockSession.getVersion, unlockSession.getVersion);
 
-  // Check device capabilities
-  const checkCapabilities = useCallback(async (): Promise<BudgetLockCapabilities> => {
-    try {
-      console.log('useBudgetLock: Checking device capabilities');
-      
-      const hasHardware = await LocalAuthentication.hasHardwareAsync();
-      console.log('useBudgetLock: Hardware available:', hasHardware);
-      
-      // Check if device has any form of authentication (biometrics or passcode)
-      const securityLevel = await LocalAuthentication.getEnrolledLevelAsync();
-      const hasPasscode = securityLevel !== LocalAuthentication.SecurityLevel.NONE;
-      console.log('useBudgetLock: Security level:', securityLevel, 'Has passcode:', hasPasscode);
-      
-      // Can use device passcode if hardware is available (even without biometrics enrolled)
-      const canUseDevicePasscode = hasHardware && hasPasscode;
-      
-      const caps: BudgetLockCapabilities = {
-        hasHardware,
-        hasPasscode,
-        canUseDevicePasscode,
-      };
-
-      console.log('useBudgetLock: Final capabilities:', caps);
-      setCapabilities(caps);
-      
-      return caps;
-    } catch (error) {
-      console.error('useBudgetLock: Error checking capabilities:', error);
-      const fallbackCaps: BudgetLockCapabilities = {
-        hasHardware: false,
-        hasPasscode: false,
-        canUseDevicePasscode: false,
-      };
-      setCapabilities(fallbackCaps);
-      return fallbackCaps;
-    }
+  const [biometric, setBiometric] = useState<BiometricKind | null>(null);
+  const checkBiometrics = useCallback(async () => {
+    const kind = await getBiometricKind();
+    setBiometric(kind);
+    return kind;
   }, []);
-
-  // Initialize capabilities
   useEffect(() => {
-    const initialize = async () => {
-      setLoading(true);
-      await checkCapabilities();
-      setLoading(false);
-    };
+    checkBiometrics();
+  }, [checkBiometrics]);
 
-    initialize();
-  }, [checkCapabilities]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const isLocked = useCallback((budget: Budget | undefined | null): boolean => isBudgetLocked(budget), [unlockVersion]);
 
-  // Check if device can use passcode authentication
-  const canUseDevicePasscode = useCallback((): boolean => {
-    return capabilities.canUseDevicePasscode;
-  }, [capabilities.canUseDevicePasscode]);
+  // The action has changed what this device holds; have the screens read it again.
+  const shown = useCallback(
+    async <T extends Result>(change: Promise<T>): Promise<T> => {
+      const result = await change;
+      if (result.success) await refreshData(true);
+      return result;
+    },
+    [refreshData]
+  );
 
-  // Authenticate for a specific budget
-  const authenticateForBudget = useCallback(async (budgetId: string): Promise<boolean> => {
-    try {
-      console.log('useBudgetLock: Authenticating for budget:', budgetId);
-      
-      if (!capabilities.canUseDevicePasscode) {
-        console.log('useBudgetLock: Device passcode not available');
-        return false;
+  const setCode = useCallback((budgetId: string, pin: string) => shown(setCodeAction(budgetId, pin)), [shown]);
+  const removeLock = useCallback((budgetId: string) => shown(removeLockAction(budgetId)), [shown]);
+  const setAutoLock = useCallback((budgetId: string, minutes: number) => shown(setAutoLockAction(budgetId, minutes)), [shown]);
+  const lockNow = useCallback((budgetId: string) => shown(lockNowAction(budgetId)), [shown]);
+  const setBiometrics = useCallback((budgetId: string, enabled: boolean) => shown(setBiometricsAction(budgetId, enabled)), [shown]);
+
+  const checkCode = useCallback(
+    async (budgetId: string, pin: string, options?: { unlock?: boolean }) => {
+      const check = await checkCodeAction(budgetId, pin, options);
+      // A "never lock again" budget remembers it in storage; the screens read that from the app data.
+      if (check.ok && options?.unlock !== false) await refreshData(true);
+      return check;
+    },
+    [refreshData]
+  );
+
+  /** Ask Face ID / Touch ID; true when it unlocked the budget. */
+  const unlockWithBiometrics = useCallback(
+    async (budget: Budget): Promise<boolean> => {
+      if (biometricPromptOpen) return false;
+      biometricPromptOpen = true;
+      try {
+        if (!(await authenticateWithBiometrics(`Unlock ${budget.name}`))) return false;
+      } finally {
+        biometricPromptOpen = false;
       }
-
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock this budget',
-        fallbackLabel: 'Use Passcode',
-        cancelLabel: 'Cancel',
-        disableDeviceFallback: false, // Allow passcode fallback
-      });
-
-      console.log('useBudgetLock: Authentication result:', result);
-
-      if (result.success) {
-        console.log('useBudgetLock: Authentication successful, marking budget unlocked');
-        const unlockResult = await markBudgetUnlocked(budgetId);
-        if (!unlockResult.success) {
-          console.error('useBudgetLock: Failed to mark budget unlocked:', unlockResult.error);
-        }
-        return true;
-      } else {
-        console.log('useBudgetLock: Authentication failed:', result.error);
-        return false;
-      }
-    } catch (error) {
-      console.error('useBudgetLock: Authentication error:', error);
-      return false;
-    }
-  }, [capabilities.canUseDevicePasscode]);
-
-  // Check if budget should auto-lock based on timeout
-  const shouldAutoLock = useCallback((lock: BudgetLockSettings): boolean => {
-    if (lock.autoLockMinutes === 0) {
-      // Immediate lock - always prompt
+      await unlockAfterBiometrics(budget.id);
+      await refreshData(true);
       return true;
-    }
+    },
+    [refreshData]
+  );
 
-    if (!lock.lastUnlockAt) {
-      // No unlock time recorded - should lock
-      return true;
-    }
+  /**
+   * Turn on Face ID / Touch ID for a budget on this device, after it has recognised the
+   * person once, so what is saved is known to work.
+   */
+  const enableBiometrics = useCallback(
+    async (budget: Budget): Promise<boolean> => {
+      if (!(await authenticateWithBiometrics(`Use ${biometric ?? 'biometrics'} to unlock ${budget.name}`))) return false;
+      return (await setBiometrics(budget.id, true)).success;
+    },
+    [biometric, setBiometrics]
+  );
 
-    const lastUnlock = new Date(lock.lastUnlockAt);
-    const now = new Date();
-    const diffMinutes = (now.getTime() - lastUnlock.getTime()) / (1000 * 60);
-    
-    const shouldLock = diffMinutes >= lock.autoLockMinutes;
-    console.log('useBudgetLock: Auto-lock check:', {
-      lastUnlock: lastUnlock.toISOString(),
-      now: now.toISOString(),
-      diffMinutes,
-      autoLockMinutes: lock.autoLockMinutes,
-      shouldLock,
-    });
-    
-    return shouldLock;
-  }, []);
-
-  // Check if a budget is currently locked
-  const isLocked = useCallback((budget: Budget): boolean => {
-    if (!budget || !budget.lock || !budget.lock.locked) {
-      return false;
-    }
-
-    return shouldAutoLock(budget.lock);
-  }, [shouldAutoLock]);
-
-  // Toggle budget lock
-  const toggleBudgetLock = useCallback(async (budgetId: string, enabled: boolean): Promise<{ success: boolean; error?: Error }> => {
-    console.log('useBudgetLock: Toggling budget lock:', budgetId, enabled);
-    
-    if (enabled && !capabilities.canUseDevicePasscode) {
-      return { success: false, error: new Error('Device passcode is not available') };
-    }
-
-    const patch: Partial<BudgetLockSettings> = {
-      locked: enabled,
-      lastUnlockAt: enabled ? undefined : new Date().toISOString(),
-    };
-
-    return await setBudgetLock(budgetId, patch);
-  }, [capabilities.canUseDevicePasscode]);
-
-  // Set auto-lock timeout for a budget
-  const setBudgetAutoLock = useCallback(async (budgetId: string, autoLockMinutes: number): Promise<{ success: boolean; error?: Error }> => {
-    console.log('useBudgetLock: Setting auto-lock timeout:', budgetId, autoLockMinutes);
-    
-    const patch: Partial<BudgetLockSettings> = {
-      autoLockMinutes,
-    };
-
-    return await setBudgetLock(budgetId, patch);
-  }, []);
-
-  // Lock budget immediately
-  const lockBudgetNow = useCallback(async (budgetId: string): Promise<{ success: boolean; error?: Error }> => {
-    console.log('useBudgetLock: Locking budget now:', budgetId);
-    
-    const patch: Partial<BudgetLockSettings> = {
-      lastUnlockAt: undefined, // Clear unlock time to force lock
-    };
-
-    return await setBudgetLock(budgetId, patch);
-  }, []);
+  const resetLockWithPassword = useCallback(
+    async (budgetId: string, email: string, password: string) => {
+      const result = await resetAction(budgetId, email, password);
+      if (result.ok) await refreshData(true);
+      return result;
+    },
+    [refreshData]
+  );
 
   return {
-    capabilities,
-    loading,
-    canUseDevicePasscode,
-    authenticateForBudget,
-    shouldAutoLock,
+    /** Face ID, Touch ID or generic biometrics when this device has it set up; null otherwise. */
+    biometric,
+    checkBiometrics,
     isLocked,
-    toggleBudgetLock,
-    setBudgetAutoLock,
-    lockBudgetNow,
-    checkCapabilities,
+    setCode,
+    removeLock,
+    setAutoLock,
+    lockNow,
+    setBiometrics,
+    checkCode,
+    unlockWithBiometrics,
+    enableBiometrics,
+    resetLockWithPassword,
   };
 }

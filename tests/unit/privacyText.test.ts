@@ -32,6 +32,15 @@ describe('privacy text', () => {
     expect(text).toMatch(/Delete account removes your account/);
   });
 
+  it('describes the budget lock the way it is stored: a hash of the code, kept for the account', () => {
+    const sql = read('supabase/migrations/20261006120000_budget_locks.sql');
+    expect(sql).toContain('pin_verifier text not null');
+    expect(sql).not.toMatch(/\bpin text\b/);
+    expect(sql).toMatch(/user_id uuid not null references auth\.users/);
+    expect(text).toContain('a scrambled form of its 4-digit code');
+    expect(text).toContain('The code itself is never stored.');
+  });
+
   it('covers what is stored, kept on the device, who sees it, who else is involved and the user’s choices', () => {
     expect(PRIVACY_SECTIONS.map((s) => s.title)).toEqual([
       'What we store',

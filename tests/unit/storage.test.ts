@@ -298,6 +298,64 @@ describe('budget lock', () => {
     expect(saved.lock?.locked).toBe(true);
     expect(saved.modifiedAt).toBe(123);
   });
+
+  it('keeps the code’s hash, the time and Face ID across a reload, and drops anything else', async () => {
+    const budget = makeBudget({ lock: { locked: true, autoLockMinutes: -1, pinVerifier: 'v1$5000$aa$bb', biometrics: true, lastUnlockAt: '2026-10-06T09:00:00Z' } });
+    seed(app([{ ...budget, lock: { ...budget.lock!, pin: '1234' } as any }]));
+    const [loaded] = (await storage.loadAppData()).budgets;
+    expect(loaded.lock).toEqual({
+      locked: true,
+      autoLockMinutes: -1,
+      pinVerifier: 'v1$5000$aa$bb',
+      biometrics: true,
+      lastUnlockAt: '2026-10-06T09:00:00Z',
+    });
+    expect(JSON.stringify(loaded)).not.toContain('1234');
+  });
+
+  it('does not take Face ID or a code from junk', async () => {
+    seed(app([makeBudget({ lock: { locked: true, autoLockMinutes: 5, pinVerifier: 42 as any, biometrics: 'yes' as any } })]));
+    const [loaded] = (await storage.loadAppData()).budgets;
+    expect(loaded.lock?.pinVerifier).toBeUndefined();
+    expect(loaded.lock?.biometrics).toBeUndefined();
+  });
+
+  it('does not copy a lock into a duplicate or an import', async () => {
+    const budget = makeBudget({ lock: { locked: true, autoLockMinutes: 5, pinVerifier: 'v1$5000$aa$bb', biometrics: true } });
+    seed(app([budget]));
+    const copy = await storage.duplicateBudget(budget.id, 'Copy');
+    expect(copy.success).toBe(true);
+    const copies = (await storage.loadAppData()).budgets.filter((b) => b.id !== budget.id);
+    expect(copies).toHaveLength(1);
+    expect(copies[0].lock).toEqual({ locked: false, autoLockMinutes: 0 });
+  });
+
+  it('remembers wrong codes per budget, so quitting the app does not clear the wait', async () => {
+    expect(await storage.getLockAttempts('a')).toEqual({ failures: 0, blockedUntil: 0 });
+    await storage.saveLockAttempts('a', { failures: 5, blockedUntil: 99 });
+    await storage.saveLockAttempts('b', { failures: 1, blockedUntil: 0 });
+    expect(await storage.getLockAttempts('a')).toEqual({ failures: 5, blockedUntil: 99 });
+    await storage.saveLockAttempts('a', { failures: 0, blockedUntil: 0 });
+    expect(await storage.getLockAttempts('a')).toEqual({ failures: 0, blockedUntil: 0 });
+    expect(await storage.getLockAttempts('b')).toEqual({ failures: 1, blockedUntil: 0 });
+  });
+
+  it('reads damaged attempt counts as none', async () => {
+    device.store.set('lock_attempts_v1', '{"a":{"failures":"lots"}}');
+    expect(await storage.getLockAttempts('a')).toEqual({ failures: 0, blockedUntil: 0 });
+    device.store.set('lock_attempts_v1', 'not json');
+    expect(await storage.getLockAttempts('a')).toEqual({ failures: 0, blockedUntil: 0 });
+  });
+
+  it('is left behind on sign-out: wrong codes forgotten, nothing stays unlocked', async () => {
+    const { unlockSession } = await import('../../utils/budgetLock');
+    seed(app([makeBudget({ id: 'b1' })]));
+    await storage.saveLockAttempts('b1', { failures: 5, blockedUntil: 99 });
+    unlockSession.unlock('b1', 'p');
+    await storage.clearLocalAppData();
+    expect(await storage.getLockAttempts('b1')).toEqual({ failures: 0, blockedUntil: 0 });
+    expect(unlockSession.isUnlocked('b1', 5, 'p')).toBe(false);
+  });
 });
 
 describe('expenses sort preference', () => {

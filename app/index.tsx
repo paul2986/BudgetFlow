@@ -14,6 +14,7 @@ import { useBudgetData } from '../hooks/useBudgetData';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useBudgetLock } from '../hooks/useBudgetLock';
+import BudgetUnlock from '../components/BudgetUnlock';
 import { useCurrency, displaySymbol } from '../hooks/useCurrency';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
@@ -130,10 +131,9 @@ export default function HomeScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
   const { data, loading, activeBudget, appData, refreshTrigger, refreshData, addBudget, user } = useBudgetData();
-  const { isLocked, authenticateForBudget } = useBudgetLock();
+  const { isLocked } = useBudgetLock();
   const { currency } = useCurrency();
 
-  const [authenticating, setAuthenticating] = useState(false);
   const [budgetName, setBudgetName] = useState('My budget');
   const [creatingBudget, setCreatingBudget] = useState(false);
 
@@ -206,20 +206,6 @@ export default function HomeScreen() {
   const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
     appState.current = nextAppState;
   }, []);
-
-  const handleUnlock = useCallback(async () => {
-    if (!activeBudget) return;
-    setAuthenticating(true);
-    try {
-      const success = await authenticateForBudget(activeBudget.id);
-      if (!success) showToast('Authentication failed', 'error');
-    } catch (error) {
-      console.error('HomeScreen: Authentication error:', error);
-      showToast('Authentication error', 'error');
-    } finally {
-      setAuthenticating(false);
-    }
-  }, [activeBudget, authenticateForBudget, showToast]);
 
   const handleCreateBudget = useCallback(async () => {
     if (!budgetName.trim()) return;
@@ -343,40 +329,7 @@ export default function HomeScreen() {
               }}
             >
               <Card style={{ width: '100%', maxWidth: 360, alignItems: 'center' }}>
-                <View
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: radius.full,
-                    backgroundColor: tokens.colors.brandSubtle,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: space.s4,
-                  }}
-                >
-                  <Icon name="lock-closed" size={28} color={tokens.colors.brand} />
-                </View>
-                <Text accessibilityRole="header" style={[type.h3, { color: tokens.colors.text, textAlign: 'center' }]}>
-                  {budgetTitle} is locked
-                </Text>
-                <Text
-                  style={[type.body, { color: tokens.colors.textMuted, textAlign: 'center', marginTop: space.s1, marginBottom: space.s5 }]}
-                >
-                  Unlock with Face ID, Touch ID or your passcode to view it.
-                </Text>
-                <Button
-                  text="Unlock"
-                  icon={<Icon name="lock-open-outline" size={18} color={tokens.colors.onBrand} />}
-                  onPress={handleUnlock}
-                  loading={authenticating}
-                  style={{ marginTop: 0 }}
-                />
-                <Button
-                  text="Switch budget"
-                  variant="ghost"
-                  onPress={() => router.push('/budgets')}
-                  disabled={authenticating}
-                />
+                {activeBudget ? <BudgetUnlock budget={activeBudget} /> : null}
               </Card>
             </BlurView>
           </View>

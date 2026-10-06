@@ -1,5 +1,6 @@
 import { AppDataV2, Budget, BudgetSharing } from '../types/budget';
 import { supabase } from './supabase';
+import { lockFromServer, sameLockConfig, type ServerLock } from './budgetLock';
 import {
   addCategoriesToBudget,
   getDeviceOwner,
@@ -76,8 +77,9 @@ const mergeEntities = <T extends { id: string; updatedAt?: number }>(
   return result;
 };
 
-// Merge a budget held both locally and remotely, at the entity level. The lock
-// is device-only, so the local one always wins.
+// Merge a budget held both locally and remotely, at the entity level. The lock is
+// not part of the shared budget (it is the account's own, in budget_locks, and is
+// taken from there by adoptServerLocks), so the local one always wins here.
 export const mergeBudget = (local: Budget, remote: Budget): Budget => {
   const localMod = local.modifiedAt || 0;
   const remoteMod = remote.modifiedAt || 0;
@@ -112,7 +114,7 @@ export const stableStringify = (value: unknown): string =>
       : v
   );
 
-// The shared copy of a budget: everything except this device's lock.
+// The shared copy of a budget: everything except the lock, which is the account's own.
 export const toServerBudget = (budget: Budget): Omit<Budget, 'lock'> => {
   const { lock: _lock, ...shared } = budget;
   return shared;
@@ -171,6 +173,20 @@ const createBudget = async (budget: Budget): Promise<boolean> => {
   throw error;
 };
 
+// Make each budget's lock on this device what the account's lock is on the server.
+// A lock changed on this device while the pass ran is newer than what the pass
+// read, so it stays; the next pass takes it from the server.
+const adoptServerLocks = (data: AppDataV2, snapshot: AppDataV2, locks: Map<string, ServerLock>): AppDataV2 => {
+  const before = new Map(snapshot.budgets.map((b) => [b.id, b.lock]));
+  return {
+    ...data,
+    budgets: data.budgets.map((budget) => {
+      if (before.has(budget.id) && !sameLockConfig(before.get(budget.id), budget.lock)) return budget;
+      return { ...budget, lock: lockFromServer(budget.lock, locks.get(budget.id)) };
+    }),
+  };
+};
+
 // Fold the sync result into the device copy as it is now: anything saved on
 // this device while the sync was talking to the server is merged in, not lost.
 // `settled` are removals the server has now carried out.
@@ -211,12 +227,22 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     // Never upload one account's device data as another's (see claimDeviceData).
     if ((await getDeviceOwner()) !== userId) throw new Error('This device’s data belongs to another account');
     const snapshot = await load();
-    const [budgetsRes, membersRes] = await Promise.all([
+    const [budgetsRes, membersRes, locksRes] = await Promise.all([
       supabase.from('budgets').select('id, data, revision'),
       supabase.from('budget_members').select('budget_id, user_id, role, joined_at'),
+      supabase.from('budget_locks').select('budget_id, pin_verifier, auto_lock_minutes'),
     ]);
     if (budgetsRes.error) throw budgetsRes.error;
     if (membersRes.error) throw membersRes.error;
+    // Locks the server couldn't give us leave this device's as they are. Reading
+    // that as "no locks" would unlock everything, and a failed read must not do
+    // that (nor stop the budgets syncing).
+    if (locksRes.error) console.error('budgetSync: could not read budget locks:', locksRes.error);
+    const serverLocks = locksRes.error
+      ? null
+      : new Map(
+          (locksRes.data as (ServerLock & { budget_id: string })[]).map((row) => [row.budget_id, row] as const)
+        );
 
     const sharing: Record<string, BudgetSharing> = {};
     const joinedAt: Record<string, number> = {};
@@ -261,7 +287,7 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
           continue;
         }
       }
-      // A budget new to this device arrives unlocked; locks are set per device.
+      // A budget new to this device arrives unlocked; its lock, if the account has one, is adopted below.
       const merged = mine ? mergeBudget(mine, remote.data) : { ...remote.data, lock: { locked: false, autoLockMinutes: 0 } };
       result.push(await writeBudget(merged, remote));
       syncedIds.add(remote.id);
@@ -304,7 +330,8 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
     // otherwise it would re-create budgets this pass gave new ids.
     const synced: AppDataV2 = { version: 2, budgets: result, activeBudgetId };
     const current = await load();
-    const data = reconcile(snapshot, synced, current, settled);
+    const reconciled = reconcile(snapshot, synced, current, settled);
+    const data = serverLocks ? adoptServerLocks(reconciled, snapshot, serverLocks) : reconciled;
     // The usual pass finds nothing new: rewriting every budget (validated twice, written,
     // read back) each time was the bulk of the work behind every screen change.
     if (stableStringify(data) !== stableStringify(current)) {

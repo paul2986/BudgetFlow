@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { createMemoryStorage } from './memoryStorage';
-import type { TestUser } from './localSupabase';
+import { anonClient, type TestUser } from './localSupabase';
 import type { AppDataV2, BudgetSharing } from '../../types/budget';
 
 const SUPABASE_MODULE = fileURLToPath(new URL('../../utils/supabase.ts', import.meta.url));
@@ -13,9 +13,18 @@ const SUPABASE_MODULE = fileURLToPath(new URL('../../utils/supabase.ts', import.
 export const createDevice = async (user: TestUser, disk = createMemoryStorage(), { claim = true } = {}) => {
   vi.resetModules();
   vi.doMock('@react-native-async-storage/async-storage', () => ({ default: disk }));
-  vi.doMock(SUPABASE_MODULE, () => ({ supabase: user.client }));
+  vi.doMock(SUPABASE_MODULE, () => ({
+    supabase: user.client,
+    // The account's password, checked on a client of its own as the app does.
+    verifyAccountPassword: async (email: string, password: string) => {
+      const { error } = await anonClient().auth.signInWithPassword({ email, password });
+      return !error;
+    },
+  }));
   const storage = await import('../../utils/storage');
   const sync = await import('../../utils/budgetSync');
+  const lock = await import('../../utils/budgetLock');
+  const lockActions = await import('../../utils/budgetLockActions');
 
   // What useBudgetData does when the session starts.
   if (claim) await storage.claimDeviceData(user.id);
@@ -24,6 +33,9 @@ export const createDevice = async (user: TestUser, disk = createMemoryStorage(),
     user,
     disk,
     storage,
+    // The budget lock rules and what the lock screens do, on this device.
+    lock,
+    lockActions,
     sharing: {} as Record<string, BudgetSharing>,
     load: () => storage.loadAppData(),
     // One sync pass (it saves its result to the device).

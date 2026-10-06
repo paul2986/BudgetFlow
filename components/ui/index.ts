@@ -18,6 +18,7 @@ export { default as ListGroup } from './ListGroup';
 export { default as ListRow } from './ListRow';
 export { default as Menu } from './Menu';
 export type { MenuAnchor, MenuSection } from './Menu';
+export { default as PinPad } from './PinPad';
 export { default as SearchField } from './SearchField';
 export { default as SegmentedControl } from './SegmentedControl';
 export { default as Sheet } from './Sheet';

@@ -7,6 +7,8 @@ import StandardHeader from '../components/StandardHeader';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
+import { useBudgetLock } from '../hooks/useBudgetLock';
+import { hasLock } from '../utils/budgetLock';
 import { Budget } from '../types/budget';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from '../components/Icon';
@@ -30,6 +32,7 @@ export default function BudgetsScreen() {
   const { currency } = useCurrency();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
+  const { isLocked } = useBudgetLock();
 
   const [newBudgetName, setNewBudgetName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -275,8 +278,8 @@ export default function BudgetsScreen() {
   const budgetActions = (budget: Budget): MenuSection[] => {
     const isActive = activeBudget?.id === budget.id;
     const access = sharing[budget.id];
-    // A locked budget opens only after its lock; exporting it from the list would skip that.
-    const lockedElsewhere = !!budget.lock?.locked && !isActive;
+    // A locked budget opens only after its code; exporting or copying it from the list would skip that.
+    const closed = isLocked(budget);
     const run = (fn: () => void) => () => {
       setActionBudgetId(null);
       fn();
@@ -303,21 +306,23 @@ export default function BudgetsScreen() {
           {
             key: 'duplicate',
             label: 'Duplicate',
+            detail: closed ? 'Unlock it first' : undefined,
             icon: 'copy-outline',
+            disabled: closed,
             onPress: run(() => handleDuplicateBudget(budget.id, budget.name)),
           },
           {
             key: 'export',
             label: 'Export to Excel',
-            detail: lockedElsewhere ? 'Switch to it and unlock first' : undefined,
+            detail: closed ? 'Unlock it first' : undefined,
             icon: 'download-outline',
-            disabled: lockedElsewhere,
+            disabled: closed,
             onPress: run(() => handleExportBudget(budget)),
           },
           {
             key: 'lock',
             label: 'Budget lock',
-            detail: budget.lock?.locked ? 'On' : 'Off',
+            detail: hasLock(budget) ? 'On' : 'Off',
             icon: 'lock-closed-outline',
             onPress: run(() => router.push({ pathname: '/budget-lock', params: { budgetId: budget.id } })),
           },
@@ -396,7 +401,7 @@ export default function BudgetsScreen() {
             >
               {budgets.map((budget, i) => {
                 const isActive = activeBudget?.id === budget.id;
-                const locked = !!budget.lock?.locked;
+                const locked = hasLock(budget);
                 const renaming = editingBudgetId === budget.id;
                 if (renaming) {
                   // Rename takes over the row: a labelled field and text actions,

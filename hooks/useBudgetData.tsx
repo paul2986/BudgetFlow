@@ -344,6 +344,13 @@ const useBudgetDataInternal = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets' }, refreshSoon)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_members' }, refreshSoon)
       .subscribe();
+    // A lock turned on, off or changed on another device. On a channel of its own: a
+    // subscription Realtime can't set up (say, a database that hasn't got the table yet)
+    // fails the whole channel, and must not take the budgets' live updates with it.
+    const lockChannel = supabase
+      .channel(`budget_locks:${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_locks' }, refreshSoon)
+      .subscribe();
     const appState = AppState.addEventListener('change', (state) => {
       if (state === 'active') refreshSoon();
     });
@@ -351,6 +358,7 @@ const useBudgetDataInternal = () => {
       clearTimeout(timer);
       appState.remove();
       supabase.removeChannel(channel);
+      supabase.removeChannel(lockChannel);
     };
   }, [user, refreshFromStorage]);
 

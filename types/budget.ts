@@ -77,10 +77,19 @@ export interface HouseholdSettings {
   distributionMethod: 'even' | 'income-based';
 }
 
-// Budget lock settings
+// Budget lock settings, as this device holds them. The account's lock itself
+// (locked, autoLockMinutes, pinVerifier) lives on the server and arrives with
+// each sync; biometrics and lastUnlockAt belong to this device alone. See
+// utils/budgetLock.ts.
 export interface BudgetLockSettings {
   locked: boolean;
+  // 0: lock as soon as the app is left. n > 0: after n minutes away. -1: never.
   autoLockMinutes: number;
+  // A salted hash of the 4-digit code, never the code. A lock without one is no lock.
+  pinVerifier?: string;
+  // Face ID / Touch ID may unlock it on this device, in place of the code.
+  biometrics?: boolean;
+  // When it was unlocked on this device. Only kept (and only counts) for "never lock again".
   lastUnlockAt?: string;
 }
 
@@ -93,7 +102,7 @@ export interface Budget {
   householdSettings: HouseholdSettings;
   createdAt: number; // epoch millis
   modifiedAt: number; // epoch millis
-  lock?: BudgetLockSettings; // Default: { locked: false, autoLockMinutes: 0 }
+  lock?: BudgetLockSettings; // Default: { locked: false, autoLockMinutes: 0 }. Never uploaded with the budget.
   // Tombstones for deleted people/expenses: id -> deletion epoch millis. Used so a
   // delete on one device isn't resurrected when merging with another device's copy.
   deletions?: Record<string, number>;

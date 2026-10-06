@@ -300,6 +300,7 @@ Every screen keeps its exact current capabilities; only presentation changes.
 | **Dialog (confirm)** | Max 400, title `h3`, body `body` textMuted, actions right-aligned (ghost cancel + primary/destructive). Destructive delete of budget requires typing budget name. |
 | **Toast** | Bottom (above tab bar), `surface` e2, icon by severity, auto-dismiss 4s, optional action ("Undo"), `aria-live=polite`, never steals focus. |
 | **EmptyState** | 64px icon in subtle circle, `h3` title, one caption line, one primary CTA. Per-screen copy defined with the screen. |
+| **PinPad** | Four dots (14, `borderStrong` outline, `text` fill as digits go in) over a 3×4 keypad of 64px `surfaceSunken` circles (digits `h1` tabular; pressed = `surfaceHover` on press-down), Delete beside 0 and an optional spare key opposite it (Face ID / Touch ID, brand-coloured, no fill). Completing the fourth digit calls `onComplete`, then the dots clear. A wrong code turns the dots `danger` until the next digit and shakes them (no shake under Reduce Motion); the message under the pad is `caption` `danger` in a fixed-height slot so nothing moves. Hardware keyboard on web, except while typing in a text field. No haptic per key; `error` on a wrong code, `success` on unlock. |
 | **Skeleton** | Replace "Loading..." text: shimmer blocks matching final layout (hero card, stat row, 3 rows) for loads >300ms; respect reduced-motion (static blocks). |
 | **Avatar** | Initial on deterministic per-person hue (from the fixed 6-hue accessible set in `styles/tokens.ts`), `rFull`, sizes 28/36/44. |
 
