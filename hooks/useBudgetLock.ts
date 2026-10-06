@@ -33,9 +33,12 @@ export function useBudgetLock() {
   const unlockVersion = useSyncExternalStore(unlockSession.subscribe, unlockSession.getVersion, unlockSession.getVersion);
 
   const [biometric, setBiometric] = useState<BiometricKind | null>(null);
+  // False until the device has said what it can do, so "no Face ID" isn't mistaken for "not asked yet".
+  const [biometricChecked, setBiometricChecked] = useState(false);
   const checkBiometrics = useCallback(async () => {
     const kind = await getBiometricKind();
     setBiometric(kind);
+    setBiometricChecked(true);
     return kind;
   }, []);
   useEffect(() => {
@@ -71,19 +74,22 @@ export function useBudgetLock() {
     [refreshData]
   );
 
-  /** Ask Face ID / Touch ID; true when it unlocked the budget. */
+  /**
+   * Ask Face ID / Touch ID. 'unlocked' when it opened the budget, 'declined' when the person cancelled
+   * or it didn't match, 'busy' when another ask is already on screen (which says nothing either way).
+   */
   const unlockWithBiometrics = useCallback(
-    async (budget: Budget): Promise<boolean> => {
-      if (biometricPromptOpen) return false;
+    async (budget: Budget): Promise<'unlocked' | 'declined' | 'busy'> => {
+      if (biometricPromptOpen) return 'busy';
       biometricPromptOpen = true;
       try {
-        if (!(await authenticateWithBiometrics(`Unlock ${budget.name}`))) return false;
+        if (!(await authenticateWithBiometrics(`Unlock ${budget.name}`))) return 'declined';
       } finally {
         biometricPromptOpen = false;
       }
       await unlockAfterBiometrics(budget.id);
       await refreshData(true);
-      return true;
+      return 'unlocked';
     },
     [refreshData]
   );
@@ -112,6 +118,7 @@ export function useBudgetLock() {
   return {
     /** Face ID, Touch ID or generic biometrics when this device has it set up; null otherwise. */
     biometric,
+    biometricChecked,
     checkBiometrics,
     isLocked,
     setCode,
