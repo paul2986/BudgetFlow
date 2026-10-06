@@ -1,5 +1,6 @@
 import { AppDataV2, Budget, BudgetSharing } from '../types/budget';
 import { supabase } from './supabase';
+import { noteRevision } from './realtimeGate';
 import { lockFromServer, sameLockConfig, type ServerLock } from './budgetLock';
 import {
   addCategoriesToBudget,
@@ -143,7 +144,10 @@ const writeBudget = async (budget: Budget, server: ServerBudget): Promise<Budget
       .eq('revision', current.revision)
       .select('revision');
     if (error) throw error;
-    if (updated.length === 1) return toWrite;
+    if (updated.length === 1) {
+      noteRevision(toWrite.id, updated[0].revision);
+      return toWrite;
+    }
 
     const { data: fresh, error: fetchError } = await supabase
       .from('budgets')
@@ -153,6 +157,7 @@ const writeBudget = async (budget: Budget, server: ServerBudget): Promise<Budget
     if (fetchError) throw fetchError;
     if (!fresh) return toWrite; // Deleted meanwhile; the next sync drops it.
     current = fresh as ServerBudget;
+    noteRevision(current.id, current.revision);
     toWrite = mergeBudget(toWrite, current.data);
   }
   throw new Error('Budget kept changing during save');
@@ -164,11 +169,14 @@ const writeBudget = async (budget: Budget, server: ServerBudget): Promise<Budget
 // account's, or one they left or were removed from). That copy must never be
 // uploaded under a new id; the caller drops it.
 const createBudget = async (budget: Budget): Promise<boolean> => {
-  const { error } = await supabase.rpc('create_budget', {
+  const { data: revision, error } = await supabase.rpc('create_budget', {
     p_id: budget.id,
     p_data: toServerBudget(budget),
   });
-  if (!error) return true;
+  if (!error) {
+    noteRevision(budget.id, revision);
+    return true;
+  }
   if (error.code === '23505') return false;
   throw error;
 };
@@ -267,6 +275,7 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
 
     // Budgets on the server: merge, or carry out a removal made on this device.
     for (const remote of server.values()) {
+      noteRevision(remote.id, remote.revision);
       const mine = localById.get(remote.id);
       const removedAt = pendingRemovals[remote.id];
       if (!mine && typeof removedAt === 'number') {
