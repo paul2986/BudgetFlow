@@ -130,7 +130,7 @@ export default function HomeScreen() {
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
   const { showToast } = useToast();
-  const { data, loading, activeBudget, appData, refreshTrigger, refreshData, addBudget, user } = useBudgetData();
+  const { data, loading, activeBudget, appData, refreshData, addBudget, user } = useBudgetData();
   const { isLocked } = useBudgetLock();
   const { currency } = useCurrency();
 
@@ -187,9 +187,7 @@ export default function HomeScreen() {
       personalExpenses: calculatePersonalExpenses(expenses),
       remaining: totalIncome - totalExpenses,
     };
-    // refreshTrigger forces a recalculation after background syncs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDataReady, hasBudgets, activeBudget, data, people, expenses, refreshTrigger]);
+  }, [isDataReady, hasBudgets, activeBudget, data, people, expenses]);
 
   // Free debt advice, offered quietly when the budget looks stretched (UK only; see useDebtHelpNudge).
   const categoryBuckets = activeBudget?.categoryBuckets;

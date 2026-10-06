@@ -829,26 +829,12 @@ export const saveAppData = async (data: AppDataV2): Promise<{ success: boolean; 
   }
 };
 
-export const getActiveBudget = (appData: AppDataV2): Budget | null => {
-  // Add better null checks and logging
-  if (!appData) {
-    console.error('storage: getActiveBudget called with null/undefined appData');
-    return null;
-  }
-
-  if (!appData.budgets || !Array.isArray(appData.budgets) || appData.budgets.length === 0) {
-    return null;
-  }
-
-  const active = appData.budgets.find((b) => b && b.id === appData.activeBudgetId);
-  const result = active || appData.budgets[0];
-
-  return result;
-};
+export const getActiveBudget = (appData: AppDataV2): Budget | null =>
+  appData.budgets.find((b) => b.id === appData.activeBudgetId) ?? appData.budgets[0] ?? null;
 
 export const setActiveBudget = async (budgetId: string): Promise<{ success: boolean; error?: Error }> => {
   const appData = await loadAppData();
-  if (!appData.budgets || !Array.isArray(appData.budgets) || !appData.budgets.find((b) => b && b.id === budgetId)) {
+  if (!appData.budgets.some((b) => b.id === budgetId)) {
     return { success: false, error: new Error('Budget not found') };
   }
   const newAppData: AppDataV2 = { ...appData, activeBudgetId: budgetId };
@@ -868,8 +854,7 @@ export const addBudget = async (name: string): Promise<{ success: boolean; error
     customCategories: inherited,
     ...(categoryBuckets ? { categoryBuckets } : {}),
   };
-  const budgets = appData.budgets && Array.isArray(appData.budgets) ? appData.budgets : [];
-  const newAppData: AppDataV2 = { ...appData, budgets: [...budgets, newBudget], activeBudgetId: newBudget.id };
+  const newAppData: AppDataV2 = { ...appData, budgets: [...appData.budgets, newBudget], activeBudgetId: newBudget.id };
   const res = await saveAppData(newAppData);
   return { ...res, budget: newBudget };
 };
@@ -888,8 +873,7 @@ export const importBudget = async (draft: ImportedBudget): Promise<{ success: bo
       householdSettings: draft.householdSettings,
       customCategories: sanitizeCustomCategories(draft.customCategories.map((name) => ({ name, updatedAt: now }))),
     };
-    const budgets = Array.isArray(appData.budgets) ? appData.budgets : [];
-    const res = await saveAppData({ ...appData, budgets: [...budgets, budget], activeBudgetId: budget.id });
+    const res = await saveAppData({ ...appData, budgets: [...appData.budgets, budget], activeBudgetId: budget.id });
     return { ...res, budget };
   } catch (error) {
     console.error('storage: Error in importBudget:', error);
@@ -899,10 +883,7 @@ export const importBudget = async (draft: ImportedBudget): Promise<{ success: bo
 
 export const renameBudget = async (budgetId: string, newName: string): Promise<{ success: boolean; error?: Error }> => {
   const appData = await loadAppData();
-  if (!appData.budgets || !Array.isArray(appData.budgets)) {
-    return { success: false, error: new Error('No budgets found') };
-  }
-  const idx = appData.budgets.findIndex((b) => b && b.id === budgetId);
+  const idx = appData.budgets.findIndex((b) => b.id === budgetId);
   if (idx === -1) return { success: false, error: new Error('Budget not found') };
   const budgets = [...appData.budgets];
   budgets[idx] = { ...budgets[idx], name: newName || budgets[idx].name, modifiedAt: Date.now() };
@@ -914,10 +895,10 @@ export const renameBudget = async (budgetId: string, newName: string): Promise<{
 // `allowLast` permits removing the only budget (leaving a shared budget).
 export const deleteBudget = async (budgetId: string, allowLast = false): Promise<{ success: boolean; error?: Error }> => {
   const appData = await loadAppData();
-  if (!appData.budgets || !Array.isArray(appData.budgets) || (appData.budgets.length <= 1 && !allowLast)) {
+  if (appData.budgets.length <= 1 && !allowLast) {
     return { success: false, error: new Error('Cannot delete the last budget') };
   }
-  const budgets = appData.budgets.filter((b) => b && b.id !== budgetId);
+  const budgets = appData.budgets.filter((b) => b.id !== budgetId);
   let activeBudgetId = appData.activeBudgetId;
   if (activeBudgetId === budgetId) {
     activeBudgetId = budgets[0]?.id || '';
@@ -976,10 +957,7 @@ export const duplicateBudget = async (budgetId: string, customName?: string): Pr
 
 export const setBudgetLock = async (budgetId: string, patch: Partial<BudgetLockSettings>): Promise<{ success: boolean; error?: Error }> => {
   const appData = await loadAppData();
-  if (!appData.budgets || !Array.isArray(appData.budgets)) {
-    return { success: false, error: new Error('No budgets found') };
-  }
-  const budgetIndex = appData.budgets.findIndex((b) => b && b.id === budgetId);
+  const budgetIndex = appData.budgets.findIndex((b) => b.id === budgetId);
   if (budgetIndex === -1) return { success: false, error: new Error('Budget not found') };
 
   const budget = appData.budgets[budgetIndex];

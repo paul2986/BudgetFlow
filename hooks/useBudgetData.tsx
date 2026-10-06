@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext, ReactNode } from 'react';
 import { AppState } from 'react-native';
 import {
   loadAppData,
@@ -33,19 +33,13 @@ type BudgetSlice = {
   householdSettings: HouseholdSettings;
 };
 
-// Helper function to safely handle async operations
-const safeAsync = async <T extends unknown>(
-  operation: () => Promise<T>,
-  fallback: T,
-  operationName: string
-): Promise<T> => {
-  try {
-    const result = await operation();
-    return result;
-  } catch (error) {
-    console.error(`useBudgetData: Error in ${operationName}:`, error);
-    return fallback;
-  }
+type SaveResult = { success: boolean; error?: Error };
+
+// The person with this id in a draft of the budget's data.
+const personIn = (draft: BudgetSlice, personId: string): Person => {
+  const person = draft.people.find((p) => p.id === personId);
+  if (!person) throw new Error('Person not found');
+  return person;
 };
 
 // Context Type definition
@@ -80,11 +74,10 @@ const useBudgetDataInternal = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Save operation queue to prevent concurrent saves
-  const saveQueue = useRef<(() => Promise<{ success: boolean; error?: Error }>)[]>([]);
+  const saveQueue = useRef<(() => Promise<SaveResult>)[]>([]);
   const isQueueRunning = useRef(false);
   const isLoadingRef = useRef(false);
   const lastRefreshTimeRef = useRef<number>(0);
@@ -195,57 +188,24 @@ const useBudgetDataInternal = () => {
     return run;
   }, []);
 
-  // Function to get the most current data - ALWAYS load from AsyncStorage for operations
+  // The active budget's data as stored now. Operations always start from storage,
+  // never from what a screen last rendered.
   const getCurrentData = useCallback(async (): Promise<BudgetSlice> => {
-    try {
-      const loadedApp = await safeAsync(
-        () => loadAppData(),
-        { version: 2, budgets: [], activeBudgetId: '' },
-        'getCurrentData-loadAppData'
-      );
+    const active = getActiveBudget(await loadAppData());
+    return active
+      ? { people: active.people, expenses: active.expenses, householdSettings: active.householdSettings }
+      : { people: [], expenses: [], householdSettings: { distributionMethod: 'even' } };
+  }, []);
 
-      const active = getActiveBudget(loadedApp);
-      if (!active) {
-        return {
-          people: [],
-          expenses: [],
-          householdSettings: { distributionMethod: 'even' },
-        };
-      }
-      const freshData: BudgetSlice = {
-        people: active.people,
-        expenses: active.expenses,
-        householdSettings: active.householdSettings,
-      };
-      return freshData;
-    } catch (error) {
-      console.error('useBudgetData: Error loading fresh data, falling back to state:', error);
-      return data;
-    }
-  }, [data]);
-
-  // Helper function to create deep copy of data for immutability
-  const createDataCopy = useCallback(async (sourceData?: BudgetSlice): Promise<BudgetSlice> => {
-    try {
-      const dataToUse = sourceData || (await getCurrentData());
-      const copy: BudgetSlice = {
-        people: dataToUse.people.map((person) => ({
-          ...person,
-          income: [...person.income.map((income) => ({ ...income }))],
-        })),
-        expenses: [...dataToUse.expenses.map((expense) => ({ ...expense }))],
-        householdSettings: { ...dataToUse.householdSettings },
-      };
-      return copy;
-    } catch (error) {
-      console.error('useBudgetData: Error creating data copy:', error);
-      // Return safe fallback
-      return {
-        people: [],
-        expenses: [],
-        householdSettings: { distributionMethod: 'even' },
-      };
-    }
+  // A copy of the stored data that an operation can change freely: the first load
+  // after launch hands out the cache itself, which must not be edited in place.
+  const createDataCopy = useCallback(async (): Promise<BudgetSlice> => {
+    const current = await getCurrentData();
+    return {
+      people: current.people.map((person) => ({ ...person, income: person.income.map((income) => ({ ...income })) })),
+      expenses: current.expenses.map((expense) => ({ ...expense })),
+      householdSettings: { ...current.householdSettings },
+    };
   }, [getCurrentData]);
 
   // Stable loadData function that doesn't change on every render
@@ -383,16 +343,16 @@ const useBudgetDataInternal = () => {
 
   // Queue save operations to prevent race conditions
   const queueSave = useCallback(
-    (saveFn: () => Promise<{ success: boolean; error?: Error }>): Promise<{ success: boolean; error?: Error }> => {
+    <R extends SaveResult>(saveFn: () => Promise<R>): Promise<R> => {
       return new Promise((resolve) => {
-        const wrappedSaveFn = async () => {
+        const wrappedSaveFn = async (): Promise<SaveResult> => {
           try {
             const result = await saveFn();
             resolve(result);
             return result;
           } catch (error) {
             const errorResult = { success: false, error: error as Error };
-            resolve(errorResult);
+            resolve(errorResult as R);
             return errorResult;
           }
         };
@@ -412,11 +372,24 @@ const useBudgetDataInternal = () => {
     [runQueue]
   );
 
+  // Sync with the server after a local change, with Settings' "Syncing…" showing.
+  const syncAfterChange = useCallback(async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    try {
+      await pushToCloud();
+    } catch (error) {
+      console.error('useBudgetData: Supabase sync error:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [user, pushToCloud]);
+
   // Atomic save operation with immediate state update.
   // `deletedIds` records tombstones for removed people/expenses so the deletion
   // survives a later merge with another device that still has those entities.
   const saveData = useCallback(
-    async (newData: BudgetSlice, deletedIds?: string[]): Promise<{ success: boolean; error?: Error }> => {
+    async (newData: BudgetSlice, deletedIds?: string[]): Promise<SaveResult> => {
       try {
         // Update state immediately for optimistic updates
         setData(newData);
@@ -424,21 +397,15 @@ const useBudgetDataInternal = () => {
         // ALWAYS load the absolute latest app data from storage to avoid stale state
         const fullAppData = await loadAppData();
         const active = getActiveBudget(fullAppData);
+        if (!active || !active.id) throw new Error('Active budget not available');
 
-        if (!active || !active.id) {
-          console.error('useBudgetData: No active budget found!');
-          throw new Error('Active budget not available');
-        }
-
-        // Create updated active budget object. `...newData` (the editable slice)
-        // has no `deletions` key, so the existing tombstones from `...active` are
-        // preserved; we then stamp any newly deleted ids.
+        // `...newData` (the editable slice) has no `deletions` key, so the existing
+        // tombstones from `...active` are preserved; stamp any newly deleted ids.
         const updatedActive: Budget = {
           ...active,
           ...newData,
           modifiedAt: Date.now(),
         };
-
         if (deletedIds && deletedIds.length) {
           const now = Date.now();
           const deletions = { ...(active.deletions || {}) };
@@ -446,45 +413,30 @@ const useBudgetDataInternal = () => {
           updatedActive.deletions = deletions;
         }
 
-        // Update in the full app data array
-        const updatedBudgets = fullAppData.budgets.map((b) => (b.id === active.id ? updatedActive : b));
-        const updatedAppData = { ...fullAppData, budgets: updatedBudgets };
+        const updatedAppData = {
+          ...fullAppData,
+          budgets: fullAppData.budgets.map((b) => (b.id === active.id ? updatedActive : b)),
+        };
 
-        // 1. Save locally
         const result = await saveAppData(updatedAppData);
-
-        if (result.success) {
-          setAppData(updatedAppData);
-
-          // 2. Push to Supabase if user is logged in
-          if (user) {
-            setIsSyncing(true);
-            try {
-              await pushToCloud();
-            } catch (error) {
-              console.error('useBudgetData: Supabase mutation sync error:', error);
-            } finally {
-              setIsSyncing(false);
-            }
-          }
-
-          return { success: true };
-        } else {
-          console.error('useBudgetData: Local save failed:', result.error);
+        if (!result.success) {
           // Don't refresh from storage here - it would overwrite our changes
+          console.error('useBudgetData: Local save failed:', result.error);
           return { success: false, error: result.error };
         }
+        setAppData(updatedAppData);
+        await syncAfterChange();
+        return { success: true };
       } catch (error) {
         console.error('useBudgetData: Error in atomic save operation:', error);
-        // Don't refresh from storage here - it would overwrite our changes
         return { success: false, error: error as Error };
       }
     },
-    [user, pushToCloud]
+    [syncAfterChange]
   );
 
-  const syncFullAppData = useCallback(async (updatedAppData: AppDataV2) => {
-    // 1. Immediately update React state for UI responsiveness
+  const syncFullAppData = useCallback(async (updatedAppData: AppDataV2): Promise<SaveResult> => {
+    // Show it at once, then persist and sync.
     setAppData(updatedAppData);
     const active = getActiveBudget(updatedAppData);
     if (active) {
@@ -494,457 +446,252 @@ const useBudgetDataInternal = () => {
         householdSettings: active.householdSettings || { distributionMethod: 'even' }
       });
     }
-
-    // 2. Persist to storage
     const localRes = await saveAppData(updatedAppData);
     if (!localRes.success) {
       console.error('useBudgetData: Local save failed during sync');
       return localRes;
     }
-
-    // 3. Sync to Supabase if logged in
-    if (user) {
-      setIsSyncing(true);
-      try {
-        await pushToCloud();
-      } catch (error) {
-        console.error('useBudgetData: Supabase sync error:', error);
-      } finally {
-        setIsSyncing(false);
-      }
-    }
-
-    // Trigger a refresh for components
-    setRefreshTrigger(prev => prev + 1);
+    await syncAfterChange();
     return { success: true };
-  }, [user, pushToCloud]);
+  }, [syncAfterChange]);
 
-  const addBudget = useCallback(
-    async (name: string) => queueSave(async () => {
-      const res = await storageAddBudget(name);
-      if (res.success) {
-        const updated = await loadAppData();
-        await syncFullAppData(updated);
-      }
-      return res;
-    }),
+  // A change made by a storage function (the budget list, categories, the open
+  // budget): run it, then show the result and sync it, queued with the other saves.
+  const storageOp = useCallback(
+    <R extends SaveResult>(op: () => Promise<R>): Promise<R> =>
+      queueSave(async () => {
+        const res = await op();
+        if (res.success) await syncFullAppData(await loadAppData());
+        return res;
+      }),
     [queueSave, syncFullAppData]
   );
 
+  // A change to the active budget's people, expenses or household settings: `edit`
+  // changes a copy of what is stored (throwing cancels with that error), then it is
+  // saved. It returns the ids it deleted, so the deletion syncs, or `false` when
+  // nothing changed and there is nothing to save.
+  const editData = useCallback(
+    (edit: (draft: BudgetSlice) => string[] | false | void | Promise<string[] | false | void>) =>
+      queueSave(async (): Promise<SaveResult> => {
+        const draft = await createDataCopy();
+        const deleted = await edit(draft);
+        if (deleted === false) return { success: true };
+        return saveData(draft, deleted || undefined);
+      }),
+    [queueSave, createDataCopy, saveData]
+  );
+
+  const addBudget = useCallback((name: string) => storageOp(() => storageAddBudget(name)), [storageOp]);
+
   const renameBudget = useCallback(
-    async (budgetId: string, newName: string) => queueSave(async () => {
-      const res = await storageRenameBudget(budgetId, newName);
-      if (res.success) {
-        const updated = await loadAppData();
-        await syncFullAppData(updated);
-      }
-      return res;
-    }),
-    [queueSave, syncFullAppData]
+    (budgetId: string, newName: string) => storageOp(() => storageRenameBudget(budgetId, newName)),
+    [storageOp]
   );
 
   // Delete a budget. When it's shared and the user owns it, it's deleted for
   // everyone, which needs the server now; otherwise the next sync handles it.
   const deleteBudget = useCallback(
-    async (budgetId: string) => queueSave(async () => {
-      const access = sharing[budgetId];
-      if (access?.role === 'owner' && access.memberCount > 1) {
-        const { error } = await supabase.from('budgets').delete().eq('id', budgetId);
-        if (error) return { success: false, error: new Error('Couldn’t delete the budget. Check your connection and try again.') };
-      }
-      const res = await storageDeleteBudget(budgetId);
-      if (res.success) {
-        const updated = await loadAppData();
-        await syncFullAppData(updated);
-      } else {
-        console.error('useBudgetData: deleteBudget failed', res.error);
-      }
-      return res;
-    }),
-    [queueSave, syncFullAppData, sharing]
+    (budgetId: string) =>
+      storageOp(async () => {
+        const access = sharing[budgetId];
+        if (access?.role === 'owner' && access.memberCount > 1) {
+          const { error } = await supabase.from('budgets').delete().eq('id', budgetId);
+          if (error) return { success: false, error: new Error('Couldn’t delete the budget. Check your connection and try again.') };
+        }
+        return storageDeleteBudget(budgetId);
+      }),
+    [storageOp, sharing]
   );
 
   // Stop sharing a budget someone else owns. It leaves this account's devices;
   // the others keep it. Allowed even when it's the only budget here.
-  const leaveBudget = useCallback(
-    async (budgetId: string) => queueSave(async () => {
-      const res = await storageDeleteBudget(budgetId, true);
-      if (res.success) await syncFullAppData(await loadAppData());
-      return res;
-    }),
-    [queueSave, syncFullAppData]
-  );
+  const leaveBudget = useCallback((budgetId: string) => storageOp(() => storageDeleteBudget(budgetId, true)), [storageOp]);
 
   const duplicateBudget = useCallback(
-    async (budgetId: string, customName?: string) => queueSave(async () => {
-      const res = await storageDuplicateBudget(budgetId, customName);
-      if (res.success) {
-        const updated = await loadAppData();
-        await syncFullAppData(updated);
-      }
-      return res;
-    }),
-    [queueSave, syncFullAppData]
+    (budgetId: string, customName?: string) => storageOp(() => storageDuplicateBudget(budgetId, customName)),
+    [storageOp]
   );
 
   // Add a budget read from a spreadsheet as a new budget and switch to it.
-  const importBudget = useCallback(
-    async (draft: ImportedBudget) => queueSave(async () => {
-      const res = await storageImportBudget(draft);
-      if (res.success) await syncFullAppData(await loadAppData());
-      return res;
-    }),
-    [queueSave, syncFullAppData]
-  );
+  const importBudget = useCallback((draft: ImportedBudget) => storageOp(() => storageImportBudget(draft)), [storageOp]);
 
-  // Custom categories are account-wide and sync with the rest of the app data.
+  // Custom categories belong to the active budget and sync with it.
   const saveCustomCategories = useCallback(
-    async (categories: string[]) => queueSave(async () => {
-      const res = await storageSaveCustomCategories(categories);
-      if (res.success) await syncFullAppData(await loadAppData());
-      return res;
-    }),
-    [queueSave, syncFullAppData]
+    (categories: string[]) => storageOp(() => storageSaveCustomCategories(categories)),
+    [storageOp]
   );
 
   const renameCustomCategory = useCallback(
-    async (oldName: string, newName: string) => queueSave(async () => {
-      const res = await storageRenameCustomCategory(oldName, newName);
-      if (res.success) await syncFullAppData(await loadAppData());
-      return res;
-    }),
-    [queueSave, syncFullAppData]
+    (oldName: string, newName: string) => storageOp(() => storageRenameCustomCategory(oldName, newName)),
+    [storageOp]
   );
 
   // Which budget-review bucket a category counts towards (null: its default),
   // shared with everyone on the budget.
   const setCategoryBucket = useCallback(
-    async (category: string, bucket: BucketId | null) => queueSave(async () => {
-      const res = await storageSetCategoryBucket(category, bucket);
-      if (res.success) await syncFullAppData(await loadAppData());
-      return res;
-    }),
-    [queueSave, syncFullAppData]
+    (category: string, bucket: BucketId | null) => storageOp(() => storageSetCategoryBucket(category, bucket)),
+    [storageOp]
   );
 
-  const setActiveBudget = useCallback(
-    async (budgetId: string) => queueSave(async () => {
-      const res = await storageSetActiveBudget(budgetId);
-      if (res.success) {
-        const updated = await loadAppData();
-        await syncFullAppData(updated);
-      }
-      return res;
-    }),
-    [queueSave, syncFullAppData]
-  );
+  const setActiveBudget = useCallback((budgetId: string) => storageOp(() => storageSetActiveBudget(budgetId)), [storageOp]);
 
   const addPerson = useCallback(
-    async (person: Person): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-        newData.people.push({ ...person, updatedAt: Date.now() });
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (person: Person) =>
+      editData((draft) => {
+        draft.people.push({ ...person, updatedAt: Date.now() });
+      }),
+    [editData]
   );
 
   const removePerson = useCallback(
-    async (personId: string): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        // Verify person exists before attempting removal
-        const personExists = newData.people.find((p) => p.id === personId);
-        if (!personExists) {
-          console.error('useBudgetData: Person not found:', personId);
-          throw new Error('Person not found');
-        }
-
-        // Remove person and their associated expenses, tombstoning all removed ids
-        const removedExpenseIds = newData.expenses.filter((e) => e.personId === personId).map((e) => e.id);
-        newData.people = newData.people.filter((p) => p.id !== personId);
-        newData.expenses = newData.expenses.filter((e) => e.personId !== personId);
-
-        return await saveData(newData, [personId, ...removedExpenseIds]);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (personId: string) =>
+      editData((draft) => {
+        personIn(draft, personId);
+        // Remove the person and their expenses, tombstoning every removed id.
+        const removedExpenseIds = draft.expenses.filter((e) => e.personId === personId).map((e) => e.id);
+        draft.people = draft.people.filter((p) => p.id !== personId);
+        draft.expenses = draft.expenses.filter((e) => e.personId !== personId);
+        return [personId, ...removedExpenseIds];
+      }),
+    [editData]
   );
 
   const updatePerson = useCallback(
-    async (updatedPerson: Person): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-        newData.people = newData.people.map((p) => (p.id === updatedPerson.id ? { ...updatedPerson, updatedAt: Date.now() } : p));
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (updatedPerson: Person) =>
+      editData((draft) => {
+        draft.people = draft.people.map((p) => (p.id === updatedPerson.id ? { ...updatedPerson, updatedAt: Date.now() } : p));
+      }),
+    [editData]
   );
 
   const addIncome = useCallback(
-    async (personId: string, income: Income): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        // Find the person first to verify they exist
-        const personIndex = newData.people.findIndex((p) => p.id === personId);
-        if (personIndex === -1) {
-          console.error('useBudgetData: Person not found:', personId);
-          throw new Error('Person not found');
-        }
-
-        newData.people[personIndex].income.push(income);
-        newData.people[personIndex].updatedAt = Date.now();
-
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (personId: string, income: Income) =>
+      editData((draft) => {
+        const person = personIn(draft, personId);
+        person.income.push(income);
+        person.updatedAt = Date.now();
+      }),
+    [editData]
   );
 
   const removeIncome = useCallback(
-    async (personId: string, incomeId: string): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        // Find the person first to verify they exist
-        const personIndex = newData.people.findIndex((p) => p.id === personId);
-        if (personIndex === -1) {
-          console.error('useBudgetData: Person not found:', personId);
-          throw new Error('Person not found');
-        }
-
-        // Check if the income exists
-        const incomeExists = newData.people[personIndex].income.find((i) => i.id === incomeId);
-        if (!incomeExists) {
-          console.error('useBudgetData: Income not found:', incomeId);
-          throw new Error('Income not found');
-        }
-
-        // Remove the income
-        newData.people[personIndex].income = newData.people[personIndex].income.filter((i) => i.id !== incomeId);
-        newData.people[personIndex].updatedAt = Date.now();
-
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (personId: string, incomeId: string) =>
+      editData((draft) => {
+        const person = personIn(draft, personId);
+        if (!person.income.some((i) => i.id === incomeId)) throw new Error('Income not found');
+        person.income = person.income.filter((i) => i.id !== incomeId);
+        person.updatedAt = Date.now();
+      }),
+    [editData]
   );
 
   const updateIncome = useCallback(
-    async (personId: string, incomeId: string, updates: Partial<Income>): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        // Find the person first to verify they exist
-        const personIndex = newData.people.findIndex((p) => p.id === personId);
-        if (personIndex === -1) {
-          console.error('useBudgetData: Person not found:', personId);
-          throw new Error('Person not found');
-        }
-
-        // Check if the income exists
-        const incomeIndex = newData.people[personIndex].income.findIndex((i) => i.id === incomeId);
-        if (incomeIndex === -1) {
-          console.error('useBudgetData: Income not found:', incomeId);
-          throw new Error('Income not found');
-        }
-
-        // Update the specific income
-        newData.people[personIndex].income[incomeIndex] = {
-          ...newData.people[personIndex].income[incomeIndex],
-          ...updates,
-        };
-        newData.people[personIndex].updatedAt = Date.now();
-
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (personId: string, incomeId: string, updates: Partial<Income>) =>
+      editData((draft) => {
+        const person = personIn(draft, personId);
+        const index = person.income.findIndex((i) => i.id === incomeId);
+        if (index === -1) throw new Error('Income not found');
+        person.income[index] = { ...person.income[index], ...updates };
+        person.updatedAt = Date.now();
+      }),
+    [editData]
   );
 
   const addExpense = useCallback(
-    async (expense: Expense): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        // Generate a proper ID if not provided
-        const expenseWithId = {
-          ...expense,
-          id: expense.id || newId('expense'),
-          updatedAt: Date.now(),
-        };
-
-        newData.expenses.push(expenseWithId);
-
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (expense: Expense) =>
+      editData((draft) => {
+        draft.expenses.push({ ...expense, id: expense.id || newId('expense'), updatedAt: Date.now() });
+      }),
+    [editData]
   );
 
   const removeExpense = useCallback(
-    async (expenseId: string): Promise<{ success: boolean; error?: Error }> => {
-      // First, let's get the current data to verify the expense exists
-      const currentData = await getCurrentData();
-
-      // Verify expense exists before attempting removal
-      const expenseExists = currentData.expenses.find((e) => e.id === expenseId);
-      if (!expenseExists) {
-        console.error('useBudgetData: Expense not found:', expenseId);
-        return { success: false, error: new Error('Expense not found') };
-      }
-
-      const result = await queueSave(async () => {
-        // Get fresh data again for the actual removal operation
-        const newData = await createDataCopy();
-
-        // Double-check the expense still exists in the fresh data
-        const expenseStillExists = newData.expenses.find((e) => e.id === expenseId);
-        if (!expenseStillExists) {
-          console.error('useBudgetData: Expense no longer exists in fresh data:', expenseId);
-          throw new Error('Expense no longer exists');
-        }
-
-        // Remove the expense
-        newData.expenses = newData.expenses.filter((e) => e.id !== expenseId);
-
-        const saveResult = await saveData(newData, [expenseId]);
-        return saveResult;
-      });
-
-      return result;
-    },
-    [queueSave, createDataCopy, saveData, getCurrentData]
+    (expenseId: string) =>
+      editData((draft) => {
+        if (!draft.expenses.some((e) => e.id === expenseId)) throw new Error('Expense not found');
+        draft.expenses = draft.expenses.filter((e) => e.id !== expenseId);
+        return [expenseId];
+      }),
+    [editData]
   );
 
   const updateExpense = useCallback(
-    async (updatedExpense: Expense): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        // Verify expense exists before attempting update
-        const expenseExists = newData.expenses.find((e) => e.id === updatedExpense.id);
-        if (!expenseExists) {
-          console.error('useBudgetData: Expense not found for update:', updatedExpense.id);
-          throw new Error('Expense not found');
-        }
-
-        newData.expenses = newData.expenses.map((e) => (e.id === updatedExpense.id ? { ...updatedExpense, updatedAt: Date.now() } : e));
-
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (updatedExpense: Expense) =>
+      editData((draft) => {
+        if (!draft.expenses.some((e) => e.id === updatedExpense.id)) throw new Error('Expense not found');
+        draft.expenses = draft.expenses.map((e) => (e.id === updatedExpense.id ? { ...updatedExpense, updatedAt: Date.now() } : e));
+      }),
+    [editData]
   );
 
   // The bulk calls below make one save for the whole selection. Looping
   // updateExpense/removeExpense would save locally and push to the cloud once
   // per expense.
   const bulkEditExpenses = useCallback(
-    async (
-      ids: string[],
-      patch: BulkEditPatch
-    ): Promise<{ success: boolean; error?: Error; result?: BulkEditResult }> => {
+    async (ids: string[], patch: BulkEditPatch): Promise<SaveResult & { result?: BulkEditResult }> => {
       let outcome: BulkEditResult | undefined;
-      const res = await queueSave(async () => {
-        const newData = await createDataCopy();
+      const res = await editData(async (draft) => {
         const active = getActiveBudget(await loadAppData());
-        const result = applyBulkEdit(newData.expenses, ids, patch, Date.now(), categoryBucketLookup(active?.categoryBuckets));
-        outcome = result;
-        if (result.changedIds.length === 0) return { success: true };
-        newData.expenses = result.expenses;
-        return saveData(newData);
+        outcome = applyBulkEdit(draft.expenses, ids, patch, Date.now(), categoryBucketLookup(active?.categoryBuckets));
+        if (outcome.changedIds.length === 0) return false;
+        draft.expenses = outcome.expenses;
       });
       return { ...res, result: res.success ? outcome : undefined };
     },
-    [queueSave, createDataCopy, saveData]
+    [editData]
   );
 
   // Undo for bulkEditExpenses: puts back each expense that is still exactly as
   // the edit left it (same `updatedAt`), so a later edit to one isn't undone.
   const undoBulkEdit = useCallback(
-    async (result: BulkEditResult): Promise<{ success: boolean; error?: Error }> =>
-      queueSave(async () => {
-        const newData = await createDataCopy();
+    (result: BulkEditResult) =>
+      editData((draft) => {
         const before = new Map(result.previous.map((e) => [e.id, e]));
         const restoredAt = Date.now();
         let restored = 0;
-        newData.expenses = newData.expenses.map((e) => {
+        draft.expenses = draft.expenses.map((e) => {
           const old = before.get(e.id);
           if (!old || e.updatedAt !== result.stampedAt) return e;
           restored++;
           return { ...old, updatedAt: restoredAt };
         });
-        if (restored === 0) return { success: true };
-        return saveData(newData);
+        if (restored === 0) return false;
       }),
-    [queueSave, createDataCopy, saveData]
+    [editData]
   );
 
   const removeExpenses = useCallback(
-    async (ids: string[]): Promise<{ success: boolean; error?: Error; removed: number }> => {
+    async (ids: string[]): Promise<SaveResult & { removed: number }> => {
       let removed = 0;
-      const res = await queueSave(async () => {
-        const newData = await createDataCopy();
+      const res = await editData((draft) => {
         const doomed = new Set(ids);
-        const gone = newData.expenses.filter((e) => doomed.has(e.id)).map((e) => e.id);
-        if (gone.length === 0) return { success: true };
-        newData.expenses = newData.expenses.filter((e) => !doomed.has(e.id));
+        const gone = draft.expenses.filter((e) => doomed.has(e.id)).map((e) => e.id);
+        if (gone.length === 0) return false;
+        draft.expenses = draft.expenses.filter((e) => !doomed.has(e.id));
         removed = gone.length;
-        return saveData(newData, gone);
+        return gone;
       });
       return { ...res, removed: res.success ? removed : 0 };
     },
-    [queueSave, createDataCopy, saveData]
+    [editData]
   );
 
   const updateHouseholdSettings = useCallback(
-    async (settings: Partial<HouseholdSettings>): Promise<{ success: boolean; error?: Error }> => {
-      return queueSave(async () => {
-        const newData = await createDataCopy();
-
-        newData.householdSettings = {
-          ...newData.householdSettings,
-          ...settings,
-        };
-
-        return await saveData(newData);
-      });
-    },
-    [queueSave, createDataCopy, saveData]
+    (settings: Partial<HouseholdSettings>) =>
+      editData((draft) => {
+        draft.householdSettings = { ...draft.householdSettings, ...settings };
+      }),
+    [editData]
   );
 
-  // Refresh function with improved logic - stable function that doesn't change
   // Screens call this when they come into focus, and only need the device copy: pass
   // `cloud` to also pull from the server (joining a budget, the sharing screen).
+  // Unless `force`, it skips while a save is running or one just ran (a refresh
+  // already in flight is joined by refreshFromStorage, not repeated).
   const refreshData = useCallback(
     async (force: boolean = false, cloud: boolean = false) => {
-      const now = Date.now();
-      const timeSinceLastRefresh = now - lastRefreshTimeRef.current;
-
-      if (isQueueRunning.current && !force) {
-        return;
-      }
-
-      if (timeSinceLastRefresh < 500 && !force) {
-        return;
-      }
-
-      if (isLoadingRef.current) {
-        let attempts = 0;
-        while (isLoadingRef.current && attempts < 20) {
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          attempts++;
-        }
-        if (isLoadingRef.current) {
-          return;
-        }
-      }
-
+      if (!force && (isQueueRunning.current || Date.now() - lastRefreshTimeRef.current < 500)) return;
       try {
         await refreshFromStorage(cloud);
         lastRefreshTimeRef.current = Date.now();
@@ -957,7 +704,7 @@ const useBudgetDataInternal = () => {
 
   // Clear ALL app data. Budgets only this account uses are deleted everywhere;
   // shared ones are left, and carry on for the people sharing them.
-  const clearAllData = useCallback(async (): Promise<{ success: boolean; error?: Error }> => {
+  const clearAllData = useCallback(async (): Promise<SaveResult> => {
     try {
       showAppData({ version: 2, budgets: [], activeBudgetId: '' });
       const result = await storageClearAllAppData();
@@ -973,7 +720,6 @@ const useBudgetDataInternal = () => {
           setIsSyncing(false);
         }
       }
-      setRefreshTrigger(prev => prev + 1);
       return { success: true };
     } catch (error) {
       console.error('useBudgetData: Error in clearAllData:', error);
@@ -982,43 +728,58 @@ const useBudgetDataInternal = () => {
     }
   }, [user, pushToCloud, showAppData]);
 
-  return {
-    appData,
-    activeBudget: getActiveBudget(appData),
-    data,
-    loading: loading || (!!user && readyFor !== user.id),
-    saving,
-    isSyncing,
-    user,
-    refreshTrigger, // Add this to help components know when data has changed
-    // budget ops
-    addBudget,
-    renameBudget,
-    deleteBudget,
-    leaveBudget,
-    duplicateBudget,
-    importBudget,
-    setActiveBudget,
-    customCategories: (getActiveBudget(appData)?.customCategories || []).map((c) => c.name),
-    sharing,
-    saveCustomCategories,
-    renameCustomCategory,
-    setCategoryBucket,
-    // existing ops scoped to active budget
-    addPerson,
-    removePerson,
-    updatePerson,
-    addIncome,
-    removeIncome,
-    updateIncome,
-    addExpense,
-    removeExpense,
-    updateExpense,
-    bulkEditExpenses,
-    undoBulkEdit,
-    removeExpenses,
-    updateHouseholdSettings,
-    clearAllData,
-    refreshData,
-  };
+  const activeBudget = useMemo(() => getActiveBudget(appData), [appData]);
+  const customCategories = useMemo(() => (activeBudget?.customCategories || []).map((c) => c.name), [activeBudget]);
+  const isLoading = loading || (!!user && readyFor !== user.id);
+
+  // One value until something it holds changes, so a parent re-render alone
+  // doesn't re-render every screen that reads it.
+  return useMemo(
+    () => ({
+      appData,
+      activeBudget,
+      data,
+      loading: isLoading,
+      saving,
+      isSyncing,
+      user,
+      // budget ops
+      addBudget,
+      renameBudget,
+      deleteBudget,
+      leaveBudget,
+      duplicateBudget,
+      importBudget,
+      setActiveBudget,
+      customCategories,
+      sharing,
+      saveCustomCategories,
+      renameCustomCategory,
+      setCategoryBucket,
+      // ops scoped to the active budget
+      addPerson,
+      removePerson,
+      updatePerson,
+      addIncome,
+      removeIncome,
+      updateIncome,
+      addExpense,
+      removeExpense,
+      updateExpense,
+      bulkEditExpenses,
+      undoBulkEdit,
+      removeExpenses,
+      updateHouseholdSettings,
+      clearAllData,
+      refreshData,
+    }),
+    [
+      appData, activeBudget, data, isLoading, saving, isSyncing, user, sharing, customCategories,
+      addBudget, renameBudget, deleteBudget, leaveBudget, duplicateBudget, importBudget, setActiveBudget,
+      saveCustomCategories, renameCustomCategory, setCategoryBucket,
+      addPerson, removePerson, updatePerson, addIncome, removeIncome, updateIncome,
+      addExpense, removeExpense, updateExpense, bulkEditExpenses, undoBulkEdit, removeExpenses,
+      updateHouseholdSettings, clearAllData, refreshData,
+    ]
+  );
 };
