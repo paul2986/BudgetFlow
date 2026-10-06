@@ -9,7 +9,7 @@ import { calculateHouseholdExpenses, calculatePersonIncome, calculateTotalExpens
 const device = createMemoryStorage();
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: device }));
 
-const { buildBudgetWorkbook, workbookFileName } = await import('../../utils/budgetWorkbook/export');
+const { buildBudgetWorkbook, buildTemplateWorkbook, TEMPLATE_FILE_NAME, workbookFileName } = await import('../../utils/budgetWorkbook/export');
 const { parseBudgetWorkbook } = await import('../../utils/budgetWorkbook/import');
 const { readXlsx } = await import('../../utils/xlsx/read');
 const { serialToYmd, ymdToSerial } = await import('../../utils/budgetWorkbook/layout');
@@ -166,6 +166,30 @@ describe('export', () => {
   it('copes with an empty budget', () => {
     const wb = readXlsx(buildBudgetWorkbook(makeBudget({ name: '' }), ctx));
     expect(wb.sheets).toHaveLength(5);
+  });
+
+  it('builds a blank template the importer recognises', () => {
+    const bytes = buildTemplateWorkbook(ctx);
+    const wb = readXlsx(bytes);
+    expect(wb.sheets.map((s) => s.name)).toEqual(['Summary', 'People', 'Income', 'Expenses', 'Lists']);
+    expect(TEMPLATE_FILE_NAME).toMatch(/\.xlsx$/);
+
+    const summary = sheet(bytes, 'Summary').rows.map((r) => String(r[0] ?? ''));
+    expect(summary.some((t) => t.startsWith('Blank template from Budget Flow'))).toBe(true);
+    expect(summary.some((t) => t.startsWith('Exported from'))).toBe(false);
+    expect(summary.some((t) => t.startsWith('Moving your own spreadsheet'))).toBe(true);
+
+    // Headings are what the importer finds columns by: no data yet, but nothing unrecognised either.
+    const result = parseBudgetWorkbook(bytes, { currencyCode: 'GBP', now: NOW });
+    expect(result.budget).toBeNull();
+    expect(result.failure).toBe('empty');
+    expect(result.issues.map((i) => i.message)).toEqual(['There’s nothing to import: no people, income or expenses were found.']);
+  });
+
+  it('keeps an export’s wording out of the template, and the template’s out of an export', () => {
+    const exported = sheet(buildBudgetWorkbook(family(), ctx), 'Summary').rows.map((r) => String(r[0] ?? ''));
+    expect(exported.some((t) => t.startsWith('Exported from Budget Flow'))).toBe(true);
+    expect(exported.some((t) => t.startsWith('Moving your own spreadsheet'))).toBe(false);
   });
 
   it('names the file after the budget and strips characters filesystems reject', () => {
@@ -339,14 +363,17 @@ describe('import', () => {
     const notZip = parseBudgetWorkbook(strToU8('just some text'), {});
     expect(notZip.budget).toBeNull();
     expect(notZip.issues[0].message).toContain('Excel');
+    expect(notZip.failure).toBe('unreadable');
 
     const otherSheets = parseBudgetWorkbook(handMade({ Sheet1: [['a']] }), {});
     expect(otherSheets.budget).toBeNull();
     expect(otherSheets.issues[0].message).toContain('Budget Flow workbook');
+    expect(otherSheets.failure).toBe('not-a-budget');
 
     const empty = parseBudgetWorkbook(handMade({ Expenses: [['Description', 'Amount', 'Frequency']] }), {});
     expect(empty.budget).toBeNull();
     expect(empty.issues[0].message).toContain('nothing to import');
+    expect(empty.failure).toBe('empty');
 
     const noColumns = parseBudgetWorkbook(handMade({ Expenses: [['Foo', 'Bar']] }), {});
     expect(noColumns.budget).toBeNull();

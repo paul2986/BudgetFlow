@@ -35,6 +35,8 @@ export interface ExportContext {
   /** Decimal places the currency uses (0 for yen, 2 for most). */
   fractionDigits: number;
   now: Date;
+  /** A blank starting point rather than an export: changes the Summary's wording. */
+  template?: boolean;
 }
 
 const COLOR = {
@@ -463,7 +465,7 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
 
   add([{ v: budget.name || 'Budget', s: 'title' }], 36);
   const exported = ctx.now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  add([{ v: `Exported from Budget Flow on ${exported}`, s: 'subtitle' }], 20);
+  add([{ v: ctx.template ? `Blank template from Budget Flow, ${exported}` : `Exported from Budget Flow on ${exported}`, s: 'subtitle' }], 20);
   add([]);
 
   add(
@@ -609,10 +611,13 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
 
   add([{ v: 'Using this workbook', s: 'section' }], 24);
   [
+    ...(ctx.template
+      ? ['Moving your own spreadsheet across? Copy its figures into the columns on the People, Income and Expenses sheets, and keep the headings as they are.']
+      : []),
     'Edit the People, Income and Expenses sheets. The Per month columns and this summary recalculate as you type.',
     'Use the drop-downs where you see them. Add anyone new on the People sheet first, then pick them elsewhere.',
     'Expenses past their end date turn grey and aren’t counted.',
-    'To bring changes back into Budget Flow, use Budgets → Import from Excel. It adds a new budget and never overwrites one.',
+    'To bring changes back into Budget Flow, use Budgets → Import a workbook. It adds a new budget and never overwrites one.',
   ].forEach((line) => add([{ v: line, s: 'note' }], 18));
 
   const summary: SheetSpec = {
@@ -635,6 +640,26 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
   };
   return buildXlsx(spec);
 };
+
+/**
+ * An empty workbook with the sheets, headings, drop-downs and spare rows of an
+ * export, for people who want to bring their own figures in.
+ */
+export const buildTemplateWorkbook = (ctx: Omit<ExportContext, 'template'>): Uint8Array =>
+  buildBudgetWorkbook(
+    {
+      id: 'template',
+      name: 'My budget',
+      people: [],
+      expenses: [],
+      householdSettings: { distributionMethod: 'even' },
+      createdAt: ctx.now.getTime(),
+      modifiedAt: ctx.now.getTime(),
+    },
+    { ...ctx, template: true }
+  );
+
+export const TEMPLATE_FILE_NAME = 'Budget Flow template.xlsx';
 
 /** Decimal places a currency uses (0 for yen, 2 for most), for the workbook's number format. */
 export const fractionDigitsFor = (currencyCode: string): number => {

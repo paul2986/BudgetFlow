@@ -38,9 +38,17 @@ export interface ImportedBudget {
   customCategories: string[];
 }
 
+/**
+ * Why nothing could be imported: the file isn't a workbook at all, it isn't laid out like a
+ * Budget Flow one, or it is but has no usable rows yet (a template not filled in).
+ */
+export type ImportFailure = 'unreadable' | 'not-a-budget' | 'empty';
+
 export interface ImportResult {
   /** Null when nothing could be imported. */
   budget: ImportedBudget | null;
+  /** Set whenever `budget` is null. */
+  failure?: ImportFailure;
   issues: ImportIssue[];
   counts: { people: number; income: number; expenses: number; skipped: number };
 }
@@ -175,13 +183,18 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
   const stamp = now.getTime();
   const issues: ImportIssue[] = [];
   const counts = { people: 0, income: 0, expenses: 0, skipped: 0 };
-  const fail = (message: string): ImportResult => ({ budget: null, issues: [{ severity: 'error', message }], counts });
+  const fail = (failure: ImportFailure, message: string): ImportResult => ({
+    budget: null,
+    failure,
+    issues: [{ severity: 'error', message }],
+    counts,
+  });
 
   let wb: WorkbookData;
   try {
     wb = readXlsx(bytes);
   } catch (e) {
-    return fail(e instanceof XlsxError ? e.message : 'That file couldn’t be read as an Excel workbook.');
+    return fail('unreadable', e instanceof XlsxError ? e.message : 'That file couldn’t be read as an Excel workbook.');
   }
 
   const sheetNamed = (name: string): SheetData | undefined =>
@@ -191,7 +204,7 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
   const incomeSheet = sheetNamed(SHEETS.income);
   const expensesSheet = sheetNamed(SHEETS.expenses);
   if (!peopleSheet && !incomeSheet && !expensesSheet) {
-    return fail('That doesn’t look like a Budget Flow workbook. It needs a People, Income or Expenses sheet.');
+    return fail('not-a-budget', 'That doesn’t look like a Budget Flow workbook. It needs a People, Income or Expenses sheet.');
   }
 
   let seq = 0;
@@ -396,7 +409,7 @@ export const parseBudgetWorkbook = (bytes: Uint8Array, options: ImportOptions = 
 
   if (counts.people + counts.income + counts.expenses === 0) {
     issues.unshift({ severity: 'error', message: 'There’s nothing to import: no people, income or expenses were found.' });
-    return { budget: null, issues, counts };
+    return { budget: null, failure: 'empty', issues, counts };
   }
 
   return {
