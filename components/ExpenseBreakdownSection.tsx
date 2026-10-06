@@ -47,16 +47,8 @@ export default function ExpenseBreakdownSection({
 
   // Reset selectedPersonId when expenses change (e.g., budget switch)
   useEffect(() => {
-    console.log('ExpenseBreakdownSection: Expenses changed, resetting selectedPersonId');
     setSelectedPersonId(null);
   }, [expenses]);
-
-  console.log('ExpenseBreakdownSection: Component rendered with expenses:', {
-    expensesLength: expenses?.length || 0,
-    peopleLength: people?.length || 0,
-    selectedPersonId,
-    viewMode
-  });
 
   // Helper function to convert amounts based on view mode. Memoised so the
   // breakdown below only recalculates when its inputs change, not every render.
@@ -71,14 +63,7 @@ export default function ExpenseBreakdownSection({
 
   // Calculate breakdown data
   const breakdownData = useMemo(() => {
-    console.log('ExpenseBreakdownSection: Processing expenses for breakdown:', {
-      expensesLength: expenses?.length || 0,
-      selectedPersonId,
-      viewMode
-    });
-
     if (!expenses || !Array.isArray(expenses) || expenses.length === 0) {
-      console.log('ExpenseBreakdownSection: No expenses found');
       return { household: null, personal: null, totalAmount: 0 };
     }
 
@@ -86,40 +71,23 @@ export default function ExpenseBreakdownSection({
     // "Ending & expired" instead. The Overview totals above leave them out too.
     const activeExpenses = expenses.filter(expense => !!expense && isExpenseActive(expense));
 
-    console.log('ExpenseBreakdownSection: Active expenses count:', activeExpenses.length);
-
     const totalAmount = activeExpenses.reduce((sum, expense) => {
       return sum + convertAmount(calculateMonthlyAmount(expense.amount, expense.frequency) * 12); // Convert to annual first, then to view mode
     }, 0);
 
-    console.log('ExpenseBreakdownSection: Total amount calculated:', totalAmount);
-
     if (totalAmount === 0) {
-      console.log('ExpenseBreakdownSection: Total amount is 0');
       return { household: null, personal: null, totalAmount: 0 };
     }
 
     const groupByType = (type: 'household' | 'personal'): TypeBreakdown | null => {
       let typeExpenses = activeExpenses.filter(expense => expense && expense.category === type);
 
-      console.log(`ExpenseBreakdownSection: ${type} expenses before person filter: `, {
-        count: typeExpenses.length,
-        selectedPersonId
-      });
-
       // For personal expenses, apply person filter only if a specific person is selected
       if (type === 'personal' && selectedPersonId) {
-        const beforeFilterCount = typeExpenses.length;
         typeExpenses = typeExpenses.filter(expense => expense.personId === selectedPersonId);
-        console.log(`ExpenseBreakdownSection: ${type} expenses after person filter: `, {
-          beforeFilterCount,
-          afterFilterCount: typeExpenses.length,
-          selectedPersonId
-        });
       }
 
       if (typeExpenses.length === 0) {
-        console.log(`ExpenseBreakdownSection: No ${type} expenses found after filtering, returning null`);
         return null;
       }
 
@@ -157,11 +125,6 @@ export default function ExpenseBreakdownSection({
         }))
         .sort((a, b) => b.amount - a.amount);
 
-      console.log(`ExpenseBreakdownSection: ${type} breakdown calculated: `, {
-        typeAmount,
-        categoriesCount: categories.length
-      });
-
       return {
         type,
         amount: typeAmount,
@@ -174,29 +137,15 @@ export default function ExpenseBreakdownSection({
     const household = groupByType('household');
     const personal = groupByType('personal');
 
-    console.log('ExpenseBreakdownSection: Final breakdown data:', {
-      totalAmount,
-      hasHousehold: !!household,
-      hasPersonal: !!personal,
-      selectedPersonId,
-      viewMode
-    });
-
     return {
       household,
       personal,
       totalAmount,
     };
-  }, [expenses, selectedPersonId, viewMode, convertAmount]);
+  }, [expenses, selectedPersonId, convertAmount]);
 
   // FIXED: Navigation handler for category taps with proper URL parameter handling
   const handleCategoryPress = (expenseType: 'household' | 'personal', categoryName: string) => {
-    console.log('ExpenseBreakdownSection: Navigating to expenses with filters:', {
-      expenseType,
-      categoryName,
-      selectedPersonId
-    });
-
     // FIXED: Create a unique timestamp to ensure fresh navigation each time
     const timestamp = Date.now();
 
@@ -213,8 +162,6 @@ export default function ExpenseBreakdownSection({
       params.personId = selectedPersonId;
     }
 
-    console.log('ExpenseBreakdownSection: Navigation params:', params);
-
     // FIXED: Use replace instead of push to avoid navigation stack issues
     router.replace({
       pathname: '/expenses',
@@ -225,7 +172,6 @@ export default function ExpenseBreakdownSection({
   // Get people who have personal expenses
   const peopleWithPersonalExpenses = useMemo(() => {
     if (!people || !expenses) {
-      console.log('ExpenseBreakdownSection: No people or expenses for peopleWithPersonalExpenses calculation');
       return [];
     }
 
@@ -234,22 +180,12 @@ export default function ExpenseBreakdownSection({
 
     const result = people.filter(person => peopleIds.has(person.id));
 
-    console.log('ExpenseBreakdownSection: peopleWithPersonalExpenses calculation:', {
-      totalPeople: people.length,
-      personalExpenses: personalExpenses.length,
-      peopleWithExpensesCount: result.length
-    });
-
     return result;
   }, [people, expenses]);
 
   // Check if switcher should be shown (2 or more people with personal expenses)
   const shouldShowPersonSwitcher = useMemo(() => {
     const shouldShow = peopleWithPersonalExpenses.length >= 2;
-    console.log('ExpenseBreakdownSection: shouldShowPersonSwitcher:', {
-      peopleWithPersonalExpensesCount: peopleWithPersonalExpenses.length,
-      shouldShow
-    });
     return shouldShow;
   }, [peopleWithPersonalExpenses]);
 

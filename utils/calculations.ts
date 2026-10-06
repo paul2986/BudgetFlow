@@ -27,7 +27,6 @@ export const isExpenseActive = (expense: Expense, asOfDate?: string): boolean =>
 export const getEndingSoon = (expenses: Expense[], days: number = 30): { expiringSoon: Expense[], ended: Expense[] } => {
   // Add comprehensive null checks for expenses array
   if (!expenses || !Array.isArray(expenses)) {
-    console.log('getEndingSoon: expenses is not an array:', expenses);
     return { expiringSoon: [], ended: [] };
   }
 
@@ -113,7 +112,6 @@ export const calculateMonthlyAmount = (amount: number, frequency: Frequency): nu
 export const calculateTotalIncome = (people: Person[]): number => {
   // Add comprehensive null checks for people array
   if (!people || !Array.isArray(people)) {
-    console.log('calculateTotalIncome: people is not an array:', people);
     return 0;
   }
 
@@ -133,7 +131,6 @@ export const calculateTotalIncome = (people: Person[]): number => {
 export const calculatePersonIncome = (person: Person): number => {
   // Add comprehensive null checks for person and person.income
   if (!person || !person.income || !Array.isArray(person.income)) {
-    console.log('calculatePersonIncome: person.income is not an array:', person);
     return 0;
   }
 
@@ -149,7 +146,6 @@ export const calculatePersonIncome = (person: Person): number => {
 export const calculateTotalExpenses = (expenses: Expense[]): number => {
   // Add comprehensive null checks for expenses array
   if (!expenses || !Array.isArray(expenses)) {
-    console.log('calculateTotalExpenses: expenses is not an array:', expenses);
     return 0;
   }
 
@@ -166,7 +162,6 @@ export const calculateTotalExpenses = (expenses: Expense[]): number => {
 export const calculateHouseholdExpenses = (expenses: Expense[]): number => {
   // Add comprehensive null checks for expenses array
   if (!expenses || !Array.isArray(expenses)) {
-    console.log('calculateHouseholdExpenses: expenses is not an array:', expenses);
     return 0;
   }
 
@@ -186,7 +181,6 @@ export const calculateHouseholdExpenses = (expenses: Expense[]): number => {
 export const calculatePersonalExpenses = (expenses: Expense[], personId?: string): number => {
   // Add comprehensive null checks for expenses array
   if (!expenses || !Array.isArray(expenses)) {
-    console.log('calculatePersonalExpenses: expenses is not an array:', expenses);
     return 0;
   }
 
@@ -211,7 +205,6 @@ export const calculateHouseholdShare = (
 ): number => {
   // Add comprehensive null checks for people array
   if (!people || !Array.isArray(people) || people.length === 0) {
-    console.log('calculateHouseholdShare: people is not an array or is empty:', people);
     return 0;
   }
 

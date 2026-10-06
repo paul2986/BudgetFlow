@@ -69,58 +69,20 @@ function EditIncomeForm() {
     leave(() => (router.canGoBack() ? router.back() : router.replace('/people')));
   }, [leave]);
 
-  // Use ref to track if we've already refreshed on this focus
-  const hasRefreshedOnFocus = useRef(false);
-
-  // Only log when screen comes into focus, don't trigger refreshes
-  useFocusEffect(
-    useCallback(() => {
-      console.log('EditIncomeScreen: Screen focused, current data:', {
-        peopleCount: data.people.length,
-        expensesCount: data.expenses.length,
-        expenseIds: data.expenses.map(e => e.id)
-      });
-
-      // Reset the flag when the screen loses focus
-      return () => {
-        hasRefreshedOnFocus.current = false;
-      };
-    }, [data.expenses, data.people.length])
-  );
 
   const fieldsLoaded = useRef(false);
 
   // Find the income and person when data changes
   useEffect(() => {
-    console.log('EditIncomeScreen: Data effect triggered', {
-      personId,
-      incomeId,
-      peopleCount: data.people.length,
-      expensesCount: data.expenses.length,
-      loading,
-      isDataLoaded
-    });
-
     if (loading) {
-      console.log('EditIncomeScreen: Data is still loading, waiting...');
       setIsDataLoaded(false);
       return;
     }
 
     if (personId && incomeId && data.people.length > 0) {
-      console.log('EditIncomeScreen: Looking for income in data:', {
-        personId,
-        incomeId,
-        peopleCount: data.people.length,
-        expensesCount: data.expenses.length
-      });
-
       const person = data.people.find(p => p.id === personId);
       if (person) {
-        console.log('EditIncomeScreen: Found person:', person.name, 'with', person.income.length, 'income sources');
-
         const foundIncome = person.income.find(i => i.id === incomeId);
-        console.log('EditIncomeScreen: Found income:', foundIncome);
 
         if (foundIncome) {
           setIncome(foundIncome);
@@ -135,19 +97,15 @@ function EditIncomeForm() {
             });
           }
           setIsDataLoaded(true);
-          console.log('EditIncomeScreen: Updated income state with fresh data');
         } else {
-          console.log('EditIncomeScreen: Income not found in data');
           setIncome(null);
           setIsDataLoaded(true);
         }
       } else {
-        console.log('EditIncomeScreen: Person not found in data');
         setIncome(null);
         setIsDataLoaded(true);
       }
     } else if (!loading && data.people.length === 0) {
-      console.log('EditIncomeScreen: No people in data and not loading, marking as loaded');
       setIsDataLoaded(true);
     }
   }, [personId, incomeId, data.people, data.expenses, loading, isDataLoaded]);
@@ -167,13 +125,6 @@ function EditIncomeForm() {
     }
 
     try {
-      console.log('EditIncomeScreen: Saving income:', editedIncome);
-      console.log('EditIncomeScreen: Current data state before save:', {
-        peopleCount: data.people.length,
-        expensesCount: data.expenses.length,
-        expenseIds: data.expenses.map(e => e.id)
-      });
-
       const updates = {
         amount: amount,
         label: editedIncome.label.trim(),
@@ -187,10 +138,8 @@ function EditIncomeForm() {
             personId,
             ...updates,
           });
-      console.log('EditIncomeScreen: Income save result:', result);
 
       if (result && result.success) {
-        console.log('EditIncomeScreen: Income saved successfully, navigating to people page');
         // Navigate specifically to the people page to show the updated data
         handleGoBack();
       } else {
@@ -201,7 +150,7 @@ function EditIncomeForm() {
       console.error('EditIncomeScreen: Error saving income:', error);
       Alert.alert('Error', `Failed to ${isNew ? 'add' : 'update'} income. Please try again.`);
     }
-  }, [isNew, income, personId, editedIncome, addIncome, updateIncome, handleGoBack, data.people, data.expenses]);
+  }, [isNew, income, personId, editedIncome, addIncome, updateIncome, handleGoBack]);
 
   const handleDeleteIncome = useCallback(() => {
     if (!income || !personId) return;
@@ -216,18 +165,9 @@ function EditIncomeForm() {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('EditIncomeScreen: Deleting income:', income.id);
-              console.log('EditIncomeScreen: Current data state before delete:', {
-                peopleCount: data.people.length,
-                expensesCount: data.expenses.length,
-                expenseIds: data.expenses.map(e => e.id)
-              });
-
               const result = await removeIncome(personId, income.id);
-              console.log('EditIncomeScreen: Income delete result:', result);
 
               if (result && result.success) {
-                console.log('EditIncomeScreen: Income deleted successfully, navigating to people page');
                 // Navigate specifically to the people page to show the updated data
                 handleGoBack();
               } else {
@@ -242,7 +182,7 @@ function EditIncomeForm() {
         },
       ]
     );
-  }, [income, personId, removeIncome, handleGoBack, data.people, data.expenses]);
+  }, [income, personId, removeIncome, handleGoBack]);
 
   const person = data.people.find(p => p.id === personId);
 

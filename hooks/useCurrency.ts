@@ -208,7 +208,6 @@ const formatterFor = (code: string): Intl.NumberFormat => {
 };
 
 const notifyListeners = (currency: Currency) => {
-  console.log('useCurrency: Notifying', globalCurrencyListeners.size, 'listeners of currency change:', currency);
   globalCurrencyListeners.forEach(listener => {
     try {
       listener(currency);
@@ -246,7 +245,6 @@ export const useCurrency = () => {
   useEffect(() => {
     // Subscribe to global currency changes
     const listener = (newCurrency: Currency) => {
-      console.log('useCurrency: Received currency update:', newCurrency);
       setCurrencyState(newCurrency);
     };
     
@@ -260,15 +258,12 @@ export const useCurrency = () => {
 
   const saveCurrency = useCallback(async (newCurrency: Currency) => {
     try {
-      console.log('useCurrency: Saving currency:', newCurrency);
       await AsyncStorage.setItem(CURRENCY_STORAGE_KEY, JSON.stringify(newCurrency));
       
       // Update global state and notify all listeners
       globalCurrency = newCurrency;
       setCurrencyState(newCurrency);
       notifyListeners(newCurrency);
-      
-      console.log('useCurrency: Currency saved and broadcasted successfully');
     } catch (error) {
       console.error('useCurrency: Error saving currency:', error);
     }

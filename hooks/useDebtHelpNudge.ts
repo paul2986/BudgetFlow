@@ -55,7 +55,7 @@ export function useDebtHelpNudge(review: BudgetReview | null): { signal: DebtHel
   const dismiss = useCallback(() => {
     const now = Date.now();
     publish(now);
-    AsyncStorage.setItem(STORAGE_KEY, String(now)).catch((e) => console.log('useDebtHelpNudge: could not save dismissal', e));
+    AsyncStorage.setItem(STORAGE_KEY, String(now)).catch((e) => console.warn('useDebtHelpNudge: could not save dismissal', e));
   }, []);
 
   const eligible = !currencyLoading && isUkCurrency(currency.code) && dismissedAt !== -1;
