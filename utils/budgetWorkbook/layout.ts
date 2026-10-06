@@ -25,13 +25,7 @@ export const FREQUENCY_LABELS: Record<Frequency, string> = {
 };
 
 /** Times a year each frequency happens; a one-time amount counts once, as it does in the app. */
-export const ANNUAL_MULTIPLIER: Record<Frequency, number> = {
-  daily: 365,
-  weekly: 52,
-  monthly: 12,
-  yearly: 1,
-  'one-time': 1,
-};
+export { ANNUAL_MULTIPLIER } from '../calculations';
 
 /** What the Counts as column says; blank means the expense follows its category. */
 export const BUCKET_LABELS: Record<BucketId, string> = { needs: 'Needs', wants: 'Wants', savings: 'Savings' };
