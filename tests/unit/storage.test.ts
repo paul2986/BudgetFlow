@@ -7,6 +7,7 @@ const device = createMemoryStorage();
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: device }));
 
 const storage = await import('../../utils/storage');
+const { NO_FILTERS } = await import('../../utils/expenseFilters');
 
 // Start each test from what's on "disk", not the module's in-memory cache.
 const seed = (data: unknown, extra: Record<string, string> = {}) => {
@@ -472,25 +473,36 @@ describe('expenses sort preference', () => {
 describe('expenses filters', () => {
   beforeEach(() => device.store.clear());
 
-  it('starts with no bucket filter', async () => {
-    expect((await storage.getExpensesFilters()).bucketFilter).toBe('all');
+  it('starts with nothing filtered', async () => {
+    expect(await storage.getExpensesFilters()).toEqual(NO_FILTERS);
   });
 
   it('remembers a bucket filter, and ignores junk', async () => {
-    const base = { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null } as const;
-    await storage.saveExpensesFilters({ ...base, bucketFilter: 'wants' });
-    expect((await storage.getExpensesFilters()).bucketFilter).toBe('wants');
+    await storage.saveExpensesFilters({ ...NO_FILTERS, bucket: 'wants' });
+    expect((await storage.getExpensesFilters()).bucket).toBe('wants');
 
-    await storage.saveExpensesFilters({ ...base, bucketFilter: 'sideways' as any });
-    expect((await storage.getExpensesFilters()).bucketFilter).toBe('all');
+    await storage.saveExpensesFilters({ ...NO_FILTERS, bucket: 'sideways' as any });
+    expect((await storage.getExpensesFilters()).bucket).toBe('all');
 
-    device.store.set('expenses_filters_v1', JSON.stringify({ ...base, bucketFilter: 7 }));
-    expect((await storage.getExpensesFilters()).bucketFilter).toBe('all');
+    device.store.set('expenses_filters_v1', JSON.stringify({ bucketFilter: 7 }));
+    expect((await storage.getExpensesFilters()).bucket).toBe('all');
   });
 
-  it('reads filters saved before the bucket filter existed as unfiltered', async () => {
+  it('remembers every selected category, not just the first', async () => {
+    await storage.saveExpensesFilters({ ...NO_FILTERS, categories: ['Loan', 'groceries'], personId: 'p1', type: 'personal' });
+    expect(await storage.getExpensesFilters()).toEqual({ ...NO_FILTERS, categories: ['Loan', 'Groceries'], personId: 'p1', type: 'personal' });
+    // An older version of the app reads the first one.
+    expect(JSON.parse(device.store.get('expenses_filters_v1')!).category).toBe('Loan');
+  });
+
+  it('reads filters saved by older versions (one category, no bucket filter) as before', async () => {
     device.store.set('expenses_filters_v1', JSON.stringify({ category: 'Loan', search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'any' }));
-    expect(await storage.getExpensesFilters()).toMatchObject({ category: 'Loan', debtFilter: 'any', bucketFilter: 'all' });
+    expect(await storage.getExpensesFilters()).toEqual({ ...NO_FILTERS, categories: ['Loan'], debt: 'any' });
+  });
+
+  it('reads damaged filters as none', async () => {
+    device.store.set('expenses_filters_v1', 'not json');
+    expect(await storage.getExpensesFilters()).toEqual(NO_FILTERS);
   });
 });
 
