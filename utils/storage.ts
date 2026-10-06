@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ImportedBudget } from './budgetWorkbook/import';
 import { AppDataV2, BucketId, Budget, CategoryBucketEntry, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
+import { NO_ATTEMPTS, unlockSession, type AttemptState } from './budgetLock';
 
 // Storage keys for versions
 const STORAGE_KEYS = {
@@ -20,6 +21,8 @@ const STORAGE_KEYS = {
   SYNCED_BUDGET_IDS: 'synced_budget_ids_v1',
   // The account the budget data on this device belongs to.
   DEVICE_OWNER: 'device_owner_v1',
+  // Wrong budget-lock codes per budget on this device, so quitting the app doesn't clear the wait.
+  LOCK_ATTEMPTS: 'lock_attempts_v1',
 };
 
 // Normalize and validate category names
@@ -137,11 +140,14 @@ export const clearLocalAppData = async (): Promise<void> => {
       STORAGE_KEYS.EXPENSES_SORT,
       STORAGE_KEYS.SYNCED_BUDGET_IDS,
       STORAGE_KEYS.DEVICE_OWNER,
+      STORAGE_KEYS.LOCK_ATTEMPTS,
     ]);
   } catch (e) {
     console.error('storage: clearLocalAppData error', e);
   } finally {
     resetAppDataCache();
+    // Whatever was unlocked stays behind with the account that unlocked it.
+    unlockSession.lockAll();
   }
 };
 
@@ -553,6 +559,8 @@ export const validateAppData = (data: any): AppDataV2 => {
       locked: b?.lock?.locked === true,
       autoLockMinutes: typeof b?.lock?.autoLockMinutes === 'number' ? b.lock.autoLockMinutes : 0,
       lastUnlockAt: typeof b?.lock?.lastUnlockAt === 'string' ? b.lock.lastUnlockAt : undefined,
+      pinVerifier: typeof b?.lock?.pinVerifier === 'string' ? b.lock.pinVerifier : undefined,
+      biometrics: b?.lock?.biometrics === true ? true : undefined,
     };
 
     const categoryBuckets = sanitizeCategoryBuckets(b?.categoryBuckets);
@@ -1149,6 +1157,34 @@ export const setBudgetLock = async (budgetId: string, patch: Partial<BudgetLockS
 
 export const markBudgetUnlocked = async (budgetId: string): Promise<{ success: boolean; error?: Error }> => {
   return await setBudgetLock(budgetId, { lastUnlockAt: new Date().toISOString() });
+};
+
+// Wrong codes entered for a budget on this device, kept so that quitting the app
+// doesn't clear the wait that follows too many of them.
+const loadLockAttempts = async (): Promise<Record<string, AttemptState>> => {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.LOCK_ATTEMPTS);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+export const getLockAttempts = async (budgetId: string): Promise<AttemptState> => {
+  const state = (await loadLockAttempts())[budgetId];
+  return state && typeof state.failures === 'number' && typeof state.blockedUntil === 'number' ? state : NO_ATTEMPTS;
+};
+
+export const saveLockAttempts = async (budgetId: string, state: AttemptState): Promise<void> => {
+  const all = await loadLockAttempts();
+  if (state.failures === 0) delete all[budgetId];
+  else all[budgetId] = state;
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.LOCK_ATTEMPTS, JSON.stringify(all));
+  } catch (e) {
+    console.error('storage: saveLockAttempts error', e);
+  }
 };
 
 // Clear contents of ACTIVE budget (utility)

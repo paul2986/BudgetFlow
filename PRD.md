@@ -6,7 +6,7 @@
 
 - **Platforms:** Web (primary, installable PWA), iOS, and Android from a single codebase.
 - **Architecture:** Web-first. One TypeScript/React codebase deployed to the web and wrapped as native iOS/Android apps.
-- **Data model:** Multi-budget. Each budget owns its own people, expenses, household settings, and lock configuration.
+- **Data model:** Multi-budget. Each budget owns its own people, expenses and household settings; its lock belongs to the account (§11).
 - **Persistence:** Local-first with optional cloud sync when authenticated.
 - **Currency:** 120+ world currencies for display formatting.
 
@@ -63,7 +63,7 @@ Users maintain multiple independent budgets and choose which one is active.
 - **Budget switcher** — quick-switch between budgets.
 - **First-run flow** — when no budget exists, the user is guided to name and create their first budget before reaching the dashboard. The welcome screen says what's coming (name the budget, then add the people who share costs and the expenses), and shows the currency (picked from the device, §13) with a way to change it before the first amount is typed. Until a budget exists, People and Expenses, and their add forms, show "Create your budget first" with a button to Overview rather than an Add button that could only fail. Overview then shows a two-step setup checklist (people and income, then expenses); each step opens its form directly, and saving the first person returns to the checklist with the step ticked.
 
-Each budget stores: `name`, `people[]`, `expenses[]`, `householdSettings`, `createdAt`, `modifiedAt`, optional `lock`, and deletion metadata used for sync.
+Each budget stores: `name`, `people[]`, `expenses[]`, `householdSettings`, `createdAt`, `modifiedAt`, and deletion metadata used for sync. The device's copy also carries a `lock` (see §11), which is never uploaded with the budget.
 
 ---
 
@@ -231,13 +231,16 @@ Cloud sync is **optional** — the app is fully usable offline and local without
 
 ## 11. Security — Budget Lock
 
-Per-budget lock backed by device authentication.
+A 4-digit code that hides a budget until it is entered. It is a screen lock for whoever picks up the device, not encryption: budgets are stored unencrypted, and four digits can be guessed by anyone who holds the stored hash.
 
-- **Enable / disable lock** per budget.
-- **Device authentication** via biometrics (Face ID / Touch ID / Android Biometric) or device passcode; the user is prompted to enrol one if none exists.
-- **Auto-lock timer** — configurable (e.g. immediate, 5 minutes, 15 minutes).
-- **Re-lock on foreground** — lock status is re-checked when the app returns to the foreground.
-- **Lock gate** — a locked budget presents an unlock screen before its data is shown.
+- **Turning it on** — Budgets → ⋯ → Budget lock → switch on. It asks for a code twice (a mismatch starts again). Off asks for the code.
+- **Follows the account** — the lock is the signed-in account's own, per budget, kept in `budget_locks` (`supabase/migrations/20261006120000_budget_locks.sql`) and read on every sync. A budget locked on the iPhone is locked on the web app and an installed web app too; each device is unlocked separately. The people a budget is shared with are never asked for the code, can't see it, and can set their own. Turning a lock on, off or changing it needs a connection, because it is saved to the account first; leaving or being removed from a budget takes your lock with it. A lock the server couldn't be asked for during a sync is left alone, never read as "no lock".
+- **The code** — stored only as a salted PBKDF2-SHA-256 hash (`v1$<iterations>$<salt>$<hash>`, `utils/budgetLock.ts`), checked on the device, so a locked budget opens offline. Wrong codes: four free, then waits of 30 s, 1 min, 5 min, 15 min and 1 hour, kept on the device so quitting the app doesn't skip them.
+- **Face ID / Touch ID** — iPhone and Android only, optional, per budget per device (never synced): offered right after a lock is set and in the lock screen's settings, with the code always available. The device does the recognising; Face ID is asked for as soon as the lock appears.
+- **Auto-lock** (synced): *Immediately* (as soon as the app is left, or the tab hidden), 1, 5, 15 minutes, 1 hour, or *Never*. Which budgets are unlocked is held in memory, so quitting the app or reloading the page locks again; *Never* alone is remembered on the device. The clock starts when the app goes to the background, not while the Face ID prompt or the notification shade is up.
+- **Changing the code** asks for the current one first. Changing it elsewhere locks every other device again.
+- **Forgot the code** — "Forgot code?" on the lock screen takes the account password (checked without touching the signed-in session) and turns the lock off on every device; a new code can be set straight after.
+- **Lock gate** — a locked budget shows the code pad instead of Overview, Expenses, People and Budget review; the lock settings of a locked budget ask for the code before they open. Add/edit forms already open aren't covered.
 
 ---
 
@@ -250,7 +253,7 @@ Budgets move in and out of the app as Excel workbooks (`.xlsx`), so a budget can
   - **People**, **Income**, **Expenses** — one row per person, income source and expense, with drop-downs (frequency, type, person, category, and *Counts as* for the Budget review — blank follows the category), frozen header rows, filters and a *Per month* formula column. Expenses past their end date turn grey and are left out of the Summary. Blank rows below the data are ready for new entries.
   - **Lists** — the values the drop-downs offer.
 - **Import from Excel** — on the Budgets screen. It reads the People, Income and Expenses sheets (columns are found by their header text, so reordering or adding columns is fine) and shows a preview — counts, new categories and any rows that were left out, each with its row number and reason — before anything is added. The budget name can be edited. Import always **adds a new budget** and never changes an existing one; people and expenses get fresh ids, so nothing collides with synced data. Rows with problems are skipped and the rest import.
-- A budget under **Budget Lock** can't be exported from the list until it's the active, unlocked budget.
+- A budget under **Budget Lock** can't be exported (or duplicated) from the list until it has been unlocked on this device.
 - On phones the export opens the share sheet (Save to Files, AirDrop, Mail); on desktop browsers it downloads.
 - **Clear all data** ("Erase all data" in Settings → Danger zone) wipes the account's budgets and returns to the first-run welcome state.
 

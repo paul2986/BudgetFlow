@@ -11,6 +11,7 @@ import { useCurrency } from '../hooks/useCurrency';
 import Icon from '../components/Icon';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
 import NoBudgetState from '../components/NoBudgetState';
+import LockGate from '../components/LockGate';
 import { useLargeTitle } from '../hooks/useLargeTitle';
 import ExpenseFilterModal from '../components/ExpenseFilterModal';
 import ExpenseCard from '../components/ExpenseCard';
@@ -60,7 +61,7 @@ const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; l
   },
 ];
 
-export default function ExpensesScreen() {
+function ExpensesScreenContent() {
   const { data, activeBudget, removeExpense, saving, refreshData, loading } = useBudgetData();
   // Nothing can be added until the first budget exists (it's created on Overview).
   const noBudget = !loading && !activeBudget;
@@ -1033,5 +1034,14 @@ export default function ExpensesScreen() {
         announceFilter={announceFilter}
       />
     </View>
+  );
+}
+
+// Nothing of the screen is shown while the budget is locked.
+export default function ExpensesScreen() {
+  return (
+    <LockGate title="Expenses">
+      <ExpensesScreenContent />
+    </LockGate>
   );
 }

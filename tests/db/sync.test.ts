@@ -34,13 +34,12 @@ const joinWithDevice = async (owner: TestUser, budgetId: string, label = 'bob') 
 };
 
 describe('one person', () => {
-  it('uploads a new budget, owned by them, without the device lock', async () => {
-    const { phone, budget } = await aliceWithBudget({ lock: { locked: true, autoLockMinutes: 5 } });
+  it('uploads a new budget, owned by them, without its lock (the account’s lock is kept apart)', async () => {
+    const { phone, budget } = await aliceWithBudget({ lock: { locked: true, autoLockMinutes: 5, pinVerifier: 'v1$1$ab$cd' } });
     const row = await serverBudget(budget.id);
     expect(row?.data.name).toBe('Family');
     expect(row?.data).not.toHaveProperty('lock');
     expect(phone.sharing[budget.id]).toEqual({ role: 'owner', memberCount: 1 });
-    expect(find(await phone.load(), budget.id)?.lock?.locked).toBe(true);
   });
 
   it('leaves the device copy alone when a pass finds nothing new', async () => {
@@ -58,8 +57,8 @@ describe('one person', () => {
     expect(find(await phone.load(), budget.id)?.name).toBe('Family');
   });
 
-  it('gets everything on a new device, unlocked there', async () => {
-    const { alice, budget } = await aliceWithBudget({ lock: { locked: true, autoLockMinutes: 5 } });
+  it('gets everything on a new device', async () => {
+    const { alice, budget } = await aliceWithBudget();
     const laptop = await createDevice(alice);
     const data = await laptop.sync();
     expect(find(data, budget.id)?.name).toBe('Family');

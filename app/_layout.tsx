@@ -29,6 +29,7 @@ import AnimatedSplash from '../components/AnimatedSplash';
 import AuthGuard from '../components/AuthGuard';
 import ToastContainer from '../components/ToastContainer';
 import DialogHost from '../components/DialogHost';
+import LockWatcher from '../components/LockWatcher';
 import BottomTabBar from '../components/nav/BottomTabBar';
 import NavRail from '../components/nav/NavRail';
 import Sidebar from '../components/nav/Sidebar';
@@ -245,6 +246,7 @@ function RootLayoutContent() {
 
         <ToastContainer toasts={toasts} onHideToast={hideToast} />
         <DialogHost />
+        <LockWatcher />
       </View>
     </View>
   );

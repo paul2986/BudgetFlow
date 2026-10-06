@@ -16,12 +16,13 @@ import {
 } from '../utils/calculations';
 import Icon from '../components/Icon';
 import NoBudgetState from '../components/NoBudgetState';
+import LockGate from '../components/LockGate';
 import StandardHeader, { LargeTitle } from '../components/StandardHeader';
 import { useLargeTitle } from '../hooks/useLargeTitle';
 import { AmountText, Avatar, EmptyState, ListGroup, ListRow, Skeleton } from '../components/ui';
 import { type, space, radius } from '../styles/tokens';
 
-export default function PeopleScreen() {
+function PeopleScreenContent() {
   const { data, saving, refreshData, loading, activeBudget } = useBudgetData();
   const { tokens } = useTheme();
   const { themedStyles, breakpoint } = useThemedStyles();
@@ -192,5 +193,14 @@ export default function PeopleScreen() {
         </View>
       </Animated.ScrollView>
     </View>
+  );
+}
+
+// Nothing of the screen is shown while the budget is locked.
+export default function PeopleScreen() {
+  return (
+    <LockGate title="People">
+      <PeopleScreenContent />
+    </LockGate>
   );
 }

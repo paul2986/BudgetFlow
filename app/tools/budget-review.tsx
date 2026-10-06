@@ -17,6 +17,7 @@ import { useCurrency } from '../../hooks/useCurrency';
 import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useBudgetLock } from '../../hooks/useBudgetLock';
+import BudgetUnlock from '../../components/BudgetUnlock';
 import { useDebtHelpNudge } from '../../hooks/useDebtHelpNudge';
 import {
   BUCKET_ORDER,
@@ -42,8 +43,7 @@ export default function BudgetReviewScreen() {
   const money = useChartFormat();
   const { showToast } = useToast();
   const { data, activeBudget, sharing, setCategoryBucket } = useBudgetData();
-  const { isLocked, authenticateForBudget } = useBudgetLock();
-  const [authenticating, setAuthenticating] = useState(false);
+  const { isLocked } = useBudgetLock();
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [savingChoice, setSavingChoice] = useState(false);
 
@@ -66,20 +66,6 @@ export default function BudgetReviewScreen() {
     return match?.category ? { category: match.category, bucket: match.bucket } : null;
   }, [review, selectedName]);
   const shared = !!activeBudget && (sharing[activeBudget.id]?.memberCount ?? 1) > 1;
-
-  const handleUnlock = useCallback(async () => {
-    if (!activeBudget || authenticating) return;
-    setAuthenticating(true);
-    try {
-      const success = await authenticateForBudget(activeBudget.id);
-      if (!success) showToast('Authentication failed', 'error');
-    } catch (e) {
-      console.log('BudgetReview: authentication error', e);
-      showToast('Authentication error', 'error');
-    } finally {
-      setAuthenticating(false);
-    }
-  }, [activeBudget, authenticating, authenticateForBudget, showToast]);
 
   const openCategory = useCallback((name: string) => {
     // Same hand-off as the dashboard's category breakdown.
@@ -197,13 +183,11 @@ ${lines.join('\n')}`;
     }
     if (locked) {
       return (
-        <Card>
-          <EmptyState
-            icon="lock-closed"
-            title={`${budgetName} is locked`}
-            caption="Unlock it with Face ID, Touch ID or your passcode to compare it with the rule."
-            actionLabel={authenticating ? 'Unlocking…' : 'Unlock'}
-            onAction={handleUnlock}
+        <Card style={{ alignItems: 'center' }}>
+          <BudgetUnlock
+            budget={activeBudget}
+            caption="Enter your code to compare it with the rule."
+            showSwitch={false}
           />
         </Card>
       );

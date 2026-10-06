@@ -31,6 +31,7 @@ export const anonClient = () => createClient(URL, ANON_KEY, options);
 export interface TestUser {
   id: string;
   email: string;
+  password: string;
   client: SupabaseClient;
 }
 
@@ -44,7 +45,7 @@ export const createUser = async (label: string): Promise<TestUser> => {
   const client = anonClient();
   const { data, error: signInError } = await client.auth.signInWithPassword({ email, password });
   if (signInError) throw signInError;
-  return { id: data.user.id, email, client };
+  return { id: data.user.id, email, password, client };
 };
 
 export const deleteUser = async (user: TestUser) => {

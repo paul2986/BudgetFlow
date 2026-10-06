@@ -22,6 +22,7 @@ export const PRIVACY_SECTIONS: Section[] = [
     lines: [
       '• Your account: your email address and a password, which is stored scrambled so that no one can read it back.',
       '• Your budgets: their names, the people and incomes in them, and your expenses.',
+      '• Budget locks: if you lock a budget, a scrambled form of its 4-digit code, kept with your account so the lock follows you to your other devices. The code itself is never stored.',
       '• Feedback you send from Settings, with the app version and the kind of device (iPhone, Android or web).',
     ],
   },
@@ -29,13 +30,14 @@ export const PRIVACY_SECTIONS: Section[] = [
     title: 'What stays on your device',
     lines: [
       'A copy of your budgets is kept on the device so the app opens quickly, along with settings such as your currency, theme and expense filters. Signing out removes the copy of your budgets.',
-      'Budget lock uses your device’s Face ID, Touch ID or passcode. Budget Flow never sees them.',
+      'If you turn on Face ID or Touch ID for a budget lock, your device does the recognising: Budget Flow never sees your face or fingerprint, only that it matched, and the setting stays on that device.',
     ],
   },
   {
     title: 'Who can see your budgets',
     lines: [
       'You, and anyone you invite. People you share a budget with can see and change everything in it, and can see each other’s email addresses.',
+      'A budget lock is yours alone: the people you share a budget with are not asked for your code, or told about it. It keeps the screen private on a device; it does not encrypt your budget (see below).',
       'An invite link works once and expires after 7 days. Anyone holding an unused link can join, so send it only to the person it is for.',
       'Budgets are stored in the database without end-to-end encryption, so the person who runs Budget Flow can technically reach them. The admin screen in the app shows only totals, such as how many people have signed up, never budget contents. They can read feedback you send, but see your email address only if you tick “share my email”.',
     ],

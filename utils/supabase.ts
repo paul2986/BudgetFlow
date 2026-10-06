@@ -72,3 +72,19 @@ export const AUTH_REDIRECT_HTTPS = process.env.EXPO_PUBLIC_AUTH_REDIRECT_HTTPS |
  * before supabase-js reads the session from it. Native opens the web app.
  */
 export const emailLinkRedirect = () => (isWeb ? `${window.location.origin}/` : AUTH_REDIRECT_HTTPS);
+
+/**
+ * Whether `password` is the password of the account `email`, checked on a client of
+ * its own that keeps no session, so the signed-in session is left alone. For turning
+ * off a budget lock whose code was forgotten: the one proof of who you are that
+ * works on every device. Throws when the answer can't be had (offline, rate limited).
+ */
+export const verifyAccountPassword = async (email: string, password: string): Promise<boolean> => {
+    const probe = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'budgetflow-password-check' },
+    });
+    const { error } = await probe.auth.signInWithPassword({ email, password });
+    if (!error) return true;
+    if (error.code === 'invalid_credentials' || error.status === 400) return false;
+    throw error;
+};
