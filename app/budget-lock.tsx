@@ -11,6 +11,7 @@ import { haptics } from '../utils/haptics';
 import Icon from '../components/Icon';
 import StandardHeader from '../components/StandardHeader';
 import BudgetUnlock from '../components/BudgetUnlock';
+import UnlockFade from '../components/UnlockFade';
 import CodeSheet from '../components/CodeSheet';
 import { Card, ConfirmDialog, ListGroup, ListRow, Skeleton, SwitchRow } from '../components/ui';
 import { space, radius } from '../styles/tokens';
@@ -93,20 +94,23 @@ export default function BudgetLockScreen() {
 
   // A locked budget asks for its code before it lets anyone change how it is locked.
   if (isLocked(budget)) {
+    // Both states share the same wrapper at the root, so the settings can fade in when the code opens it.
     return (
-      <View style={themedStyles.container}>
-        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} />
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
-        >
-          <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-            <Card>
-              <BudgetUnlock budget={budget} title={`${budget.name} is locked`} caption="Enter your code to change its lock." showSwitch={false} />
-            </Card>
-          </View>
-        </ScrollView>
-      </View>
+      <UnlockFade locked style={{ flex: 1 }}>
+        <View style={themedStyles.container}>
+          <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} />
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+          >
+            <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
+              <Card>
+                <BudgetUnlock budget={budget} title={`${budget.name} is locked`} caption="Enter your code to change its lock." showSwitch={false} />
+              </Card>
+            </View>
+          </ScrollView>
+        </View>
+      </UnlockFade>
     );
   }
 
@@ -151,135 +155,137 @@ export default function BudgetLockScreen() {
   };
 
   return (
-    <View style={themedStyles.container}>
-      <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} loading={saving} />
+    <UnlockFade locked={false} style={{ flex: 1 }}>
+      <View style={themedStyles.container}>
+        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} loading={saving} />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
-      >
-        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
-          <ListGroup
-            header={budget.name}
-            footer={
-              locked
-                ? 'The same code opens this budget on every device you’re signed in to. If it’s shared, only you are asked for it.'
-                : 'Hide this budget behind a 4-digit code. It’s yours alone: people you share the budget with aren’t asked for it. It keeps the screen private; it doesn’t encrypt your data.'
-            }
-          >
-            <SwitchRow
-              icon="lock-closed-outline"
-              title="Lock this budget"
-              caption={locked ? 'Asks for a code before showing it' : 'Choose a 4-digit code'}
-              value={locked}
-              onChange={(next) => setSheet(next ? 'new' : 'off')}
-              disabled={saving}
-              showSeparator={false}
-            />
-          </ListGroup>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
+        >
+          <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+            <ListGroup
+              header={budget.name}
+              footer={
+                locked
+                  ? 'The same code opens this budget on every device you’re signed in to. If it’s shared, only you are asked for it.'
+                  : 'Hide this budget behind a 4-digit code. It’s yours alone: people you share the budget with aren’t asked for it. It keeps the screen private; it doesn’t encrypt your data.'
+              }
+            >
+              <SwitchRow
+                icon="lock-closed-outline"
+                title="Lock this budget"
+                caption={locked ? 'Asks for a code before showing it' : 'Choose a 4-digit code'}
+                value={locked}
+                onChange={(next) => setSheet(next ? 'new' : 'off')}
+                disabled={saving}
+                showSeparator={false}
+              />
+            </ListGroup>
 
-          {locked ? (
-            <>
-              <ListGroup>
-                {biometric ? (
-                  <SwitchRow
-                    icon={biometric === 'Face ID' ? 'scan-outline' : 'finger-print'}
-                    title={`Unlock with ${biometric}`}
-                    caption="On this device only. The code still works."
-                    value={!!lock?.biometrics}
-                    onChange={handleBiometrics}
-                    disabled={saving}
-                  />
-                ) : null}
-                <ListRow
-                  title="Change code"
-                  icon="keypad-outline"
-                  chevron
-                  onPress={saving ? undefined : () => setSheet('change')}
-                  showSeparator={false}
-                />
-              </ListGroup>
-
-              <ListGroup
-                header="Lock after leaving the app"
-                footer="How long Budget Flow can be out of sight before it asks for the code again. “Never” keeps it open on a device until you lock it yourself. Applies on all your devices."
-              >
-                {AUTO_LOCK_OPTIONS.map((option, i) => {
-                  const selected = lock?.autoLockMinutes === option.value;
-                  return (
-                    <ListRow
-                      key={option.value}
-                      title={option.label}
-                      trailing={selected ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
-                      onPress={
-                        saving || selected
-                          ? undefined
-                          : () =>
-                              run(
-                                () => setAutoLock(budget.id, option.value),
-                                `Locks ${option.label === 'Never' ? 'only when you lock it' : option.label === 'Immediately' ? 'as soon as you leave the app' : `after ${option.label}`}`,
-                                'Failed to update auto-lock setting'
-                              )
-                      }
-                      accessibilityLabel={`${option.label}${selected ? ', selected' : ''}`}
-                      style={{ minHeight: 52 } as any}
-                      showSeparator={i < AUTO_LOCK_OPTIONS.length - 1}
+            {locked ? (
+              <>
+                <ListGroup>
+                  {biometric ? (
+                    <SwitchRow
+                      icon={biometric === 'Face ID' ? 'scan-outline' : 'finger-print'}
+                      title={`Unlock with ${biometric}`}
+                      caption="On this device only. The code still works."
+                      value={!!lock?.biometrics}
+                      onChange={handleBiometrics}
+                      disabled={saving}
                     />
-                  );
-                })}
-              </ListGroup>
+                  ) : null}
+                  <ListRow
+                    title="Change code"
+                    icon="keypad-outline"
+                    chevron
+                    onPress={saving ? undefined : () => setSheet('change')}
+                    showSeparator={false}
+                  />
+                </ListGroup>
 
-              <ListGroup>
-                <ListRow
-                  title="Lock now"
-                  icon="lock-closed"
-                  iconColor={tokens.colors.brand}
-                  onPress={saving ? undefined : handleLockNow}
-                  showSeparator={false}
-                />
-              </ListGroup>
-            </>
-          ) : null}
-        </View>
-      </ScrollView>
+                <ListGroup
+                  header="Lock after leaving the app"
+                  footer="How long Budget Flow can be out of sight before it asks for the code again. “Never” keeps it open on a device until you lock it yourself. Applies on all your devices."
+                >
+                  {AUTO_LOCK_OPTIONS.map((option, i) => {
+                    const selected = lock?.autoLockMinutes === option.value;
+                    return (
+                      <ListRow
+                        key={option.value}
+                        title={option.label}
+                        trailing={selected ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
+                        onPress={
+                          saving || selected
+                            ? undefined
+                            : () =>
+                                run(
+                                  () => setAutoLock(budget.id, option.value),
+                                  `Locks ${option.label === 'Never' ? 'only when you lock it' : option.label === 'Immediately' ? 'as soon as you leave the app' : `after ${option.label}`}`,
+                                  'Failed to update auto-lock setting'
+                                )
+                        }
+                        accessibilityLabel={`${option.label}${selected ? ', selected' : ''}`}
+                        style={{ minHeight: 52 } as any}
+                        showSeparator={i < AUTO_LOCK_OPTIONS.length - 1}
+                      />
+                    );
+                  })}
+                </ListGroup>
 
-      <CodeSheet
-        visible={sheet === 'new'}
-        onClose={() => setSheet(null)}
-        title="Lock budget"
-        prompt="Choose a 4-digit code"
-        confirm
-        onSubmit={handleNewCode}
-      />
-      <CodeSheet
-        visible={sheet === 'change'}
-        onClose={() => setSheet(null)}
-        title="Change code"
-        prompt="Choose a new code"
-        confirm
-        current={{ prompt: 'Enter your current code', check: checkCurrent }}
-        onSubmit={handleNewCode}
-      />
-      <CodeSheet
-        visible={sheet === 'off'}
-        onClose={() => setSheet(null)}
-        title="Turn off lock"
-        prompt="Enter your code to turn the lock off"
-        onSubmit={handleTurnOff}
-      />
+                <ListGroup>
+                  <ListRow
+                    title="Lock now"
+                    icon="lock-closed"
+                    iconColor={tokens.colors.brand}
+                    onPress={saving ? undefined : handleLockNow}
+                    showSeparator={false}
+                  />
+                </ListGroup>
+              </>
+            ) : null}
+          </View>
+        </ScrollView>
 
-      <ConfirmDialog
-        visible={offerBiometric}
-        title={`Use ${biometric}?`}
-        message={`Open this budget with ${biometric} instead of typing the code. The code still works.`}
-        confirmLabel={`Use ${biometric}`}
-        cancelLabel="Not now"
-        onConfirm={() => {
-          setOfferBiometric(false);
-          handleBiometrics(true);
-        }}
-        onCancel={() => setOfferBiometric(false)}
-      />
-    </View>
+        <CodeSheet
+          visible={sheet === 'new'}
+          onClose={() => setSheet(null)}
+          title="Lock budget"
+          prompt="Choose a 4-digit code"
+          confirm
+          onSubmit={handleNewCode}
+        />
+        <CodeSheet
+          visible={sheet === 'change'}
+          onClose={() => setSheet(null)}
+          title="Change code"
+          prompt="Choose a new code"
+          confirm
+          current={{ prompt: 'Enter your current code', check: checkCurrent }}
+          onSubmit={handleNewCode}
+        />
+        <CodeSheet
+          visible={sheet === 'off'}
+          onClose={() => setSheet(null)}
+          title="Turn off lock"
+          prompt="Enter your code to turn the lock off"
+          onSubmit={handleTurnOff}
+        />
+
+        <ConfirmDialog
+          visible={offerBiometric}
+          title={`Use ${biometric}?`}
+          message={`Open this budget with ${biometric} instead of typing the code. The code still works.`}
+          confirmLabel={`Use ${biometric}`}
+          cancelLabel="Not now"
+          onConfirm={() => {
+            setOfferBiometric(false);
+            handleBiometrics(true);
+          }}
+          onCancel={() => setOfferBiometric(false)}
+        />
+      </View>
+    </UnlockFade>
   );
 }
