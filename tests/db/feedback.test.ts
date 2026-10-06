@@ -132,7 +132,7 @@ describe('who can see what', () => {
   });
 
   it('only admins reach the admin functions', async () => {
-    const [alice, bob] = [await fresh('alice'), await fresh('bob')];
+    const alice = await fresh('alice');
     const id = await send(alice, 'who may look');
     const anon = anonClient();
     for (const [fn, args] of [
@@ -172,7 +172,7 @@ describe('who can see what', () => {
   });
 
   it('never tells a sender which admin replied', async () => {
-    const [alice, bob] = [await fresh('alice'), await fresh('bob')];
+    const alice = await fresh('alice');
     const id = await send(alice, 'who answers');
     await boss.client.rpc('admin_feedback_reply', { p_id: id, p_body: 'Good idea.' });
     const item = (await mine(alice)).find((f) => f.id === id);
@@ -230,7 +230,7 @@ describe('the conversation', () => {
   });
 
   it('only accepts the five statuses and valid replies', async () => {
-    const [alice, bob] = [await fresh('alice'), await fresh('bob')];
+    const alice = await fresh('alice');
     const id = await send(alice, 'status check');
     expect((await boss.client.rpc('admin_feedback_set_status', { p_id: id, p_status: 'shipped' })).error?.code).toBe('22023');
     expect((await boss.client.rpc('admin_feedback_set_status', { p_id: id, p_status: null })).error?.code).toBe('22023');
