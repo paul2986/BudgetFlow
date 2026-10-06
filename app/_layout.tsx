@@ -19,7 +19,7 @@ import { useTheme, ThemeProvider } from '../hooks/useTheme';
 import { useToast, ToastProvider } from '../hooks/useToast';
 import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
 import { initCurrency } from '../hooks/useCurrency';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth, AuthProvider } from '../hooks/useAuth';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import { useEditorTransitions } from '../hooks/useEditorTransitions';
 import { rememberInviteFromUrl } from '../utils/sharing';
@@ -246,12 +246,14 @@ function AppContent() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <BudgetDataProvider>
-          <RootLayoutContent />
-          {/* Web only: it injects a <script> via `document`, which native lacks
-              (its `typeof window` browser check passes on native too). */}
-          {Platform.OS === 'web' && <Analytics />}
-        </BudgetDataProvider>
+        <AuthProvider>
+          <BudgetDataProvider>
+            <RootLayoutContent />
+            {/* Web only: it injects a <script> via `document`, which native lacks
+                (its `typeof window` browser check passes on native too). */}
+            {Platform.OS === 'web' && <Analytics />}
+          </BudgetDataProvider>
+        </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
   );
