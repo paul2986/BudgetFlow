@@ -1,7 +1,8 @@
 import { View, Text, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Chip } from './ui';
-import { BucketId, Person } from '../types/budget';
+import { Person } from '../types/budget';
+import type { DebtFilter, ExpenseFilters } from '../utils/expenseFilters';
 import { type, space } from '../styles/tokens';
 import { BUCKET_META } from './tools/bucketMeta';
 
@@ -13,8 +14,6 @@ import { BUCKET_META } from './tools/bucketMeta';
  * checkmark, never color alone.
  */
 
-export type DebtFilter = 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card';
-
 const DEBT_LABELS: Record<Exclude<DebtFilter, 'all'>, string> = {
   any: 'Debt',
   loan: 'Loan',
@@ -24,39 +23,13 @@ const DEBT_LABELS: Record<Exclude<DebtFilter, 'all'>, string> = {
 
 interface ExpenseFilterBarProps {
   people: Person[];
-  filter: 'all' | 'household' | 'personal';
-  setFilter: (f: 'all' | 'household' | 'personal') => void;
-  personFilter: string | null;
-  setPersonFilter: (id: string | null) => void;
-  debtFilter: DebtFilter;
-  setDebtFilter: (d: DebtFilter) => void;
-  bucketFilter: 'all' | BucketId;
-  setBucketFilter: (b: 'all' | BucketId) => void;
-  categories: string[];
-  onRemoveCategory: (category: string) => void;
-  hasEndDateFilter: boolean;
-  setHasEndDateFilter: (v: boolean) => void;
+  filters: ExpenseFilters;
+  onChange: (changes: Partial<ExpenseFilters>) => void;
   hasActiveFilters: boolean;
   onClearAll: () => void;
 }
 
-export default function ExpenseFilterBar({
-  people,
-  filter,
-  setFilter,
-  personFilter,
-  setPersonFilter,
-  debtFilter,
-  setDebtFilter,
-  bucketFilter,
-  setBucketFilter,
-  categories,
-  onRemoveCategory,
-  hasEndDateFilter,
-  setHasEndDateFilter,
-  hasActiveFilters,
-  onClearAll,
-}: ExpenseFilterBarProps) {
+export default function ExpenseFilterBar({ people, filters, onChange, hasActiveFilters, onClearAll }: ExpenseFilterBarProps) {
   const { tokens } = useTheme();
 
   const toggleChip = (label: string, selected: boolean, onPress: () => void, icon?: string) => (
@@ -77,62 +50,50 @@ export default function ExpenseFilterBar({
     >
       {toggleChip(
         'Household',
-        filter === 'household',
-        () => {
-          if (filter === 'household') setFilter('all');
-          else {
-            setFilter('household');
-            setPersonFilter(null);
-          }
-        },
+        filters.type === 'household',
+        () => onChange(filters.type === 'household' ? { type: 'all' } : { type: 'household', personId: null }),
         'home-outline'
       )}
 
       {people.map((person) =>
         toggleChip(
           person.name,
-          personFilter === person.id,
-          () => {
-            if (personFilter === person.id) setPersonFilter(null);
-            else {
-              setPersonFilter(person.id);
-              setFilter('all');
-            }
-          },
+          filters.personId === person.id,
+          () => onChange(filters.personId === person.id ? { personId: null } : { personId: person.id, type: 'all' }),
           'person-outline'
         )
       )}
 
       {toggleChip(
-        debtFilter === 'all' ? 'Debt' : DEBT_LABELS[debtFilter],
-        debtFilter !== 'all',
-        () => setDebtFilter(debtFilter === 'all' ? 'any' : 'all'),
+        filters.debt === 'all' ? 'Debt' : DEBT_LABELS[filters.debt],
+        filters.debt !== 'all',
+        () => onChange({ debt: filters.debt === 'all' ? 'any' : 'all' }),
         'trending-down-outline'
       )}
 
       {/* Sheet-only filters appear here as removable chips once applied. */}
-      {filter === 'personal' ? (
-        <Chip label="Personal" icon="person-outline" selected onDismiss={() => setFilter('all')} />
+      {filters.type === 'personal' ? (
+        <Chip label="Personal" icon="person-outline" selected onDismiss={() => onChange({ type: 'all' })} />
       ) : null}
-      {bucketFilter !== 'all' ? (
+      {filters.bucket !== 'all' ? (
         <Chip
-          label={`Counts as ${BUCKET_META[bucketFilter].name}`}
-          icon={BUCKET_META[bucketFilter].icon}
+          label={`Counts as ${BUCKET_META[filters.bucket].name}`}
+          icon={BUCKET_META[filters.bucket].icon}
           selected
-          onDismiss={() => setBucketFilter('all')}
+          onDismiss={() => onChange({ bucket: 'all' })}
         />
       ) : null}
-      {categories.map((category) => (
+      {filters.categories.map((category) => (
         <Chip
           key={`cat-${category}`}
           label={category}
           icon="pricetag-outline"
           selected
-          onDismiss={() => onRemoveCategory(category)}
+          onDismiss={() => onChange({ categories: filters.categories.filter((c) => c !== category) })}
         />
       ))}
-      {hasEndDateFilter ? (
-        <Chip label="Has end date" icon="timer-outline" selected onDismiss={() => setHasEndDateFilter(false)} />
+      {filters.hasEndDate ? (
+        <Chip label="Has end date" icon="timer-outline" selected onDismiss={() => onChange({ hasEndDate: false })} />
       ) : null}
 
       {hasActiveFilters ? (

@@ -8,6 +8,7 @@ import { normalizeCategoryName } from '../utils/storage';
 import { debtMeta } from '../utils/debtMeta';
 import { Expense, Person } from '../types/budget';
 import { type, radius, space, elevation, tabularNums, avatarHue } from '../styles/tokens';
+import type { SortOption, SortOrder } from '../utils/expenseFilters';
 
 /**
  * Expenses table for medium/expanded layouts. One surface, hairline row
@@ -17,17 +18,7 @@ import { type, radius, space, elevation, tabularNums, avatarHue } from '../style
  * range); the header checkbox selects every row shown.
  */
 
-export type SortOption =
-  | 'date'
-  | 'alphabetical'
-  | 'cost'
-  | 'type'
-  | 'assignedTo'
-  | 'frequency'
-  | 'categoryTag'
-  | 'endDate'
-  | 'debtRepayment';
-export type SortOrder = 'asc' | 'desc';
+export type { SortOption, SortOrder };
 
 interface Column {
   label: string;

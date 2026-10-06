@@ -24,9 +24,10 @@ import { haptics } from '../utils/haptics';
 import { useBulkExpenseActions } from '../hooks/useBulkExpenseActions';
 import { countLabel, type BulkEditPatch } from '../utils/bulkEdit';
 import { type, space, radius } from '../styles/tokens';
-import { DEFAULT_CATEGORIES, type BucketId, type Expense } from '../types/budget';
+import { DEFAULT_CATEGORIES, type Expense } from '../types/budget';
 import { bucketOfExpense, categoryBucketLookup } from '../utils/budgetReview';
-import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, getExpensesSort, saveExpensesSort, normalizeCategoryName } from '../utils/storage';
+import { getCustomExpenseCategories, getExpensesFilters, saveExpensesFilters, getExpensesSort, saveExpensesSort } from '../utils/storage';
+import { NO_FILTERS, filterExpenses, hasActiveFilters as anyFilterActive, sortExpenses, type ExpenseFilters } from '../utils/expenseFilters';
 
 // Sort menu: each field offers both directions; the list defaults to newest first.
 const SORT_MENU: { title: string; options: { by: SortOption; order: SortOrder; label: string }[] }[] = [
@@ -80,17 +81,12 @@ function ExpensesScreenContent() {
   // Filter modal state
   const [showFilterModal, setShowFilterModal] = useState(false);
 
-  // Filter state - Initialize with proper defaults
-  const [filter, setFilter] = useState<'all' | 'household' | 'personal'>('all');
-  const [personFilter, setPersonFilter] = useState<string | null>(null);
+  // What the list is filtered by (utils/expenseFilters). `searchTerm` is the typed
+  // search, debounced, which is what the list is actually filtered by.
+  const [filters, setFilters] = useState<ExpenseFilters>(NO_FILTERS);
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [customCategories, setCustomCategories] = useState<string[]>([]);
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [categoryFilters, setCategoryFilters] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [searchTerm, setSearchTerm] = useState<string>(''); // debounced
-  const [hasEndDateFilter, setHasEndDateFilter] = useState<boolean>(false);
-  const [debtFilter, setDebtFilter] = useState<'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'>('all');
-  const [bucketFilter, setBucketFilter] = useState<'all' | BucketId>('all');
+  const changeFilters = useCallback((changes: Partial<ExpenseFilters>) => setFilters((f) => ({ ...f, ...changes })), []);
 
   // Where each expense counts in the budget review (its own choice, else its category's).
   const categoryBuckets = activeBudget?.categoryBuckets;
@@ -160,17 +156,9 @@ function ExpensesScreenContent() {
     }
 
     try {
-      const filters = await getExpensesFilters();
-
-      setCategoryFilter(filters.category || null);
-      setCategoryFilters([]);
-      setSearchQuery(filters.search || '');
-      setSearchTerm(filters.search || '');
-      setHasEndDateFilter(filters.hasEndDate || false);
-      setFilter(filters.filter || 'all');
-      setPersonFilter(filters.personFilter || null);
-      setDebtFilter(filters.debtFilter || 'all');
-      setBucketFilter(filters.bucketFilter || 'all');
+      const saved = await getExpensesFilters();
+      setFilters(saved);
+      setSearchTerm(saved.search.trim());
 
       filtersLoaded.current = true;
     } catch (e) {
@@ -197,33 +185,14 @@ function ExpensesScreenContent() {
           if (dashboardParamsChanged || isInitialLoad.current) {
             lastDashboardParams.current = dashboardParamsKey;
 
-            // Apply filters from URL parameters
-            if (params.filter && (params.filter === 'household' || params.filter === 'personal')) {
-              setFilter(params.filter);
-            } else {
-              setFilter('all');
-            }
-
-            if (params.category) {
-              setCategoryFilter(params.category);
-              setCategoryFilters([]);
-            } else {
-              setCategoryFilter(null);
-              setCategoryFilters([]);
-            }
-
-            if (params.personId) {
-              setPersonFilter(params.personId);
-            } else {
-              setPersonFilter(null);
-            }
-
-            // Clear other filters when coming from dashboard
-            setSearchQuery('');
+            // Apply the filters from the URL parameters; everything else is cleared.
+            setFilters({
+              ...NO_FILTERS,
+              type: params.filter === 'household' || params.filter === 'personal' ? params.filter : 'all',
+              categories: params.category ? [params.category] : [],
+              personId: params.personId || null,
+            });
             setSearchTerm('');
-            setHasEndDateFilter(false);
-            setDebtFilter('all');
-            setBucketFilter('all');
 
             // Announce the applied filters for accessibility
             const filterMessages = [];
@@ -278,53 +247,30 @@ function ExpensesScreenContent() {
       try {
         const customs = await getCustomExpenseCategories();
         setCustomCategories(customs);
-        // If current category filter is no longer valid, clear it
-        if (categoryFilter && !customs.includes(categoryFilter) && !DEFAULT_CATEGORIES.includes(categoryFilter)) {
-          setCategoryFilter(null);
-        }
-        // Clear invalid category filters from multiple selection
-        const validCategoryFilters = categoryFilters.filter(cat =>
-          customs.includes(cat) || DEFAULT_CATEGORIES.includes(cat)
-        );
-        if (validCategoryFilters.length !== categoryFilters.length) {
-          setCategoryFilters(validCategoryFilters);
-        }
+        // Drop selected categories that no longer exist
+        const valid = filters.categories.filter((cat) => customs.includes(cat) || DEFAULT_CATEGORIES.includes(cat));
+        if (valid.length !== filters.categories.length) changeFilters({ categories: valid });
       } catch (error) {
         console.error('ExpensesScreen: Error reloading custom categories:', error);
       }
     };
 
     reloadCustomCategories();
-  }, [data.people.length, data.expenses.length, categoryFilter, categoryFilters]);
+  }, [data.people.length, data.expenses.length, filters.categories, changeFilters]);
 
-  // FIXED: Persist filters properly - including dashboard filters after they're applied
+  // Remember the filters, dashboard ones included, once they have loaded.
   useEffect(() => {
-    // Persist filters if:
-    // 1. Filters have been loaded (to prevent overwriting during initial load)
-    // 2. Not on initial load
-    // 3. Either not from dashboard OR dashboard filters have been applied and should be persisted
-
     if (filtersLoaded.current && !isInitialLoad.current) {
-      const timeoutId = setTimeout(() => {
-        saveExpensesFilters({
-          category: categoryFilter,
-          search: searchQuery,
-          hasEndDate: hasEndDateFilter,
-          filter: filter,
-          personFilter: personFilter,
-          debtFilter: debtFilter,
-          bucketFilter: bucketFilter
-        });
-      }, 500);
+      const timeoutId = setTimeout(() => saveExpensesFilters(filters), 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [categoryFilter, categoryFilters, searchQuery, hasEndDateFilter, filter, personFilter, debtFilter, bucketFilter, params.fromDashboard]);
+  }, [filters]);
 
   // Debounce search for filtering performance
   useEffect(() => {
-    const timeoutId = setTimeout(() => setSearchTerm(searchQuery.trim()), 300);
+    const timeoutId = setTimeout(() => setSearchTerm(filters.search.trim()), 300);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery]);
+  }, [filters.search]);
 
   // FIXED: Better focus effect handling with proper filter persistence
   useFocusEffect(
@@ -392,27 +338,10 @@ function ExpensesScreenContent() {
   }, []);
 
   const handleClearFilters = useCallback(() => {
-    setCategoryFilter(null);
-    setCategoryFilters([]);
-    setSearchQuery('');
+    setFilters(NO_FILTERS);
     setSearchTerm('');
-    setFilter('all');
-    setPersonFilter(null);
-    setHasEndDateFilter(false);
-    setDebtFilter('all');
-    setBucketFilter('all');
     announceFilter('All filters cleared');
-
-    // Also clear persisted filters
-    saveExpensesFilters({
-      category: null,
-      search: '',
-      hasEndDate: false,
-      filter: 'all',
-      personFilter: null,
-      debtFilter: 'all',
-      bucketFilter: 'all'
-    });
+    saveExpensesFilters(NO_FILTERS);
   }, [announceFilter]);
 
   // Enhanced sort button handler
@@ -444,139 +373,26 @@ function ExpensesScreenContent() {
     setShowSortMenu(false);
   }, [sortBy, sortOrder]);
 
-  // Apply filters with proper logic and error handling
-  let filteredExpenses = [...data.expenses]; // Create a copy to avoid mutating original
-
-  // Apply household/personal filter correctly
-  if (filter === 'household') {
-    filteredExpenses = filteredExpenses.filter((e) => e.category === 'household');
-  } else if (filter === 'personal') {
-    filteredExpenses = filteredExpenses.filter((e) => e.category === 'personal');
-  }
-
-  // Apply person filter with proper logic for household vs personal expenses
-  if (personFilter) {
-    filteredExpenses = filteredExpenses.filter((e) => {
-      // For household expenses, only filter if they have a personId assigned
-      if (e.category === 'household') {
-        return e.personId === personFilter;
-      }
-      // For personal expenses, always filter by personId
-      return e.personId === personFilter;
-    });
-  }
-
-  // Apply category filter (support both single and multiple categories)
-  const activeCategories = categoryFilters.length > 0 ? categoryFilters : (categoryFilter ? [categoryFilter] : []);
-  if (activeCategories.length > 0) {
-    const selectedCategories = activeCategories.map(cat => normalizeCategoryName(cat));
-    filteredExpenses = filteredExpenses.filter((e) => {
-      const expenseCategory = normalizeCategoryName((e as any).categoryTag || 'Misc');
-      return selectedCategories.includes(expenseCategory);
-    });
-  }
-
-  // Apply search filter
-  if (searchTerm) {
-    const q = searchTerm.toLowerCase();
-    filteredExpenses = filteredExpenses.filter((e) => e.description.toLowerCase().includes(q));
-  }
-
-  // Apply end date filter
-  if (hasEndDateFilter) {
-    filteredExpenses = filteredExpenses.filter((e) => {
-      // Only include expenses that have an end date and are not one-time
-      const hasEndDate = e.endDate && e.frequency !== 'one-time';
-      return hasEndDate;
-    });
-  }
-
-  // Apply debt repayment filter
-  if (debtFilter && debtFilter !== 'all') {
-    filteredExpenses = filteredExpenses.filter((e) => {
-      if (debtFilter === 'any') {
-        return !!e.debtRepayment;
-      }
-      return e.debtRepayment === debtFilter;
-    });
-  }
-
-  // Apply the budget-review bucket filter (Needs / Wants / Savings)
-  if (bucketFilter !== 'all') {
-    filteredExpenses = filteredExpenses.filter((e) => bucketOf(e) === bucketFilter);
-  }
-
-  // Enhanced sorting logic
-  filteredExpenses = filteredExpenses.sort((a, b) => {
-    let comparison = 0;
-
-    switch (sortBy) {
-      case 'date':
-        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-        break;
-      case 'alphabetical':
-        comparison = a.description.toLowerCase().localeCompare(b.description.toLowerCase());
-        break;
-      case 'cost':
-        comparison = a.amount - b.amount;
-        break;
-      case 'type':
-        comparison = a.category.toLowerCase().localeCompare(b.category.toLowerCase());
-        break;
-      case 'assignedTo': {
-        const nameA = (a.personId ? (data.people.find(p => p.id === a.personId)?.name || '') : 'Household').toLowerCase();
-        const nameB = (b.personId ? (data.people.find(p => p.id === b.personId)?.name || '') : 'Household').toLowerCase();
-        comparison = nameA.localeCompare(nameB);
-        break;
-      }
-      case 'frequency':
-        comparison = a.frequency.toLowerCase().localeCompare(b.frequency.toLowerCase());
-        break;
-      case 'categoryTag': {
-        const tagA = (a.categoryTag || 'Misc').toLowerCase();
-        const tagB = (b.categoryTag || 'Misc').toLowerCase();
-        comparison = tagA.localeCompare(tagB);
-        break;
-      }
-      case 'endDate': {
-        const valA = a.endDate || '';
-        const valB = b.endDate || '';
-        if (!valA && !valB) comparison = 0;
-        else if (!valA) comparison = 1;
-        else if (!valB) comparison = -1;
-        else comparison = valA.localeCompare(valB);
-        break;
-      }
-      case 'debtRepayment': {
-        const typeA = (a.debtRepayment === 'credit_card' ? 'Credit Card' : a.debtRepayment === 'loan' ? 'Loan' : a.debtRepayment === 'mortgage' ? 'Mortgage' : 'General').toLowerCase();
-        const typeB = (b.debtRepayment === 'credit_card' ? 'Credit Card' : b.debtRepayment === 'loan' ? 'Loan' : b.debtRepayment === 'mortgage' ? 'Mortgage' : 'General').toLowerCase();
-        comparison = typeA.localeCompare(typeB);
-        break;
-      }
-      default:
-        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
-    }
-
-    return sortOrder === 'asc' ? comparison : -comparison;
-  });
-
-  // `filteredExpenses` is built up by reassignment above; handlers below close over this settled copy.
+  // Filtering by the debounced search, then sorting.
+  const filteredExpenses = useMemo(
+    () =>
+      sortExpenses(
+        filterExpenses(data.expenses, { ...filters, search: searchTerm }, bucketOf),
+        { by: sortBy, order: sortOrder },
+        data.people
+      ),
+    [data.expenses, data.people, filters, searchTerm, bucketOf, sortBy, sortOrder]
+  );
   const shownExpenses = filteredExpenses;
 
   const totalMonthlyAmount = filteredExpenses.reduce((sum, e) => {
     return sum + calculateMonthlyAmount(e.amount, e.frequency);
   }, 0);
 
-  const hasActiveFilters = !!categoryFilter || categoryFilters.length > 0 || !!searchTerm || (filter !== 'all') || !!personFilter || hasEndDateFilter || (debtFilter !== 'all') || (bucketFilter !== 'all');
-
-  const activeCategories_ = categoryFilters.length > 0 ? categoryFilters : categoryFilter ? [categoryFilter] : [];
-  const removeCategory = (category: string) => {
-    if (categoryFilters.length > 0) setCategoryFilters(categoryFilters.filter((c) => c !== category));
-    else setCategoryFilter(null);
-  };
+  const filtersActive = anyFilterActive({ ...filters, search: searchTerm });
 
   const busy = saving || deletingExpenseId !== null || bulk.busy;
-  const subtitle = hasActiveFilters
+  const subtitle = filtersActive
     ? `${filteredExpenses.length} of ${data.expenses.length} · ${formatCurrency(totalMonthlyAmount)}/mo`
     : `${data.expenses.length} ${data.expenses.length === 1 ? 'expense' : 'expenses'} · ${formatCurrency(totalMonthlyAmount)}/mo`;
 
@@ -721,11 +537,11 @@ function ExpensesScreenContent() {
                       },
                     ]),
                 {
-                  icon: hasActiveFilters ? 'options' : 'options-outline',
+                  icon: filtersActive ? 'options' : 'options-outline',
                   onPress: () => setShowFilterModal(true),
-                  backgroundColor: hasActiveFilters ? tokens.colors.brandSubtle : 'transparent',
+                  backgroundColor: filtersActive ? tokens.colors.brandSubtle : 'transparent',
                   iconColor: tokens.colors.brand,
-                  accessibilityLabel: hasActiveFilters ? 'More filters, some applied' : 'More filters',
+                  accessibilityLabel: filtersActive ? 'More filters, some applied' : 'More filters',
                 },
                 { icon: 'add', onPress: handleNavigateToAddExpense, accessibilityLabel: 'Add expense' },
               ]
@@ -746,8 +562,8 @@ function ExpensesScreenContent() {
             <>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.s2 }}>
                 <SearchField
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  value={filters.search}
+                  onChangeText={(search) => changeFilters({ search })}
                   placeholder="Search expenses"
                   style={{ flex: 1 }}
                 />
@@ -781,19 +597,9 @@ function ExpensesScreenContent() {
 
               <ExpenseFilterBar
                 people={data.people}
-                filter={filter}
-                setFilter={setFilter}
-                personFilter={personFilter}
-                setPersonFilter={setPersonFilter}
-                debtFilter={debtFilter}
-                setDebtFilter={setDebtFilter}
-                bucketFilter={bucketFilter}
-                setBucketFilter={setBucketFilter}
-                categories={activeCategories_}
-                onRemoveCategory={removeCategory}
-                hasEndDateFilter={hasEndDateFilter}
-                setHasEndDateFilter={setHasEndDateFilter}
-                hasActiveFilters={hasActiveFilters}
+                filters={filters}
+                onChange={changeFilters}
+                hasActiveFilters={filtersActive}
                 onClearAll={handleClearFilters}
               />
 
@@ -821,7 +627,7 @@ function ExpensesScreenContent() {
             <ListGroup>
               {noBudget ? (
                 <NoBudgetState />
-              ) : hasActiveFilters ? (
+              ) : filtersActive ? (
                 <EmptyState
                   icon="search-outline"
                   title="No matching expenses"
@@ -951,22 +757,8 @@ function ExpensesScreenContent() {
       <ExpenseFilterModal
         visible={showFilterModal}
         onClose={() => setShowFilterModal(false)}
-        filter={filter}
-        setFilter={setFilter}
-        personFilter={personFilter}
-        setPersonFilter={setPersonFilter}
-        categoryFilter={categoryFilter}
-        setCategoryFilter={setCategoryFilter}
-        categoryFilters={categoryFilters}
-        setCategoryFilters={setCategoryFilters}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        hasEndDateFilter={hasEndDateFilter}
-        setHasEndDateFilter={setHasEndDateFilter}
-        debtFilter={debtFilter}
-        setDebtFilter={setDebtFilter}
-        bucketFilter={bucketFilter}
-        setBucketFilter={setBucketFilter}
+        filters={filters}
+        onApply={setFilters}
         bucketOf={bucketOf}
         people={data.people}
         expenses={data.expenses}

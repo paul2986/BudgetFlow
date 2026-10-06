@@ -4,6 +4,13 @@ import type { ImportedBudget } from './budgetWorkbook/import';
 import { AppDataV2, BucketId, Budget, CategoryBucketEntry, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
 import { NO_ATTEMPTS, unlockSession, type AttemptState } from './budgetLock';
 import { newId } from './ids';
+import { normalizeCategoryName } from './categories';
+import { DEFAULT_EXPENSES_SORT, NO_FILTERS, SORT_FIELDS, parseSavedFilters, toSavedFilters, type ExpenseFilters, type ExpensesSort } from './expenseFilters';
+
+// Where it used to live; most callers still import it from here.
+export { normalizeCategoryName };
+export type { ExpensesSort };
+export { DEFAULT_EXPENSES_SORT };
 
 // Storage keys for versions
 const STORAGE_KEYS = {
@@ -38,22 +45,6 @@ export const sortBudgetsByCreated = <T extends { createdAt: number }>(budgets: T
     .map((budget, index) => ({ budget, index }))
     .sort((a, b) => a.budget.createdAt - b.budget.createdAt || a.index - b.index)
     .map(({ budget }) => budget);
-
-// Normalize and validate category names
-export const normalizeCategoryName = (name: any): string => {
-  if (typeof name !== 'string') return 'Misc';
-  // Allow only letters, numbers and spaces
-  let cleaned = name.replace(/[^A-Za-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
-  if (!cleaned) return 'Misc';
-  // Title Case
-  cleaned = cleaned
-    .split(' ')
-    .map((w) => (w ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ''))
-    .join(' ');
-  // Enforce max length 20
-  if (cleaned.length > 20) cleaned = cleaned.slice(0, 20).trim();
-  return cleaned;
-};
 
 // Defaults and custom categories are both kept as their normalized name.
 const sanitizeCategoryTag = (tag: any): ExpenseCategory => normalizeCategoryName(tag) as ExpenseCategory;
@@ -360,60 +351,23 @@ export const renameCustomExpenseCategory = async (oldName: string, newName: stri
   }
 };
 
-export type ExpensesFilters = {
-  category: string | null; // null means All
-  search: string;
-  hasEndDate: boolean; // New filter for expenses with end dates
-  filter: 'all' | 'household' | 'personal'; // Expense type filter
-  personFilter: string | null; // Person filter
-  debtFilter?: 'all' | 'any' | 'loan' | 'mortgage' | 'credit_card'; // Debt repayment filter
-  bucketFilter?: 'all' | BucketId; // Where the expense counts in the budget review
-};
-
-export const getExpensesFilters = async (): Promise<ExpensesFilters> => {
+export const getExpensesFilters = async (): Promise<ExpenseFilters> => {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEYS.EXPENSES_FILTERS);
-    if (!raw) return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all', bucketFilter: 'all' };
-    const parsed = JSON.parse(raw);
-    const category = parsed && typeof parsed.category === 'string' ? normalizeCategoryName(parsed.category) : null;
-    const search = parsed && typeof parsed.search === 'string' ? parsed.search : '';
-    const hasEndDate = parsed && typeof parsed.hasEndDate === 'boolean' ? parsed.hasEndDate : false;
-    const filter = parsed && ['all', 'household', 'personal'].includes(parsed.filter) ? parsed.filter : 'all';
-    const personFilter = parsed && typeof parsed.personFilter === 'string' ? parsed.personFilter : null;
-    const debtFilter = parsed && ['all', 'any', 'loan', 'mortgage', 'credit_card'].includes(parsed.debtFilter) ? parsed.debtFilter : 'all';
-    const bucketFilter = parsed && BUCKET_IDS.includes(parsed.bucketFilter) ? parsed.bucketFilter : 'all';
-    return { category, search, hasEndDate, filter, personFilter, debtFilter, bucketFilter };
+    return raw ? parseSavedFilters(JSON.parse(raw)) : NO_FILTERS;
   } catch (e) {
     console.error('storage: getExpensesFilters error', e);
-    return { category: null, search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'all', bucketFilter: 'all' };
+    return NO_FILTERS;
   }
 };
 
-export const saveExpensesFilters = async (filters: ExpensesFilters): Promise<void> => {
+export const saveExpensesFilters = async (filters: ExpenseFilters): Promise<void> => {
   try {
-    const toSave: ExpensesFilters = {
-      category: filters.category ? normalizeCategoryName(filters.category) : null,
-      search: filters.search || '',
-      hasEndDate: filters.hasEndDate || false,
-      filter: filters.filter || 'all',
-      personFilter: filters.personFilter || null,
-      debtFilter: filters.debtFilter || 'all',
-      bucketFilter: filters.bucketFilter && BUCKET_IDS.includes(filters.bucketFilter as BucketId) ? filters.bucketFilter : 'all',
-    };
-    await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(toSave));
+    await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(toSavedFilters(filters)));
   } catch (e) {
     console.error('storage: saveExpensesFilters error', e);
   }
 };
-
-export type ExpensesSort = {
-  by: 'date' | 'alphabetical' | 'cost' | 'type' | 'assignedTo' | 'frequency' | 'categoryTag' | 'endDate' | 'debtRepayment';
-  order: 'asc' | 'desc';
-};
-
-export const DEFAULT_EXPENSES_SORT: ExpensesSort = { by: 'date', order: 'desc' };
-
-const SORT_FIELDS: ExpensesSort['by'][] = ['date', 'alphabetical', 'cost', 'type', 'assignedTo', 'frequency', 'categoryTag', 'endDate', 'debtRepayment'];
 
 // Sort is per account, not per budget: device data belongs to one account
 // (see claimDeviceData), so members of a shared budget each keep their own.
