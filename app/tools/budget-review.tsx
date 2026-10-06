@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';

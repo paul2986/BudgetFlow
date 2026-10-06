@@ -478,7 +478,6 @@ export const buildBudgetWorkbook = (budget: Budget, ctx: ExportContext): Uint8Ar
   );
   const incomeRow = sRows.length + 1;
   const expenseRow = incomeRow + 1;
-  const leftRow = incomeRow + 2;
   add([
     { v: 'Income', s: 'text' },
     { f: `SUM(${SHEETS.income}!$E:$E)`, v: snap.totalIncome, s: 'money' },

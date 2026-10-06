@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Pressable, Platform, ViewStyle } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import Icon from '../Icon';

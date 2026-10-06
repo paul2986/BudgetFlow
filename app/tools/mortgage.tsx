@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import ToolLayout from '../../components/tools/ToolLayout';

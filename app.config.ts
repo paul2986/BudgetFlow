@@ -87,11 +87,5 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     extra: {
         router: {},
         buildId,
-        supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
-        supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
-        shareApiUrl: `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1`,
-        shareTtlSec: 86400,
-        authRedirect: process.env.EXPO_PUBLIC_AUTH_REDIRECT,
-        authRedirectHttps: process.env.EXPO_PUBLIC_AUTH_REDIRECT_HTTPS,
     },
 });

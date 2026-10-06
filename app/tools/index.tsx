@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Animated } from 'react-native';
 import { router } from 'expo-router';
 import StandardHeader, { LargeTitle } from '../../components/StandardHeader';

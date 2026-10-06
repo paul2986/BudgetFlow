@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Image, StyleSheet } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { motion } from '../styles/tokens';

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TextInput, View, Text, TextInputProps, Platform } from 'react-native';
 import { useCurrency } from '../hooks/useCurrency';
 import { useTheme } from '../hooks/useTheme';

@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import { View } from 'react-native';
 import ExpenseForm from '../components/forms/ExpenseForm';

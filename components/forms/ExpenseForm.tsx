@@ -15,15 +15,10 @@ import { type, space } from '../../styles/tokens';
 import { BucketId, Expense, ExpenseCategory, DEFAULT_CATEGORIES, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
 import { categoryBucketLookup, isBucketId, resolveBucket } from '../../utils/budgetReview';
 import { BUCKET_META, BUCKET_OPTIONS } from '../tools/bucketMeta';
-import { getCustomExpenseCategories, saveCustomExpenseCategories, normalizeCategoryName } from '../../utils/storage';
+import { getCustomExpenseCategories, normalizeCategoryName } from '../../utils/storage';
 import { newPersonHandoff } from '../../utils/newPersonHandoff';
 
 const EXPENSE_CATEGORIES: ExpenseCategory[] = DEFAULT_CATEGORIES;
-
-type TempCategory = {
-    name: string;
-    isTemp: true;
-};
 
 const safeAsync = async <T,>(
     operation: () => Promise<T>,
@@ -59,7 +54,7 @@ interface ExpenseFormProps {
 }
 
 export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps) {
-    const { data, activeBudget, addExpense, updateExpense, removeExpense, saving, refreshTrigger } = useBudgetData();
+    const { data, activeBudget, addExpense, updateExpense, removeExpense } = useBudgetData();
     const { tokens } = useTheme();
     const scrollBottomPadding = useScrollBottomPadding();
 
@@ -73,8 +68,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [deleting, setDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const [tempCategories, setTempCategories] = useState<TempCategory[]>([]);
-
     const toYMD = (d: Date): string => {
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -84,8 +77,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
 
     const [startDateYMD, setStartDateYMD] = useState<string>(toYMD(new Date()));
     const [endDate, setEndDate] = useState<Date | null>(null);
-    const [showEndPicker, setShowEndPicker] = useState(false);
-    const [showStartPicker, setShowStartPicker] = useState(false);
 
     // What the form held when it opened, to tell whether Cancel would lose edits.
     const snapshotOf = (v: FormValues) =>
@@ -110,9 +101,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     );
 
     const [customCategories, setCustomCategories] = useState<string[]>([]);
-    const [showCustomModal, setShowCustomModal] = useState(false);
-    const [newCustomName, setNewCustomName] = useState('');
-    const [customError, setCustomError] = useState<string | null>(null);
 
     // Set while Add person is open over this form, so returning to it selects
     // the person just added (see newPersonHandoff).
@@ -140,9 +128,8 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     );
 
     const getAllCategories = useCallback(() => {
-        const tempCategoryNames = tempCategories.map(tc => tc.name);
-        return [...EXPENSE_CATEGORIES, ...customCategories, ...tempCategoryNames];
-    }, [customCategories, tempCategories]);
+        return [...EXPENSE_CATEGORIES, ...customCategories];
+    }, [customCategories]);
 
     useEffect(() => {
         const loadCustomCategories = async () => {

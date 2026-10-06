@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Text, Animated, Pressable } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useReducedMotion } from '../hooks/useReducedMotion';

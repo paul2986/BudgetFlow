@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Switch, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';

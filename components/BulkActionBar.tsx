@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, Platform } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import Button from './Button';

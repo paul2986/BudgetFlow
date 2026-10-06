@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Switch } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';

@@ -15,7 +15,6 @@ import { type, radius, space } from '../styles/tokens';
 const BUTTON_SIZE = 44;
 /** The bar's height on every screen: a button row plus its vertical padding. */
 export const HEADER_HEIGHT = BUTTON_SIZE + 2 * space.s2;
-export const HEADER_HEIGHT_IPAD = 64;
 /** Wider than any title can lay out, so measuring it never wraps or truncates. */
 const UNCUT_MEASURE_WIDTH = 4000;
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Toast from './Toast';
 import { ToastMessage } from '../hooks/useToast';

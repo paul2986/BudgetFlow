@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, StyleSheet, Switch } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';

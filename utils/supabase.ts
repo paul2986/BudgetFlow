@@ -60,7 +60,6 @@ if (!isWeb) {
     });
 }
 
-export const AUTH_REDIRECT = process.env.EXPO_PUBLIC_AUTH_REDIRECT || 'budgetflow://auth/callback';
 export const AUTH_REDIRECT_HTTPS = process.env.EXPO_PUBLIC_AUTH_REDIRECT_HTTPS || 'https://budget-flow-eta.vercel.app/';
 
 /**

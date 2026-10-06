@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, ScrollView, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';

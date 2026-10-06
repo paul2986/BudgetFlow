@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Text, View } from 'react-native';
 import { router, useIsFocused } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';

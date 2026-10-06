@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Text, ViewStyle } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
