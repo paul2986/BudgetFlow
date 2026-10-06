@@ -431,3 +431,47 @@ describe('leaving and rejoining', () => {
     expect(find(await bob.sync(), budget.id)).toBeUndefined();
   });
 });
+
+describe('telling our own saves from other people’s', () => {
+  it('records the server’s revision for what it writes, so its own announcement is not news', async () => {
+    const { phone, budget } = await aliceWithBudget();
+    // Created by this device: the revision the server gave it.
+    expect(phone.gate.isKnownRevision(budget.id, (await serverBudget(budget.id))!.revision)).toBe(true);
+
+    await addExpense(phone, budget.id, 'Gym');
+    await phone.sync();
+    const written = (await serverBudget(budget.id))!.revision;
+    expect(written).toBeGreaterThan(1);
+    expect(phone.gate.isKnownRevision(budget.id, written)).toBe(true);
+  });
+
+  it('does not know a write made by another device until it has synced', async () => {
+    const { alice, phone, budget } = await aliceWithBudget();
+    const tablet = await createDevice(alice);
+    await tablet.sync();
+
+    await addExpense(tablet, budget.id, 'From the tablet');
+    await tablet.sync();
+    const fromTablet = (await serverBudget(budget.id))!.revision;
+
+    // The phone has not seen it: its announcement is news, and syncing makes it known.
+    expect(phone.gate.isKnownRevision(budget.id, fromTablet)).toBe(false);
+    await phone.sync();
+    expect(phone.gate.isKnownRevision(budget.id, fromTablet)).toBe(true);
+    expect(descriptions(find(await phone.load(), budget.id))).toContain('From the tablet');
+  });
+
+  it('knows a revision it only read: a new device, or another person’s change', async () => {
+    const { alice, phone, budget } = await aliceWithBudget();
+    const { device: bob } = await joinWithDevice(alice, budget.id);
+    expect(bob.gate.isKnownRevision(budget.id, (await serverBudget(budget.id))!.revision)).toBe(true);
+
+    await addExpense(phone, budget.id, 'Alice adds');
+    await phone.sync();
+    const aliceWrote = (await serverBudget(budget.id))!.revision;
+    expect(bob.gate.isKnownRevision(budget.id, aliceWrote)).toBe(false);
+    await bob.sync();
+    expect(bob.gate.isKnownRevision(budget.id, aliceWrote)).toBe(true);
+  });
+});
+

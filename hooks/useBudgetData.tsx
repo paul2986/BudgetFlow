@@ -24,6 +24,7 @@ import { applyBulkEdit, type BulkEditPatch, type BulkEditResult } from '../utils
 import { categoryBucketLookup } from '../utils/budgetReview';
 import { useAuth } from './useAuth';
 import { newId } from '../utils/ids';
+import { createChangeBatch, forgetRevisions } from '../utils/realtimeGate';
 import type { ImportedBudget } from '../utils/budgetWorkbook/import';
 
 // Local type for the editable slice of a budget
@@ -253,6 +254,7 @@ const useBudgetDataInternal = () => {
       // initial unauthenticated load.
       hadUserRef.current = false;
       claimedForRef.current = null;
+      forgetRevisions();
       setReadyFor(null);
       setSharing({});
       setAppData({ version: 2, budgets: [], activeBudgetId: '' });
@@ -276,13 +278,25 @@ const useBudgetDataInternal = () => {
   useEffect(() => {
     if (!user) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const refreshSoon = () => {
+    // Changes arrive in bursts; sync once for the burst, and only if something in it is
+    // news. The server announces our own saves back to us too (see realtimeGate).
+    const changes = createChangeBatch();
+    const syncSoon = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => refreshFromStorage(), 400);
+      timer = setTimeout(() => {
+        if (changes.needsSync()) refreshFromStorage();
+      }, 400);
+    };
+    const refreshSoon = () => {
+      changes.otherChanged();
+      syncSoon();
     };
     const channel = supabase
       .channel(`budgets:${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets' }, refreshSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'budgets' }, (change) => {
+        changes.budgetChanged(change);
+        syncSoon();
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'budget_members' }, refreshSoon)
       .subscribe();
     // A lock turned on, off or changed on another device. On a channel of its own: a
