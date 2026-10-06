@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';

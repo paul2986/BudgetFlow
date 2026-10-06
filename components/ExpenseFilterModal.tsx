@@ -40,7 +40,6 @@ interface ExpenseFilterModalProps {
   expenses: any[];
   customCategories: string[];
   // Callbacks
-  onClearFilters: () => void;
   announceFilter: (msg: string) => void;
 }
 
@@ -67,11 +66,8 @@ export default function ExpenseFilterModal({
   people,
   expenses,
   customCategories,
-  onClearFilters,
   announceFilter,
 }: ExpenseFilterModalProps) {
-  const { tokens } = useTheme();
-
   // FIXED: Local state for temporary filter values (applied when "Apply Filters" is pressed)
   const [tempFilter, setTempFilter] = useState<'all' | 'household' | 'personal'>('all');
   const [tempPersonFilter, setTempPersonFilter] = useState<string | null>(null);

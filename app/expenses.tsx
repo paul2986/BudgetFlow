@@ -378,7 +378,7 @@ function ExpensesScreenContent() {
   );
 
   const handleRemoveExpense = useCallback(
-    async (expenseId: string, description: string) => {
+    async (expenseId: string) => {
       if (deletingExpenseId === expenseId || saving) return;
       try {
         setDeletingExpenseId(expenseId);
@@ -404,7 +404,7 @@ function ExpensesScreenContent() {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            handleRemoveExpense(expenseId, description);
+            handleRemoveExpense(expenseId);
           },
         },
       ]);
@@ -1030,7 +1030,6 @@ function ExpensesScreenContent() {
         people={data.people}
         expenses={data.expenses}
         customCategories={customCategories}
-        onClearFilters={handleClearFilters}
         announceFilter={announceFilter}
       />
     </View>

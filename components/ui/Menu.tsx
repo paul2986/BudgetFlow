@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, Modal, Pressable, Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useReducedMotion } from '../../hooks/useReducedMotion';

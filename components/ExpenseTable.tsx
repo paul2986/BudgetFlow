@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Platform, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import Icon from './Icon';

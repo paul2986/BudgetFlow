@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef, createContext, useContext, useMemo } from 'react';
 import { Animated, Platform, StyleSheet, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { colors, darkColors } from '../styles/commonStyles';
 import { getTokens, motion, Tokens } from '../styles/tokens';
 import { crossfadeTheme } from '../utils/themeCrossfade';
 import { useReducedMotion } from './useReducedMotion';
@@ -15,8 +14,6 @@ interface ThemeContextType {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   isDarkMode: boolean;
-  /** Legacy palette — do not use in new/redesigned code; use `tokens` instead. */
-  currentColors: typeof colors;
   /** Design tokens per design/DESIGN.md — the source of truth for redesigned UI. */
   tokens: Tokens;
   loading: boolean;
@@ -26,7 +23,6 @@ const ThemeContext = createContext<ThemeContextType>({
   themeMode: 'system',
   setThemeMode: async () => {},
   isDarkMode: false,
-  currentColors: colors,
   tokens: getTokens(false),
   loading: true,
 });
@@ -129,7 +125,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => fade.stop();
   }, [veil, veilOpacity]);
 
-  const currentColors = isDarkMode ? darkColors : colors;
   const tokens = useMemo(() => getTokens(isDarkMode), [isDarkMode]);
 
   useEffect(() => {
@@ -137,7 +132,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       themeMode,
       systemColorScheme,
       isDarkMode,
-      currentColorsType: isDarkMode ? 'dark' : 'light'
     });
   }, [themeMode, systemColorScheme, isDarkMode]);
 
@@ -145,7 +139,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     themeMode,
     setThemeMode,
     isDarkMode,
-    currentColors,
     tokens,
     loading,
   };

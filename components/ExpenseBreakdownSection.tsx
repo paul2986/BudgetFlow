@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useCurrency } from '../hooks/useCurrency';
@@ -6,7 +6,7 @@ import { calculateMonthlyAmount, isExpenseActive } from '../utils/calculations';
 import Icon from './Icon';
 import { AmountText, Card, ChoicePills, EmptyState, SegmentedControl } from './ui';
 import { type, space, radius, tabularNums } from '../styles/tokens';
-import { Expense, DEFAULT_CATEGORIES, Person } from '../types/budget';
+import { Expense, Person } from '../types/budget';
 import { router } from 'expo-router';
 
 interface ExpenseBreakdownSectionProps {

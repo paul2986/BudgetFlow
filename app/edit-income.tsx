@@ -6,7 +6,6 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useTheme } from '../hooks/useTheme';
-import { useCurrency } from '../hooks/useCurrency';
 import { Income } from '../types/budget';
 import Button from '../components/Button';
 import CurrencyInput from '../components/CurrencyInput';
@@ -36,10 +35,9 @@ function EditIncomeForm() {
   });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
-  const { formatCurrency } = useCurrency();
   const { tokens } = useTheme();
   const scrollBottomPadding = useScrollBottomPadding();
-  const { themedStyles, themedButtonStyles, isPad } = useThemedStyles();
+  const { themedStyles } = useThemedStyles();
   const params = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const { personId, incomeId } = params;
   const isNew = !incomeId;

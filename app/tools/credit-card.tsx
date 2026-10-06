@@ -1,5 +1,5 @@
 
-import React, { useCallback, useMemo, useRef, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import StandardHeader from '../../components/StandardHeader';
@@ -33,9 +33,6 @@ export default function CreditCardPayoffScreen() {
 
   // Minimum payment suggestion state
   const [suggestedMin, setSuggestedMin] = useState<number | null>(null);
-  const [isPaymentAuto, setIsPaymentAuto] = useState<boolean>(false);
-  const [hasPaymentOverride, setHasPaymentOverride] = useState<boolean>(false);
-  const [isPaymentFocused, setIsPaymentFocused] = useState<boolean>(false);
 
 
   const parseNumber = (val: string): number | null => {
@@ -171,8 +168,6 @@ export default function CreditCardPayoffScreen() {
     setErrors({});
     setResult(null);
     setShowResults(false);
-    setHasPaymentOverride(false);
-    setIsPaymentAuto(false);
     setSuggestedMin(null);
   };
 
@@ -248,8 +243,6 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
             value={paymentInput}
             onChangeText={(t) => {
               setPaymentInput(t);
-              setHasPaymentOverride(true);
-              setIsPaymentAuto(false);
               if (errors.payment) {
                 const next = { ...errors };
                 delete next.payment;

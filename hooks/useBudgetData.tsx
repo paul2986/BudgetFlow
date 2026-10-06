@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, createContext, useContext, ReactNode } from 'react';
 import { AppState } from 'react-native';
 import {
   loadAppData,
@@ -9,7 +9,6 @@ import {
   deleteBudget as storageDeleteBudget,
   duplicateBudget as storageDuplicateBudget,
   importBudget as storageImportBudget,
-  updateBudget as storageUpdateBudget,
   clearAllAppData as storageClearAllAppData,
   saveAppData,
   claimDeviceData,
@@ -45,20 +44,6 @@ const safeAsync = async <T extends unknown>(
   } catch (error) {
     console.error(`useBudgetData: Error in ${operationName}:`, error);
     return fallback;
-  }
-};
-
-// Helper function to safely handle async operations that return result objects
-const safeAsyncResult = async <T extends unknown>(
-  operation: () => Promise<{ success: boolean; error?: Error } & T>,
-  operationName: string
-): Promise<{ success: boolean; error?: Error } & T> => {
-  try {
-    const result = await operation();
-    return result;
-  } catch (error) {
-    console.error(`useBudgetData: Error in ${operationName}:`, error);
-    return { success: false, error: error as Error } as { success: boolean; error?: Error } & T;
   }
 };
 

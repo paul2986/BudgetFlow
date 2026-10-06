@@ -1,4 +1,3 @@
-import React from 'react';
 import { View, Pressable, Platform, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { BlurView } from 'expo-blur';
@@ -25,14 +24,12 @@ import { NAV_TABS, isTabActive } from './navConfig';
 const USE_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 function TabItem({
-  route,
   label,
   icon,
   activeIcon,
   active,
   onPress,
 }: {
-  route: string;
   label: string;
   icon: string;
   activeIcon: string;

@@ -235,12 +235,7 @@ function RootLayoutContent() {
             <Tabs.Screen name="share-budget" options={{ href: null }} />
             <Tabs.Screen name="import-budget" options={{ href: null }} />
             <Tabs.Screen name="invite/[token]" options={{ href: null }} />
-            <Tabs.Screen name="auth/index" options={{ href: null }} />
             <Tabs.Screen name="auth/callback" options={{ href: null }} />
-            <Tabs.Screen name="auth/debug" options={{ href: null }} />
-            <Tabs.Screen name="auth/email" options={{ href: null }} />
-            <Tabs.Screen name="auth/lock" options={{ href: null }} />
-            <Tabs.Screen name="auth/verify" options={{ href: null }} />
           </Tabs>
         </AuthGuard>
 

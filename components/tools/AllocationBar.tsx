@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { View, Text, type LayoutChangeEvent } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { type, radius, tabularNums } from '../../styles/tokens';

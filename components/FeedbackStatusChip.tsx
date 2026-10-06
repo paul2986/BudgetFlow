@@ -1,4 +1,3 @@
-import React from 'react';
 import { ViewStyle } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { Chip } from './ui';

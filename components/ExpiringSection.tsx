@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { View, Text } from 'react-native';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useTheme } from '../hooks/useTheme';

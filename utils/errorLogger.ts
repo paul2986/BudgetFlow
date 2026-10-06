@@ -48,59 +48,6 @@ const sendErrorToParent = (level: string, message: string, data: any) => {
   }
 };
 
-// Function to extract meaningful source location from stack trace
-const extractSourceLocation = (stack: string): string => {
-  if (!stack) return '';
-
-  // Look for various patterns in the stack trace
-  const patterns = [
-    // Pattern for app files: app/filename.tsx:line:column
-    /at .+\/(app\/[^:)]+):(\d+):(\d+)/,
-    // Pattern for components: components/filename.tsx:line:column
-    /at .+\/(components\/[^:)]+):(\d+):(\d+)/,
-    // Pattern for any .tsx/.ts files
-    /at .+\/([^/]+\.tsx?):(\d+):(\d+)/,
-    // Pattern for bundle files with source maps
-    /at .+\/([^/]+\.bundle[^:]*):(\d+):(\d+)/,
-    // Pattern for any JavaScript file
-    /at .+\/([^/\s:)]+\.[jt]sx?):(\d+):(\d+)/
-  ];
-
-  for (const pattern of patterns) {
-    const match = stack.match(pattern);
-    if (match) {
-      return ` | Source: ${match[1]}:${match[2]}:${match[3]}`;
-    }
-  }
-
-  // If no specific pattern matches, try to find any file reference
-  const fileMatch = stack.match(/at .+\/([^/\s:)]+\.[jt]sx?):(\d+)/);
-  if (fileMatch) {
-    return ` | Source: ${fileMatch[1]}:${fileMatch[2]}`;
-  }
-
-  return '';
-};
-
-// Function to get caller information from stack trace
-const getCallerInfo = (): string => {
-  const stack = new Error().stack || '';
-  const lines = stack.split('\n');
-
-  // Skip the first few lines (Error, getCallerInfo, console override)
-  for (let i = 3; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.indexOf('app/') !== -1 || line.indexOf('components/') !== -1 || line.indexOf('.tsx') !== -1 || line.indexOf('.ts') !== -1) {
-      const match = line.match(/at .+\/([^/\s:)]+\.[jt]sx?):(\d+):(\d+)/);
-      if (match) {
-        return ` | Called from: ${match[1]}:${match[2]}:${match[3]}`;
-      }
-    }
-  }
-
-  return '';
-};
-
 const isSymbolicateRequest = (input: unknown): boolean => {
   const url =
     typeof input === 'string' ? input

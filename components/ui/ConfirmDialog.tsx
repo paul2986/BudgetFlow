@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { View, Text, Modal, Pressable } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import Button from '../Button';
