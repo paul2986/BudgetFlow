@@ -29,7 +29,7 @@ export const PRIVACY_SECTIONS: Section[] = [
   {
     title: 'What stays on your device',
     lines: [
-      'A copy of your budgets is kept on the device so the app opens quickly, along with settings such as your currency, theme and expense filters. Signing out removes the copy of your budgets.',
+      'A copy of your budgets is kept on the device so the app opens quickly, along with settings such as your currency, theme and expense filters. Signing out removes the copy of your budgets. The device keeps only a random ID for the budget you last had open (not its contents), so signing back in returns you to it.',
       'If you turn on Face ID or Touch ID for a budget lock, your device does the recognising: Budget Flow never sees your face or fingerprint, only that it matched, and the setting stays on that device.',
     ],
   },

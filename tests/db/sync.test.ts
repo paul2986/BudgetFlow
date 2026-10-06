@@ -130,6 +130,87 @@ describe('switching accounts on a device', () => {
   });
 });
 
+describe('signing out and back in', () => {
+  // What useBudgetData does while a budget is open, and what signing out does to the device.
+  const openBudget = async (device: Device, budgetId: string) => {
+    const data = await device.load();
+    await device.storage.saveAppData({ ...data, activeBudgetId: budgetId });
+    await device.storage.rememberActiveBudget(device.user.id, budgetId);
+  };
+  const signOutAndBackIn = async (device: Device) => {
+    await device.storage.clearLocalAppData();
+    return createDevice(device.user, device.disk);
+  };
+
+  const aliceWithThree = async () => {
+    const alice = await createUser('alice');
+    const phone = await createDevice(alice);
+    // Created in a different order from their dates, so the order is the dates' doing.
+    const newest = makeBudget({ name: 'Newest', createdAt: 3000 });
+    const oldest = makeBudget({ name: 'Oldest', createdAt: 1000 });
+    const middle = makeBudget({ name: 'Middle', createdAt: 2000 });
+    await phone.storage.saveAppData({ version: 2, budgets: [newest, oldest, middle], activeBudgetId: newest.id });
+    await phone.sync();
+    return { alice, phone, newest, oldest, middle };
+  };
+
+  it('returns to the budget that was open', async () => {
+    const { phone, middle } = await aliceWithThree();
+    await openBudget(phone, middle.id);
+    const again = await signOutAndBackIn(phone);
+    expect((await again.load()).budgets).toEqual([]);
+    expect((await again.sync()).activeBudgetId).toBe(middle.id);
+  });
+
+  it('lists budgets oldest first, however they came back from the server', async () => {
+    const { phone } = await aliceWithThree();
+    const again = await signOutAndBackIn(phone);
+    expect((await again.sync()).budgets.map((b) => b.name)).toEqual(['Oldest', 'Middle', 'Newest']);
+  });
+
+  it('opens the oldest when the account has never had one open here', async () => {
+    const { alice, oldest } = await aliceWithThree();
+    const newDevice = await createDevice(alice);
+    expect((await newDevice.sync()).activeBudgetId).toBe(oldest.id);
+  });
+
+  it('opens the oldest when the remembered budget is gone', async () => {
+    const { alice, phone, newest, oldest } = await aliceWithThree();
+    await openBudget(phone, newest.id);
+    const again = await signOutAndBackIn(phone);
+    await alice.client.from('budgets').delete().eq('id', newest.id);
+    expect((await again.sync()).activeBudgetId).toBe(oldest.id);
+  });
+
+  it('does not hand one account’s open budget to another on the same device', async () => {
+    const { alice, phone, middle } = await aliceWithThree();
+    await openBudget(phone, middle.id);
+    // Bob is a member of the budget Alice had open, and has an older one of his own.
+    const { device: bobPhone } = await joinWithDevice(alice, middle.id);
+    const bobsOwn = makeBudget({ name: 'Bobs', createdAt: 500 });
+    const bobData = await bobPhone.load();
+    await bobPhone.storage.saveAppData({ ...bobData, budgets: [...bobData.budgets, bobsOwn] });
+    await bobPhone.sync();
+
+    await phone.storage.clearLocalAppData();
+    const bobHere = await createDevice(bobPhone.user, phone.disk);
+    const data = await bobHere.sync();
+    expect(data.budgets.map((b) => b.name)).toEqual(['Bobs', 'Middle']);
+    expect(data.activeBudgetId).toBe(bobsOwn.id);
+    expect(await bobHere.storage.loadRememberedBudget(bobPhone.user.id)).toBeNull();
+    expect(await bobHere.storage.loadRememberedBudget(alice.id)).toBe(middle.id);
+  });
+
+  it('keeps the budget chosen on a device that stayed signed in', async () => {
+    const { phone, newest, oldest } = await aliceWithThree();
+    await openBudget(phone, newest.id);
+    await phone.sync();
+    expect((await phone.load()).activeBudgetId).toBe(newest.id);
+    await openBudget(phone, oldest.id);
+    expect((await phone.sync()).activeBudgetId).toBe(oldest.id);
+  });
+});
+
 describe('copies of budgets the user can’t open', () => {
   it('are dropped, never uploaded under a new id', async () => {
     // A budget that exists on the server but isn't this user's: its id is taken.

@@ -4,10 +4,12 @@ import { lockFromServer, sameLockConfig, type ServerLock } from './budgetLock';
 import {
   addCategoriesToBudget,
   getDeviceOwner,
+  loadRememberedBudget,
   loadSyncedBudgetIds,
   mergeCategoryBuckets,
   saveAppData,
   saveSyncedBudgetIds,
+  sortBudgetsByCreated,
 } from './storage';
 
 // Each budget syncs as its own server row (public.budgets), readable and
@@ -215,11 +217,12 @@ const reconcile = (
   settled.forEach((id) => {
     if (deletedBudgets[id] === snapshot.deletedBudgets?.[id]) delete deletedBudgets[id];
   });
+  const ordered = sortBudgetsByCreated(budgets);
   let activeBudgetId = latest.activeBudgetId;
-  if (!budgets.some((b) => b.id === activeBudgetId)) {
-    activeBudgetId = budgets.some((b) => b.id === synced.activeBudgetId) ? synced.activeBudgetId : budgets[0]?.id || '';
+  if (!ordered.some((b) => b.id === activeBudgetId)) {
+    activeBudgetId = ordered.some((b) => b.id === synced.activeBudgetId) ? synced.activeBudgetId : ordered[0]?.id || '';
   }
-  return { version: 2, budgets, activeBudgetId, deletedBudgets };
+  return { version: 2, budgets: ordered, activeBudgetId, deletedBudgets };
 };
 
 const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise<SyncResult> => {
@@ -319,16 +322,20 @@ const syncOnce = async (userId: string, load: () => Promise<AppDataV2>): Promise
       await saveSyncedBudgetIds(nowSyncedIds);
     }
 
-    let activeBudgetId = snapshot.activeBudgetId;
-    if (!result.some((b) => b.id === activeBudgetId)) activeBudgetId = result[0]?.id || '';
+    // Oldest first, whatever order the server returned them in.
+    const budgets = sortBudgetsByCreated(result);
 
-    // Keep the device's order, with newly arrived budgets at the end.
-    const order = new Map(snapshot.budgets.map((b, i) => [b.id, i]));
-    result.sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
+    // A device with no budget chosen (a fresh one, or one signed out since: that wipes
+    // it) goes back to the budget this account last had open, else the oldest.
+    let activeBudgetId = snapshot.activeBudgetId;
+    if (!budgets.some((b) => b.id === activeBudgetId)) {
+      const remembered = await loadRememberedBudget(userId);
+      activeBudgetId = budgets.find((b) => b.id === remembered)?.id ?? budgets[0]?.id ?? '';
+    }
 
     // Saved here, inside the queue, so the next pass starts from this result;
     // otherwise it would re-create budgets this pass gave new ids.
-    const synced: AppDataV2 = { version: 2, budgets: result, activeBudgetId };
+    const synced: AppDataV2 = { version: 2, budgets, activeBudgetId };
     const current = await load();
     const reconciled = reconcile(snapshot, synced, current, settled);
     const data = serverLocks ? adoptServerLocks(reconciled, snapshot, serverLocks) : reconciled;

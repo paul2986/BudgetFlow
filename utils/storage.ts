@@ -23,7 +23,19 @@ const STORAGE_KEYS = {
   DEVICE_OWNER: 'device_owner_v1',
   // Wrong budget-lock codes per budget on this device, so quitting the app doesn't clear the wait.
   LOCK_ATTEMPTS: 'lock_attempts_v1',
+  // The budget each account last had open here, by account id. Unlike the budgets it
+  // survives sign-out, so signing back in returns to it. Holds ids only, no budget data.
+  LAST_ACTIVE_BUDGETS: 'last_active_budgets_v1',
 };
+
+// Budgets are always listed oldest first, wherever they came from (the server
+// returns them in no particular order). Budgets with the same date keep the order
+// they arrived in.
+export const sortBudgetsByCreated = <T extends { createdAt: number }>(budgets: T[]): T[] =>
+  budgets
+    .map((budget, index) => ({ budget, index }))
+    .sort((a, b) => a.budget.createdAt - b.budget.createdAt || a.index - b.index)
+    .map(({ budget }) => budget);
 
 // Normalize and validate category names
 export const normalizeCategoryName = (name: any): string => {
@@ -175,6 +187,37 @@ export const claimDeviceData = async (userId: string): Promise<void> => {
 // it if someone else signs in instead).
 export const clearUnownedDeviceData = async (): Promise<void> => {
   if (!(await getDeviceOwner())) await clearLocalAppData();
+};
+
+const readLastActiveBudgets = async (): Promise<Record<string, string>> => {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.LAST_ACTIVE_BUDGETS);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+  } catch (e) {
+    console.error('storage: readLastActiveBudgets error', e);
+    return {};
+  }
+};
+
+// Signing out wipes the device's budgets, including which one was open. These keep
+// that choice per account, so signing back in returns to it (see syncBudgets).
+export const rememberActiveBudget = async (userId: string, budgetId: string): Promise<void> => {
+  const remembered = await readLastActiveBudgets();
+  if (remembered[userId] === budgetId) return;
+  await AsyncStorage.setItem(STORAGE_KEYS.LAST_ACTIVE_BUDGETS, JSON.stringify({ ...remembered, [userId]: budgetId }));
+};
+
+export const loadRememberedBudget = async (userId: string): Promise<string | null> =>
+  (await readLastActiveBudgets())[userId] ?? null;
+
+// For a deleted account, which has nothing left to return to.
+export const forgetRememberedBudget = async (userId: string): Promise<void> => {
+  const remembered = await readLastActiveBudgets();
+  if (!(userId in remembered)) return;
+  delete remembered[userId];
+  await AsyncStorage.setItem(STORAGE_KEYS.LAST_ACTIVE_BUDGETS, JSON.stringify(remembered));
 };
 
 export const loadSyncedBudgetIds = async (): Promise<string[]> => {
@@ -586,7 +629,7 @@ export const validateAppData = (data: any): AppDataV2 => {
   };
 
   // Allow empty budgets array for first-time users
-  let budgets: Budget[] = Array.isArray(data.budgets) ? data.budgets.map((b: any) => makeSafeBudget(b)) : [];
+  let budgets: Budget[] = Array.isArray(data.budgets) ? sortBudgetsByCreated(data.budgets.map((b: any) => makeSafeBudget(b))) : [];
 
   // Categories used to be account-wide; hand any account-level list to every budget.
   const accountCategories = sanitizeCustomCategories(data.customCategories);
