@@ -14,13 +14,15 @@ import { supabase, emailLinkRedirect, openedFromRecoveryLink, authLinkError } fr
 import { consumeAuthNotice, type AuthNotice } from '../utils/authNotice';
 import { inviteSignUpData, peekPendingInvite } from '../utils/sharing';
 import { isExistingAccountSignUp } from '../utils/signUpResult';
+import { isNewAccount } from '../utils/newAccount';
 import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import { useToast } from '../hooks/useToast';
 import Button from './Button';
 import Icon from './Icon';
-import { Input, SegmentedControl } from './ui';
+import { Input, SegmentedControl, Sheet } from './ui';
+import PrivacyContent from './PrivacyContent';
 import { type, radius, space, elevation } from '../styles/tokens';
 
 /**
@@ -187,7 +189,7 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
             errors.email = 'That doesn’t look like a valid email address.';
         }
         if (!password) {
-            errors.password = 'Enter your password.';
+            errors.password = authMode === 'register' ? 'Choose a password.' : 'Enter your password.';
         } else if (authMode === 'register' && password.length < 8) {
             errors.password = 'Use at least 8 characters.';
         }
@@ -201,9 +203,11 @@ export default function AuthGuard({ user, loading, children }: AuthGuardProps) {
         setAuthLoading(true);
         try {
             if (authMode === 'login') {
-                const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+                const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
                 if (error) throw error;
-                showToast('Welcome back!', 'success');
+                // Not for someone signing in for the first time (say, after confirming their
+                // email elsewhere): they are not back, and the screen they land on greets them.
+                if (!isNewAccount(data.user)) showToast('Welcome back!', 'success');
             } else {
                 const { data, error } = await supabase.auth.signUp({
                     email: email.trim(),
@@ -444,6 +448,8 @@ function InviteNotice({ mode }: { mode: 'login' | 'register' }) {
 /** The centered card, brand header and security note shared by the auth forms. */
 function AuthShell({ children }: { children: React.ReactNode }) {
     const { tokens } = useTheme();
+    // Readable before an account exists, so it lives here rather than behind sign-in.
+    const [privacyOpen, setPrivacyOpen] = useState(false);
 
     return (
         <View style={{ flex: 1, backgroundColor: tokens.colors.bg }}>
@@ -498,11 +504,31 @@ function AuthShell({ children }: { children: React.ReactNode }) {
                     <View style={{ marginTop: space.s6, flexDirection: 'row', alignItems: 'center', gap: space.s2, opacity: 0.8 }}>
                         <Icon name="lock-closed-outline" size={14} color={tokens.colors.textMuted} />
                         <Text style={[type.caption, { color: tokens.colors.textMuted }]}>
-                            Your data is protected with row-level security
+                            Your budgets are private to you and anyone you share them with
                         </Text>
                     </View>
+
+                    <Pressable
+                        onPress={() => setPrivacyOpen(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Read how your data is used"
+                        style={{ marginTop: space.s2, minHeight: 44, justifyContent: 'center' }}
+                    >
+                        <Text style={[type.caption, { color: tokens.colors.brand }]}>How your data is used</Text>
+                    </Pressable>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            <Sheet
+                visible={privacyOpen}
+                onClose={() => setPrivacyOpen(false)}
+                title="Privacy"
+                trailingAction={{ label: 'Done', onPress: () => setPrivacyOpen(false) }}
+            >
+                <ScrollView contentContainerStyle={{ padding: space.s5 }}>
+                    <PrivacyContent />
+                </ScrollView>
+            </Sheet>
         </View>
     );
 }

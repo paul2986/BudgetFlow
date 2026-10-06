@@ -32,6 +32,16 @@ describe('remembering an invite link', () => {
     expect(sharing.peekPendingInvite()).toBe(TOKEN);
   });
 
+  it('can be remembered on request, e.g. across the sign-out that switches accounts', () => {
+    sharing.rememberInvite(TOKEN);
+    expect(sharing.peekPendingInvite()).toBe(TOKEN);
+  });
+
+  it('will not remember something that is not a token', () => {
+    sharing.rememberInvite('not a token');
+    expect(storage.has('pending_budget_invite')).toBe(false);
+  });
+
   it('peeking leaves it in place', () => {
     storage.set('pending_budget_invite', TOKEN);
     sharing.peekPendingInvite();

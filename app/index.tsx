@@ -274,7 +274,7 @@ export default function HomeScreen() {
       case 'noBudget':
         return (
           <View style={narrow}>
-            <StateIntro title="Welcome to Budget Flow" caption="Start by naming your budget. You can add more budgets later.">
+            <StateIntro title="Welcome to Budget Flow" caption="Name your budget, then add the people who share costs and your expenses. You can add more budgets later.">
               <Image
                 source={require('../assets/images/icon.png')}
                 accessibilityIgnoresInvertColors

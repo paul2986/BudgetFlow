@@ -69,7 +69,7 @@ export default function DebtRepaymentSection({ expenses, people = [] }: DebtRepa
       <EmptyState
         icon="cash-outline"
         title="No debt repayments"
-        caption="Tag an expense as a loan, mortgage or credit card to track it here."
+        caption="Give an expense the Loan, Mortgage or Credit Card category to track it here."
       />
     );
   }

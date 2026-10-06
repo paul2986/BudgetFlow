@@ -103,15 +103,20 @@ const INVITE_METADATA_KEY = 'pending_invite';
 const INVITE_PATH = /^\/invite\/([0-9a-f-]{36})\/?$/i;
 const INVITE_TOKEN = /^[0-9a-f-]{36}$/i;
 
-export const rememberInviteFromUrl = () => {
-  if (Platform.OS !== 'web') return;
-  const match = window.location.pathname.match(INVITE_PATH);
-  if (!match) return;
+/** Keeps an invite in this browser until someone signs in and opens it. */
+export const rememberInvite = (token: string) => {
+  if (Platform.OS !== 'web' || !INVITE_TOKEN.test(token)) return;
   try {
-    window.localStorage.setItem(PENDING_INVITE_KEY, match[1]);
+    window.localStorage.setItem(PENDING_INVITE_KEY, token);
   } catch {
     // Private browsing: the link still works if they sign in from this page.
   }
+};
+
+export const rememberInviteFromUrl = () => {
+  if (Platform.OS !== 'web') return;
+  const match = window.location.pathname.match(INVITE_PATH);
+  if (match) rememberInvite(match[1]);
 };
 
 /** The invite remembered in this browser, if any; leaves it in place. */

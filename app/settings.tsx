@@ -218,6 +218,17 @@ export default function SettingsScreen() {
             />
           </ListGroup>
 
+          <ListGroup header="About">
+            <ListRow
+              title="Privacy"
+              caption="What’s stored and who can see it"
+              icon="lock-closed-outline"
+              chevron
+              onPress={() => router.push('/privacy')}
+              showSeparator={false}
+            />
+          </ListGroup>
+
           {/* Only admin accounts get this; the server checks it again on every request. */}
           {isAdmin ? (
             <ListGroup header="Admin">
