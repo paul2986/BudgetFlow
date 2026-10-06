@@ -136,6 +136,62 @@ describe('projectMortgage', () => {
   });
 });
 
+describe('computeCreditCardPayoff first months', () => {
+  it('never repays more than is owed: the last payment is the smaller one', () => {
+    const r = computeCreditCardPayoff(100, 10, 60);
+    expect(r.months).toBe(2);
+    expect(r.schedule).toHaveLength(2);
+    const [first, last] = r.schedule;
+    expect(first.payment).toBeCloseTo(60, 6);
+    expect(first.remaining).toBeCloseTo(40.83, 2);
+    // Month 2 clears what is left plus its interest, not a full £60.
+    expect(last.payment).toBeCloseTo(41.17, 2);
+    expect(last.principal).toBeCloseTo(first.remaining, 6);
+    expect(last.remaining).toBe(0);
+  });
+
+  it('adds up: payment = interest + principal, and the balance falls by the principal', () => {
+    const r = computeCreditCardPayoff(5000, 22.9, 175);
+    let owed = 5000;
+    for (const row of r.schedule) {
+      expect(row.payment).toBeCloseTo(row.interest + row.principal, 8);
+      expect(row.remaining).toBeCloseTo(owed - row.principal, 8);
+      owed = row.remaining;
+    }
+    expect(r.schedule.map((row) => row.month)).toEqual([1, 2, 3]);
+  });
+
+  it('matches the loan simulator month by month', () => {
+    for (const [balance, apr, payment] of [
+      [1000, 20, 100],
+      [5000, 22.9, 175],
+      [250, 29.9, 120],
+      [90, 0, 40],
+    ] as const) {
+      const r = computeCreditCardPayoff(balance, apr, payment);
+      const loan = amortizeLoan(balance, apr, payment)!;
+      r.schedule.forEach((row, k) => expect(row.remaining).toBeCloseTo(loan.balances[k + 1], 8));
+      expect(r.months).toBe(loan.months);
+    }
+  });
+
+  it('at 0% APR pays the payment each month, with a smaller last one', () => {
+    const r = computeCreditCardPayoff(250, 0, 100);
+    expect(r.schedule.map((row) => row.payment)).toEqual([100, 100, 50]);
+    expect(r.schedule.map((row) => row.remaining)).toEqual([150, 50, 0]);
+    expect(r.schedule.every((row) => row.interest === 0)).toBe(true);
+  });
+
+  it('lists nothing when the balance is never repaid', () => {
+    for (const [balance, apr, payment] of [[1000, 24, 20], [1000, 24, 0], [0, 24, 50]] as const) {
+      const r = computeCreditCardPayoff(balance, apr, payment);
+      expect(r.neverRepaid).toBe(true);
+      expect(r.schedule).toEqual([]);
+      expect(r.months).toBe(0);
+    }
+  });
+});
+
 describe('computeCreditCardPayoff total interest', () => {
   const simulate = (balance: number, apr: number, payment: number) => {
     let owed = balance;
