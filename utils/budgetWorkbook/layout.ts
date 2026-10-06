@@ -1,4 +1,5 @@
 import type { BucketId, Frequency } from '../../types/budget';
+import { toYMD } from '../dates';
 
 /**
  * What the budget workbook looks like, shared by the exporter and the importer
@@ -85,9 +86,4 @@ export const serialToYmd = (serial: number, date1904 = false): string | null => 
   return new Date(EXCEL_EPOCH_UTC + days * DAY_MS).toISOString().slice(0, 10);
 };
 
-export const todayYmd = (now: Date): string => {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
+export const todayYmd = (now: Date): string => toYMD(now);

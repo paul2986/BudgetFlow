@@ -8,6 +8,7 @@ import { applyBulkEdit, countLabel, isBulkPatchEmpty, type BulkEditPatch } from 
 import { bucketOfExpense, type CategoryBucketLookup } from '../utils/budgetReview';
 import { BUCKET_META, BUCKET_OPTIONS } from './tools/bucketMeta';
 import { type, space } from '../styles/tokens';
+import { toYMD } from '../utils/dates';
 
 /**
  * Edit several expenses at once. Every field starts on "No change"; only the
@@ -28,9 +29,6 @@ const FREQUENCY_LABELS: Record<Frequency, string> = {
   yearly: 'Yearly',
 };
 const FREQUENCIES = Object.keys(FREQUENCY_LABELS) as Frequency[];
-
-const toYMD = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const formatDay = (ymd: string) => {
   const d = new Date(ymd.slice(0, 10) + 'T00:00:00');

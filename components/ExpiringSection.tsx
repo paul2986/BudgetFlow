@@ -7,6 +7,7 @@ import { Expense } from '../types/budget';
 import { calculateMonthlyAmount, getEndingSoon } from '../utils/calculations';
 import { AmountText, DateField, IconButton, ListRow, SegmentedControl, Sheet } from './ui';
 import { type, space } from '../styles/tokens';
+import { toYMD } from '../utils/dates';
 
 /**
  * Recurring expenses whose end date is coming up or has passed. "Extend"
@@ -27,9 +28,6 @@ const formatDay = (ymd?: string) => {
   const sameYear = d.getFullYear() === new Date().getFullYear();
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: sameYear ? undefined : 'numeric' });
 };
-
-const toYMD = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export default function ExpiringSection({ expenses }: ExpiringSectionProps) {
   const { tokens } = useTheme();

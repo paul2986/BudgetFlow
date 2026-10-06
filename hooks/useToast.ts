@@ -1,5 +1,6 @@
 
 import React, { useState, useCallback, createContext, useContext } from 'react';
+import { newId } from '../utils/ids';
 import { haptics } from '../utils/haptics';
 
 export interface ToastAction {
@@ -42,7 +43,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', duration?: number, action?: ToastAction) => {
-    const id = `toast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const id = newId('toast');
     const newToast: ToastMessage = {
       id,
       message,

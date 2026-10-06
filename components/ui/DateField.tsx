@@ -4,15 +4,13 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../hooks/useTheme';
 import Icon from '../Icon';
 import { type, radius, space, font } from '../../styles/tokens';
+import { toYMD } from '../../utils/dates';
 
 /**
  * Optional date field styled like ui/Input: caption label, field fill, one
  * focus ring. Web uses the native <input type="date">; iOS/Android open the
  * platform picker. A "Clear" action appears once a date is set.
  */
-
-const toYMD = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 interface DateFieldProps {
   label: string;

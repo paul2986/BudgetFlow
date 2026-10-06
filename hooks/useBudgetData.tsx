@@ -23,6 +23,7 @@ import { syncBudgets, stableStringify } from '../utils/budgetSync';
 import { applyBulkEdit, type BulkEditPatch, type BulkEditResult } from '../utils/bulkEdit';
 import { categoryBucketLookup } from '../utils/budgetReview';
 import { useAuth } from './useAuth';
+import { newId } from '../utils/ids';
 import type { ImportedBudget } from '../utils/budgetWorkbook/import';
 
 // Local type for the editable slice of a budget
@@ -773,7 +774,7 @@ const useBudgetDataInternal = () => {
         // Generate a proper ID if not provided
         const expenseWithId = {
           ...expense,
-          id: expense.id || `expense_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: expense.id || newId('expense'),
           updatedAt: Date.now(),
         };
 

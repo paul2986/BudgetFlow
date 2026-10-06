@@ -12,6 +12,7 @@ import CurrencyInput from '../components/CurrencyInput';
 import StandardHeader from '../components/StandardHeader';
 import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
 import { type, space } from '../styles/tokens';
+import { newId } from '../utils/ids';
 import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import { useDiscardGuard } from '../hooks/useDiscardGuard';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
@@ -134,7 +135,7 @@ function EditIncomeForm() {
       const result = income
         ? await updateIncome(personId, income.id, updates)
         : await addIncome(personId, {
-            id: `income_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+            id: newId('income'),
             personId,
             ...updates,
           });

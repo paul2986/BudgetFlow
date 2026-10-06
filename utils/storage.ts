@@ -3,10 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ImportedBudget } from './budgetWorkbook/import';
 import { AppDataV2, BucketId, Budget, CategoryBucketEntry, CustomCategory, Expense, Person, ExpenseCategory, DEFAULT_CATEGORIES, BudgetLockSettings, HouseholdSettings, debtRepaymentForCategory } from '../types/budget';
 import { NO_ATTEMPTS, unlockSession, type AttemptState } from './budgetLock';
+import { newId } from './ids';
 
 // Storage keys for versions
 const STORAGE_KEYS = {
-  // Legacy single-budget key (v1)
+  // The retired single-budget key (v1). Never read now; still cleared on sign-out
+  // and erase, so nothing is left behind on a device that once held it.
   BUDGET_DATA: 'budget_data',
   // New multi-budget app data key (v2)
   APP_DATA_V2: 'app_data_v2',
@@ -53,18 +55,8 @@ export const normalizeCategoryName = (name: any): string => {
   return cleaned;
 };
 
-const sanitizeCategoryTag = (tag: any): ExpenseCategory => {
-  const norm = normalizeCategoryName(tag);
-  // If it's one of our defaults, keep as-is; otherwise persist custom as-is (normalized)
-  return (DEFAULT_CATEGORIES.includes(norm) ? norm : norm) as ExpenseCategory;
-};
-
-const toYMD = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
+// Defaults and custom categories are both kept as their normalized name.
+const sanitizeCategoryTag = (tag: any): ExpenseCategory => normalizeCategoryName(tag) as ExpenseCategory;
 
 // An expense's own budget-review bucket, or nothing when it's missing or not one of the three.
 const sanitizeExpenseBucket = (bucket: any): { bucket: BucketId } | {} =>
@@ -86,7 +78,7 @@ const getDefaultLockSettings = (): BudgetLockSettings => ({
 });
 
 // Tombstones older than this are pruned so the deletions map can't grow unbounded.
-const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+export const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 // Validate and prune a budget's deletions (tombstone) map
 const sanitizeDeletions = (raw: any): Record<string, number> => {
@@ -450,7 +442,7 @@ export const saveExpensesSort = async (sort: ExpensesSort): Promise<void> => {
 const createEmptyBudget = (name: string): Budget => {
   const now = Date.now();
   return {
-    id: `budget_${now}_${Math.random().toString(36).substr(2, 9)}`,
+    id: newId('budget'),
     name,
     people: [],
     expenses: [],
@@ -461,14 +453,14 @@ const createEmptyBudget = (name: string): Budget => {
   };
 };
 
-// Validate/sanitize legacy single-budget data (v1) contents
-type LegacyBudgetData = {
+// The people, expenses and household settings of one budget, validated
+type BudgetContents = {
   people: Person[];
   expenses: Expense[];
   householdSettings: HouseholdSettings;
 };
 
-const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
+const sanitizeBudgetContents = (data: any): BudgetContents => {
   const safeData: any = data && typeof data === 'object' ? data : {};
   const people: Person[] = Array.isArray(safeData.people)
     ? safeData.people
@@ -554,7 +546,7 @@ const validateLegacyBudgetData = (data: any): LegacyBudgetData => {
       ? (safeData.householdSettings.distributionMethod as 'even' | 'income-based')
       : 'even';
 
-  const validated: LegacyBudgetData = {
+  const validated: BudgetContents = {
     people,
     expenses,
     householdSettings: { distributionMethod: distribution },
@@ -569,9 +561,9 @@ export const validateAppData = (data: any): AppDataV2 => {
   }
 
   const makeSafeBudget = (b: any): Budget => {
-    const legacyShape = validateLegacyBudgetData(b);
+    const contents = sanitizeBudgetContents(b);
     // Ensure all expenses have valid categoryTag, properly sanitized endDate, household constraint, and debtRepayment tag
-    const sanitizedExpenses = (legacyShape.expenses || []).map((e: Expense) => {
+    const sanitizedExpenses = (contents.expenses || []).map((e: Expense) => {
       const isHousehold = e.category === 'household';
       const categoryTag = sanitizeCategoryTag((e as any).categoryTag || 'Misc');
       const drRaw = (e as any).debtRepayment;
@@ -603,11 +595,11 @@ export const validateAppData = (data: any): AppDataV2 => {
     const modifiedAt = typeof b?.modifiedAt === 'number' ? b.modifiedAt : createdAt;
 
     return {
-      id: typeof b?.id === 'string' ? b.id : `budget_${Math.random().toString(36).slice(2)}`,
+      id: typeof b?.id === 'string' ? b.id : newId('budget'),
       name: typeof b?.name === 'string' ? b.name : 'My Budget',
-      people: legacyShape.people,
+      people: contents.people,
       expenses: sanitizedExpenses,
-      householdSettings: legacyShape.householdSettings,
+      householdSettings: contents.householdSettings,
       createdAt,
       modifiedAt,
       lock: lockSettings,
@@ -763,7 +755,7 @@ const absorbLegacyCustomCategories = async (appData: AppDataV2): Promise<AppData
   return merged;
 };
 
-// Load AppDataV2; migrate from v1 if necessary
+// Load AppDataV2
 export const loadAppData = async (): Promise<AppDataV2> => {
   // If we already have a cache, return a clone to prevent external mutations
   if (appDataCache) {
@@ -783,36 +775,6 @@ export const loadAppData = async (): Promise<AppDataV2> => {
         const validated = validateAppData(parsed);
         appDataCache = validated;
         return await absorbLegacyCustomCategories(validated);
-      }
-
-      // Attempt to read legacy v1
-      const legacyRaw = await AsyncStorage.getItem(STORAGE_KEYS.BUDGET_DATA);
-      if (legacyRaw) {
-        let legacyParsed: any;
-        try {
-          legacyParsed = JSON.parse(legacyRaw);
-        } catch (e) {
-          console.error('storage: Failed to parse legacy data, returning empty state', e);
-          const empty = { version: 2 as const, budgets: [], activeBudgetId: '' };
-          appDataCache = empty;
-          return empty;
-        }
-        const legacy = validateLegacyBudgetData(legacyParsed);
-        const now = Date.now();
-        const migratedBudget: Budget = {
-          id: `budget_${now}_${Math.random().toString(36).substr(2, 9)}`,
-          name: 'My Budget',
-          people: legacy.people,
-          expenses: legacy.expenses,
-          householdSettings: legacy.householdSettings,
-          createdAt: now,
-          modifiedAt: now,
-          lock: getDefaultLockSettings(),
-        };
-        const appData: AppDataV2 = { version: 2, budgets: [migratedBudget], activeBudgetId: migratedBudget.id };
-        appDataCache = appData;
-        await saveAppData(appData); // This will trigger the disk save
-        return await absorbLegacyCustomCategories(appData);
       }
 
       // No data at all, return empty state for first-time user
@@ -836,14 +798,7 @@ export const loadAppData = async (): Promise<AppDataV2> => {
 let savePromise: Promise<void> = Promise.resolve();
 
 const performAppSave = async (data: AppDataV2): Promise<void> => {
-  const validated = validateAppData(data);
-  const json = JSON.stringify(validated);
-  await AsyncStorage.setItem(STORAGE_KEYS.APP_DATA_V2, json);
-
-  // Verify save
-  const verification = await AsyncStorage.getItem(STORAGE_KEYS.APP_DATA_V2);
-  if (!verification) throw new Error('Save verification failed - no data found');
-  validateAppData(JSON.parse(verification));
+  await AsyncStorage.setItem(STORAGE_KEYS.APP_DATA_V2, JSON.stringify(validateAppData(data)));
 };
 
 export const saveAppData = async (data: AppDataV2): Promise<{ success: boolean; error?: Error }> => {
@@ -974,151 +929,49 @@ export const deleteBudget = async (budgetId: string, allowLast = false): Promise
 export const duplicateBudget = async (budgetId: string, customName?: string): Promise<{ success: boolean; error?: Error; budget?: Budget }> => {
   try {
     const appData = await loadAppData();
-    if (!appData.budgets || !Array.isArray(appData.budgets)) {
-      console.error('storage: No budgets found in app data');
-      return { success: false, error: new Error('No budgets found') };
-    }
+    const original = appData.budgets.find((b) => b.id === budgetId);
+    if (!original) return { success: false, error: new Error('Budget not found') };
 
-    const originalBudget = appData.budgets.find((b) => b && b.id === budgetId);
-    if (!originalBudget) {
-      console.error('storage: Budget not found:', budgetId);
-      return { success: false, error: new Error('Budget not found') };
-    }
-
-    // Create a deep copy of the budget with new IDs
+    // Everything gets a new id; expenses follow their person to the new one.
     const now = Date.now();
-
-    // Safely handle people array - ensure it exists and is an array
-    const originalPeople = Array.isArray(originalBudget.people) ? originalBudget.people : [];
-    const duplicatedPeople = originalPeople.map(person => {
-      // Ensure person exists and has required properties
-      if (!person || typeof person !== 'object') {
-        console.warn('storage: Invalid person object found, skipping:', person);
-        return null;
-      }
-
-      // Safely handle income array
-      const originalIncome = Array.isArray(person.income) ? person.income : [];
-      const duplicatedIncome = originalIncome.map(income => {
-        if (!income || typeof income !== 'object') {
-          console.warn('storage: Invalid income object found, skipping:', income);
-          return null;
-        }
-
-        return {
-          ...income,
-          id: `income_${now}_${Math.random().toString(36).substr(2, 9)}`,
-        };
-      }).filter(income => income !== null); // Remove any null entries
-
-      return {
-        ...person,
-        id: `person_${now}_${Math.random().toString(36).substr(2, 9)}`,
-        income: duplicatedIncome,
-      };
-    }).filter(person => person !== null); // Remove any null entries
-
-    // Safely handle expenses array - ensure it exists and is an array
-    const originalExpenses = Array.isArray(originalBudget.expenses) ? originalBudget.expenses : [];
-    const duplicatedExpenses = originalExpenses.map(expense => {
-      if (!expense || typeof expense !== 'object') {
-        console.warn('storage: Invalid expense object found, skipping:', expense);
-        return null;
-      }
-
-      const newExpense = {
-        ...expense,
-        id: `expense_${now}_${Math.random().toString(36).substr(2, 9)}`,
-      };
-
-      // Handle personId based on expense category
+    const newPersonIds = new Map<string, string>();
+    const people = original.people.map((person) => {
+      const id = newId('person');
+      newPersonIds.set(person.id, id);
+      return { ...person, id, income: person.income.map((income) => ({ ...income, id: newId('income') })) };
+    });
+    const expenses = original.expenses.map((expense) => {
+      const copy = { ...expense, id: newId('expense') };
+      const mapped = expense.personId ? newPersonIds.get(expense.personId) : undefined;
       if (expense.category === 'personal') {
-        // For personal expenses, update the personId to match the new person ID
-        if (expense.personId) {
-          const originalPersonIndex = originalPeople.findIndex(p => p && p.id === expense.personId);
-          if (originalPersonIndex !== -1 && duplicatedPeople[originalPersonIndex]) {
-            newExpense.personId = duplicatedPeople[originalPersonIndex].id;
-          } else {
-            console.warn('storage: Could not find matching person for personal expense, assigning to first person:', expense);
-            // Assign to first person if original person not found
-            newExpense.personId = duplicatedPeople.length > 0 ? duplicatedPeople[0].id : undefined;
-          }
-        } else {
-          // For personal expenses without personId, assign to first person
-          newExpense.personId = duplicatedPeople.length > 0 ? duplicatedPeople[0].id : undefined;
-        }
-      } else if (expense.category === 'household') {
-        // For household expenses, personId is optional
-        if (expense.personId) {
-          const originalPersonIndex = originalPeople.findIndex(p => p && p.id === expense.personId);
-          if (originalPersonIndex !== -1 && duplicatedPeople[originalPersonIndex]) {
-            newExpense.personId = duplicatedPeople[originalPersonIndex].id;
-          } else {
-            // If original person not found, clear the personId for household expense
-            newExpense.personId = undefined;
-          }
-        }
-        // If no personId, leave it undefined (valid for household expenses)
+        // A personal expense always has a person: its own, else the first.
+        copy.personId = mapped ?? people[0]?.id;
+      } else if (expense.personId) {
+        // A household expense may have none: drop one that no longer exists.
+        copy.personId = mapped;
       }
+      return copy;
+    });
 
-      return newExpense;
-    }).filter(expense => expense !== null); // Remove any null entries
-
-    // Safely handle household settings
-    const originalHouseholdSettings = originalBudget.householdSettings || { distributionMethod: 'even' };
-
-    const duplicatedBudget: Budget = {
-      ...originalBudget,
-      id: `budget_${now}_${Math.random().toString(36).substr(2, 9)}`,
-      name: customName || `${originalBudget.name} (Copy)`,
+    const duplicate: Budget = {
+      ...original,
+      id: newId('budget'),
+      name: customName || `${original.name} (Copy)`,
       createdAt: now,
       modifiedAt: now,
-      people: duplicatedPeople,
-      expenses: duplicatedExpenses,
-      householdSettings: originalHouseholdSettings,
-      // Reset lock settings for the duplicate
+      people,
+      expenses,
+      householdSettings: original.householdSettings || { distributionMethod: 'even' },
+      // The lock is not copied.
       lock: getDefaultLockSettings(),
     };
 
-    const budgets = [...appData.budgets, duplicatedBudget];
-    const newAppData: AppDataV2 = { ...appData, budgets };
-    const res = await saveAppData(newAppData);
-
-    return { ...res, budget: duplicatedBudget };
+    const res = await saveAppData({ ...appData, budgets: [...appData.budgets, duplicate] });
+    return { ...res, budget: duplicate };
   } catch (error) {
     console.error('storage: Error in duplicateBudget:', error);
     return { success: false, error: error as Error };
   }
-};
-
-export const updateBudget = async (budget: Budget): Promise<{ success: boolean; error?: Error }> => {
-  const appData = await loadAppData();
-  if (!appData.budgets || !Array.isArray(appData.budgets)) {
-    return { success: false, error: new Error('No budgets found') };
-  }
-  const idx = appData.budgets.findIndex((b) => b && b.id === budget.id);
-  if (idx === -1) return { success: false, error: new Error('Budget not found') };
-  const budgets = [...appData.budgets];
-  // Ensure expenses have valid categoryTag and endDate before saving
-  const sanitized = {
-    ...budget,
-    modifiedAt: Date.now(), // Update modified timestamp
-    expenses: (budget.expenses || []).map((e: Expense) => ({
-      ...e,
-      categoryTag: sanitizeCategoryTag((e as any).categoryTag || 'Misc'),
-      endDate: sanitizeEndDate((e as any).frequency, (e as any).endDate),
-    })),
-    lock: budget.lock || getDefaultLockSettings(),
-  } as Budget;
-  budgets[idx] = { ...sanitized };
-  return await saveAppData({ ...appData, budgets });
-};
-
-// Budget lock helper functions
-export const getBudgetLock = (budgetId: string, appData: AppDataV2): BudgetLockSettings | undefined => {
-  if (!appData.budgets || !Array.isArray(appData.budgets)) return undefined;
-  const budget = appData.budgets.find((b) => b && b.id === budgetId);
-  return budget?.lock;
 };
 
 export const setBudgetLock = async (budgetId: string, patch: Partial<BudgetLockSettings>): Promise<{ success: boolean; error?: Error }> => {
@@ -1140,10 +993,6 @@ export const setBudgetLock = async (budgetId: string, patch: Partial<BudgetLockS
   budgets[budgetIndex] = updatedBudget;
 
   return await saveAppData({ ...appData, budgets });
-};
-
-export const markBudgetUnlocked = async (budgetId: string): Promise<{ success: boolean; error?: Error }> => {
-  return await setBudgetLock(budgetId, { lastUnlockAt: new Date().toISOString() });
 };
 
 // Wrong codes entered for a budget on this device, kept so that quitting the app
@@ -1174,30 +1023,6 @@ export const saveLockAttempts = async (budgetId: string, state: AttemptState): P
   }
 };
 
-// Clear contents of ACTIVE budget (utility)
-export const clearActiveBudgetData = async (): Promise<void> => {
-  const appData = await loadAppData();
-  const active = getActiveBudget(appData);
-
-  // If no active budget exists, there's nothing to clear
-  if (!active) {
-    return;
-  }
-
-  const cleared: Budget = {
-    ...active,
-    people: [],
-    expenses: [],
-    householdSettings: { distributionMethod: 'even' },
-    modifiedAt: Date.now(),
-    lock: active.lock || getDefaultLockSettings(),
-  };
-  const budgets = appData.budgets && Array.isArray(appData.budgets)
-    ? appData.budgets.map((b) => (b && b.id === active.id ? cleared : b))
-    : [cleared];
-  await performAppSave({ ...appData, budgets });
-};
-
 // Clear ALL app data - delete all budgets, people, and expenses
 export const clearAllAppData = async (): Promise<{ success: boolean; error?: Error }> => {
   try {
@@ -1208,65 +1033,19 @@ export const clearAllAppData = async (): Promise<{ success: boolean; error?: Err
     const deletedBudgets = { ...(previous.deletedBudgets || {}) };
     previous.budgets.forEach((b) => { deletedBudgets[b.id] = now; });
 
-    // Clear all related storage items including custom categories and filters FIRST
-    // Use sequential clearing to ensure each item is properly removed
-    await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-    await AsyncStorage.removeItem(STORAGE_KEYS.EXPENSES_FILTERS);
-    await AsyncStorage.removeItem(STORAGE_KEYS.BUDGET_DATA); // Legacy data
-    await AsyncStorage.removeItem(STORAGE_KEYS.APP_DATA_V2); // Main app data
+    await AsyncStorage.multiRemove([
+      STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES,
+      STORAGE_KEYS.EXPENSES_FILTERS,
+      STORAGE_KEYS.BUDGET_DATA,
+      STORAGE_KEYS.APP_DATA_V2,
+    ]);
 
-    // Verify that custom categories are actually cleared
-    const verifyCustomCategories = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-    if (verifyCustomCategories) {
-      console.error('storage: Custom categories were not properly cleared, forcing removal');
-      await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-    }
-
-    // Create a completely empty app state with no budgets (first-time user state)
-    const freshAppData: AppDataV2 = {
-      version: 2,
-      budgets: [],
-      activeBudgetId: '',
-      deletedBudgets,
-    };
-
-    // Save the fresh app data (this will create a new empty state)
-    const result = await saveAppData(freshAppData);
-
-    if (result.success) {
-      // Triple-check that custom categories are cleared after save
-      const finalVerifyCustomCategories = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-      if (finalVerifyCustomCategories) {
-        console.warn('storage: Custom categories still exist after clearing, forcing final removal');
-        await AsyncStorage.removeItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-
-        // Final verification
-        const ultimateVerify = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES);
-        if (ultimateVerify) {
-          console.error('storage: Custom categories STILL exist after multiple removal attempts');
-        }
-      }
-    } else {
-      console.error('storage: Failed to clear all app data:', result.error);
-    }
-
+    // An empty app state with no budgets (the first-time user state).
+    const result = await saveAppData({ version: 2, budgets: [], activeBudgetId: '', deletedBudgets });
+    if (!result.success) console.error('storage: Failed to clear all app data:', result.error);
     return result;
   } catch (error) {
     console.error('storage: Error clearing all app data:', error);
     return { success: false, error: error as Error };
-  }
-};
-
-// Utility function to get storage info (for debugging)
-export const getStorageInfo = async (): Promise<{ hasData: boolean; dataSize: number; version: 'v2' | 'v1' | 'none' }> => {
-  try {
-    const v2 = await AsyncStorage.getItem(STORAGE_KEYS.APP_DATA_V2);
-    if (v2) return { hasData: true, dataSize: v2.length, version: 'v2' };
-    const v1 = await AsyncStorage.getItem(STORAGE_KEYS.BUDGET_DATA);
-    if (v1) return { hasData: true, dataSize: v1.length, version: 'v1' };
-    return { hasData: false, dataSize: 0, version: 'none' };
-  } catch (error) {
-    console.error('storage: Error getting storage info:', error);
-    return { hasData: false, dataSize: 0, version: 'none' };
   }
 };

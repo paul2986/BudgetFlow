@@ -11,6 +11,7 @@ import CurrencyInput from '../CurrencyInput';
 import { IconButton, Input, ListGroup, ListRow, SegmentedControl } from '../ui';
 import { Income, Person } from '../../types/budget';
 import { type, space } from '../../styles/tokens';
+import { newId } from '../../utils/ids';
 
 /**
  * Add a person, whether they share household costs, and any number of income
@@ -36,8 +37,6 @@ const FREQUENCIES: { value: IncomeFrequency; label: string }[] = [
 
 const isBlank = (d: DraftIncome) => !d.label.trim() && !d.amount;
 const isComplete = (d: DraftIncome) => !!d.label.trim() && parseFloat(d.amount) > 0;
-
-const newId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 
 interface NewPersonFormProps {
     onClose: () => void;

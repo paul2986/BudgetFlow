@@ -10,15 +10,13 @@ import {
   saveAppData,
   saveSyncedBudgetIds,
   sortBudgetsByCreated,
+  TOMBSTONE_TTL_MS,
 } from './storage';
 
 // Each budget syncs as its own server row (public.budgets), readable and
 // writable by its members. A sync pass downloads every budget the user can
 // open, merges each with the device's copy entity by entity, and writes back
 // any budget whose merged copy differs, conditional on the revision it read.
-
-// Tombstones older than this are ignored when merging (matches storage pruning).
-const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 // Union two tombstone maps, keeping the latest deletion time per id and dropping
 // entries that have aged out.
