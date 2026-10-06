@@ -229,6 +229,7 @@ function RootLayoutContent() {
             <Tabs.Screen name="admin-feedback" options={{ href: null }} />
             <Tabs.Screen name="admin-feedback-thread" options={{ href: null }} />
             <Tabs.Screen name="feedback" options={{ href: null }} />
+            <Tabs.Screen name="privacy" options={{ href: null }} />
             <Tabs.Screen name="feedback-thread" options={{ href: null }} />
             <Tabs.Screen name="share-budget" options={{ href: null }} />
             <Tabs.Screen name="import-budget" options={{ href: null }} />

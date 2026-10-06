@@ -138,7 +138,7 @@ export default function NewPersonForm({ onClose, onCreated }: NewPersonFormProps
                     header="Household costs"
                     footer={
                         !canToggleShare
-                            ? 'Someone has to cover household costs. Add another person who shares them to turn this off.'
+                            ? `${firstName} pays a share of household costs. You can change this once someone else is added.`
                             : sharesHousehold
                                 ? `${firstName} pays a share of household expenses.`
                                 : `${firstName} pays nothing toward household expenses. Everyone else splits them.`

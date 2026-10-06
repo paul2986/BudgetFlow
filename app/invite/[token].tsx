@@ -1,24 +1,29 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Text, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import StandardHeader from '../../components/StandardHeader';
 import Button from '../../components/Button';
 import { useThemedStyles } from '../../hooks/useThemedStyles';
+import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../../hooks/useToast';
+import { useAuth } from '../../hooks/useAuth';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { EmptyState, ListGroup, Skeleton } from '../../components/ui';
-import { InvitePreview, acceptInvite, clearPendingInvite, previewInvite } from '../../utils/sharing';
-import { radius, space } from '../../styles/tokens';
+import { InvitePreview, acceptInvite, clearPendingInvite, previewInvite, rememberInvite } from '../../utils/sharing';
+import { type, radius, space } from '../../styles/tokens';
 
 /** Opened from an invite link: says which budget it's for and joins it. */
 export default function InviteScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
+  const { tokens } = useTheme();
   const { showToast } = useToast();
+  const { signOut } = useAuth();
   const { appData, refreshData, setActiveBudget, user } = useBudgetData();
   const { token } = useLocalSearchParams<{ token: string }>();
 
   const [preview, setPreview] = useState<InvitePreview | null | undefined>(undefined);
   const [joining, setJoining] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   useEffect(() => {
     // This link is being handled now; don't reopen it after the next sign-in.
@@ -48,6 +53,21 @@ export default function InviteScreen() {
     } catch (e) {
       showToast((e as Error).message, 'error');
       setJoining(false);
+    }
+  };
+
+  // The invite is single-use and joins whoever is signed in, so someone on the
+  // wrong account (a work login on a shared phone) needs a way out. Signing out
+  // reloads the web app on its sign-in screen; keep the invite so that screen
+  // can say it's still waiting.
+  const handleSwitchAccount = async () => {
+    if (!token) return;
+    setSwitching(true);
+    rememberInvite(token);
+    try {
+      await signOut();
+    } finally {
+      setSwitching(false);
     }
   };
 
@@ -92,8 +112,27 @@ export default function InviteScreen() {
           title={`Join “${preview.budgetName}”?`}
           caption="You’ll be able to see and edit its people, income and expenses. Your own budgets stay private."
         />
+        {user?.email ? (
+          <Text style={[type.caption, { color: tokens.colors.textMuted, textAlign: 'center', marginBottom: space.s4 }]}>
+            Joining as{' '}
+            <Text style={[type.bodyMed, { fontSize: type.caption.fontSize, lineHeight: type.caption.lineHeight, color: tokens.colors.text }]}>
+              {user.email}
+            </Text>
+          </Text>
+        ) : null}
         <Button text="Join budget" onPress={handleJoin} loading={joining} variant="primary" size="lg" />
-        <Button text="Not now" onPress={() => router.replace('/')} disabled={joining} variant="ghost" />
+        <Button text="Not now" onPress={() => router.replace('/')} disabled={joining || switching} variant="ghost" />
+        <Pressable
+          onPress={handleSwitchAccount}
+          disabled={joining || switching}
+          accessibilityRole="button"
+          accessibilityLabel="Not you? Sign out to use a different account"
+          style={{ alignItems: 'center', minHeight: 44, justifyContent: 'center' }}
+        >
+          <Text style={[type.caption, { color: tokens.colors.brand }]}>
+            {switching ? 'Signing out…' : 'Not you? Use a different account'}
+          </Text>
+        </Pressable>
       </View>
     );
   };
