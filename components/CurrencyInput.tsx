@@ -4,6 +4,7 @@ import { TextInput, View, Text, TextInputProps, Platform } from 'react-native';
 import { useCurrency } from '../hooks/useCurrency';
 import { useTheme } from '../hooks/useTheme';
 import Icon from './Icon';
+import { useKeyboardDone } from './ui/KeyboardDoneBar';
 import { type, space, radius, tabularNums, font } from '../styles/tokens';
 
 interface CurrencyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText'> {
@@ -34,6 +35,7 @@ export default function CurrencyInput({
   const [isFocused, setIsFocused] = useState(false);
   const [displayValue, setDisplayValue] = useState('');
   const inputRef = useRef<TextInput>(null);
+  const done = useKeyboardDone('decimal-pad');
 
   const parseNumericValue = (text: string): number | null => {
     if (!text || text.trim() === '') return null;
@@ -160,10 +162,12 @@ export default function CurrencyInput({
           placeholder={placeholder}
           placeholderTextColor={tokens.colors.textFaint}
           keyboardType="decimal-pad"
+          {...done.inputProps}
           editable={editable}
           accessibilityLabel={label}
           {...props}
         />
+        {done.bar}
       </View>
 
       {error ? (

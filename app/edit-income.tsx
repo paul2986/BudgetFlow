@@ -289,6 +289,7 @@ function EditIncomeForm() {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <Input
           ref={labelRef}

@@ -123,6 +123,7 @@ export default function NewPersonForm({ onClose, onCreated }: NewPersonFormProps
                 style={{ flex: 1 }}
                 contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
                 keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets
             >
                 <Input
                     ref={nameRef}

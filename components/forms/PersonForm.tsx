@@ -123,6 +123,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
                 style={{ flex: 1 }}
                 contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
                 keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets
             >
                 <Input label="Name" value={name} onChangeText={setName} placeholder="Name" maxLength={50} />
 

@@ -3,6 +3,7 @@ import { View, Text, TextInput, TextInputProps, Pressable, Platform, ViewStyle }
 import { useTheme } from '../../hooks/useTheme';
 import Icon from '../Icon';
 import { type, radius, space, font } from '../../styles/tokens';
+import { useKeyboardDone } from './KeyboardDoneBar';
 
 /**
  * Input per DESIGN.md §2.8: visible label above (never placeholder-only),
@@ -38,6 +39,7 @@ export default function Input({
   const { tokens } = useTheme();
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const done = useKeyboardDone(props.keyboardType);
 
   const borderColor = error
     ? tokens.colors.danger
@@ -76,6 +78,7 @@ export default function Input({
           </Text>
         ) : null}
         <TextInput
+          {...done.inputProps}
           {...props}
           accessibilityLabel={label}
           secureTextEntry={password && !revealed}
@@ -102,6 +105,7 @@ export default function Input({
             inputStyle,
           ]}
         />
+        {done.bar}
         {password ? (
           <Pressable
             onPress={() => setRevealed((r) => !r)}
