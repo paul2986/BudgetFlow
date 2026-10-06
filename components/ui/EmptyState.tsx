@@ -49,8 +49,10 @@ export default function EmptyState({ icon, title, caption, actionLabel, onAction
         </Text>
       ) : null}
       {actionLabel && onAction ? (
-        <View style={{ marginTop: space.s5, minWidth: 200 }}>
-          <Button text={actionLabel} onPress={onAction} variant="primary" />
+        <View style={{ marginTop: space.s5 }}>
+          {/* Button defaults to width 100%, which Yoga can't resolve inside this shrink-wrapped
+              box (it left the button at the box's left edge on iOS). Size it from its label. */}
+          <Button text={actionLabel} onPress={onAction} variant="primary" style={{ width: 'auto', minWidth: 200 }} />
         </View>
       ) : null}
     </View>
