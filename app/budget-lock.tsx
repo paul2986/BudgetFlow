@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useTheme } from '../hooks/useTheme';
@@ -13,7 +13,7 @@ import StandardHeader from '../components/StandardHeader';
 import BudgetUnlock from '../components/BudgetUnlock';
 import CodeSheet from '../components/CodeSheet';
 import { Card, ConfirmDialog, ListGroup, ListRow, Skeleton, SwitchRow } from '../components/ui';
-import { type, space, radius } from '../styles/tokens';
+import { space, radius } from '../styles/tokens';
 
 const AUTO_LOCK_OPTIONS = [
   { label: 'Immediately', value: 0 },
