@@ -17,6 +17,7 @@ import { categoryBucketLookup, isBucketId, resolveBucket } from '../../utils/bud
 import { BUCKET_META, BUCKET_OPTIONS } from '../tools/bucketMeta';
 import { getCustomExpenseCategories, normalizeCategoryName } from '../../utils/storage';
 import { newPersonHandoff } from '../../utils/newPersonHandoff';
+import { toYMD } from '../../utils/dates';
 
 const EXPENSE_CATEGORIES: ExpenseCategory[] = DEFAULT_CATEGORIES;
 
@@ -67,13 +68,6 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
     const [bucketChoice, setBucketChoice] = useState<BucketId | null>(null);
     const [deleting, setDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-
-    const toYMD = (d: Date): string => {
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
-    };
 
     const [startDateYMD, setStartDateYMD] = useState<string>(toYMD(new Date()));
     const [endDate, setEndDate] = useState<Date | null>(null);
