@@ -133,7 +133,20 @@ export interface LoanSchedule {
 /** Stop simulating after this long: a payment that barely covers interest. */
 const MAX_MONTHS = 1200;
 /** A balance under half a cent is paid off. */
-const PAID_OFF = 0.005;
+export const PAID_OFF = 0.005;
+
+/**
+ * One month of a fixed-rate loan: interest builds on what is owed, then the payment
+ * is made, but never more than what is owed plus that interest (the last payment is
+ * smaller). Shared by the loan simulator and the credit card tool, so both agree.
+ */
+export const payMonth = (owed: number, monthlyRate: number, payment: number) => {
+  const interest = owed * monthlyRate;
+  const paid = Math.min(payment, owed + interest);
+  const principal = paid - interest;
+  const left = Math.max(0, owed - principal);
+  return { interest, paid, principal, owed: left < PAID_OFF ? 0 : left };
+};
 
 /** Fixed monthly payment that clears `balance` in `termMonths` (principal and interest only). */
 export const monthlyPayment = (balance: number, annualRatePct: number, termMonths: number): number => {
@@ -168,11 +181,9 @@ export const amortizeLoan = (balance: number, annualRatePct: number, payment: nu
 
   while (owed > PAID_OFF && month < MAX_MONTHS) {
     month++;
-    const interest = owed * i;
-    const paid = Math.min(P, owed + interest);
-    const principal = paid - interest;
-    owed = Math.max(0, owed - principal);
-    if (owed < PAID_OFF) owed = 0;
+    const step = payMonth(owed, i, P);
+    const { interest, paid, principal } = step;
+    owed = step.owed;
 
     totalInterest += interest;
     totalPaid += paid;

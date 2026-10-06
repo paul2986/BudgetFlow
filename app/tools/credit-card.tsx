@@ -15,6 +15,7 @@ import { CreditCardPayoffResult } from '../../types/budget';
 import { useToast } from '../../hooks/useToast';
 import { AmountText, Card, EmptyState, Input } from '../../components/ui';
 import { formatDuration } from '../../utils/formatDuration';
+import { cleanDecimal, parseAmount } from '../../utils/numberInput';
 import { type, space, radius, tabularNums } from '../../styles/tokens';
 
 export default function CreditCardPayoffScreen() {
@@ -34,14 +35,10 @@ export default function CreditCardPayoffScreen() {
   // Minimum payment suggestion state
   const [suggestedMin, setSuggestedMin] = useState<number | null>(null);
 
-  const parseNumber = (val: string): number | null => {
-    if (typeof val !== 'string') return null;
-    const cleaned = val.replace(/[^0-9.]/g, '');
-    if (cleaned.trim() === '') return null;
-    const num = Number(cleaned);
-    if (Number.isNaN(num)) return null;
-    return num;
-  };
+  // The three inputs as numbers (null when empty or not a number). A blank rate is not 0%.
+  const balance = parseAmount(balanceInput);
+  const apr = aprInput.trim() === '' ? null : parseAmount(aprInput);
+  const payment = parseAmount(paymentInput);
 
   const currencyFractionDigits = useMemo(() => {
     try {
@@ -56,96 +53,42 @@ export default function CreditCardPayoffScreen() {
 
   // Recalculate minimum suggestion when balance or APR changes, but don't auto-fill payment field
   useEffect(() => {
-    const b = parseNumber(balanceInput);
-    const a = aprInput.trim() === '' ? null : parseNumber(aprInput);
-
-    if (b !== null && b > 0 && a !== null && a >= 0) {
-      const min = computeInterestOnlyMinimum(b, a, currencyFractionDigits);
-      setSuggestedMin(min);
-      // Don't auto-fill the payment field - let user set it manually
-    } else {
-      setSuggestedMin(null);
-    }
-  }, [balanceInput, aprInput, formatCurrency, currencyFractionDigits]);
+    setSuggestedMin(
+      balance !== null && balance > 0 && apr !== null && apr >= 0
+        ? computeInterestOnlyMinimum(balance, apr, currencyFractionDigits)
+        : null
+    );
+  }, [balance, apr, currencyFractionDigits]);
 
   const validate = useCallback(() => {
     const newErrors: { balance?: string; apr?: string; payment?: string } = {};
-    const b = parseNumber(balanceInput);
-    const a = aprInput.trim() === '' ? null : parseNumber(aprInput);
-    const p = parseNumber(paymentInput);
-
-    if (b === null || b <= 0) {
-      newErrors.balance = 'Enter a positive balance.';
-    }
-    if (a === null || a < 0) {
-      newErrors.apr = 'Enter APR as 0 or a positive percent.';
-    }
-    
-    if (p === null || p < 0) {
-      newErrors.payment = 'Enter a positive monthly payment.';
-    }
-
+    if (balance === null || balance <= 0) newErrors.balance = 'Enter a positive balance.';
+    if (apr === null || apr < 0) newErrors.apr = 'Enter APR as 0 or a positive percent.';
+    if (payment === null || payment < 0) newErrors.payment = 'Enter a positive monthly payment.';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [balanceInput, aprInput, paymentInput]);
+  }, [balance, apr, payment]);
 
   // Enabled purely from the current inputs; stale blur-time errors must not keep
   // the button disabled once the values are valid (handleCalculate re-validates).
-  const canCalculate = useMemo(() => {
-    const b = parseNumber(balanceInput);
-    const a = aprInput.trim() === '' ? null : parseNumber(aprInput);
-    const p = parseNumber(paymentInput);
-    return b !== null && b > 0 && a !== null && a >= 0 && p !== null && p >= 0;
-  }, [balanceInput, aprInput, paymentInput]);
+  const canCalculate = balance !== null && balance > 0 && apr !== null && apr >= 0 && payment !== null && payment >= 0;
 
   const onBlurApr = () => {
-    const num = parseNumber(aprInput);
-    if (num === null || num < 0) return;
+    if (apr === null || apr < 0) return;
     // Round to 2 decimal places
-    const roundedValue = Math.round(num * 100) / 100;
-    setAprInput(roundedValue.toString());
+    setAprInput((Math.round(apr * 100) / 100).toString());
   };
 
   const handleCalculate = () => {
-    if (!validate()) {
-      return;
-    }
+    if (!validate()) return;
 
-    const b = parseNumber(balanceInput) || 0;
-    const a = parseNumber(aprInput) || 0;
-    const p = parseNumber(paymentInput) || 0;
+    let r = computeCreditCardPayoff(balance || 0, apr || 0, payment || 0);
 
-    // If payment is 0, show a special "never repaid" result
-    if (p === 0) {
-      const r = {
-        inputs: { balance: b, apr: a, monthlyPayment: p },
-        neverRepaid: true,
-        months: 0,
-        totalInterest: 0,
-        schedule: [],
-        monthlyRate: a / 12 / 100,
-      };
-      setResult(r);
-      setShowResults(true);
-        return;
-    }
-
-    let r = computeCreditCardPayoff(b, a, p);
-
-    // If user used the exact suggested minimum (rounded to currency precision),
-    // force the "never repaid" state for clarity per acceptance criteria.
-    if (suggestedMin !== null) {
-      const usedMin =
-        Number(p.toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits));
-      if (usedMin) {
-        r = {
-          ...r,
-          neverRepaid: true,
-          months: 0,
-          totalInterest: 0,
-          schedule: [],
-        };
-      }
+    // If the payment is exactly the suggested minimum (rounded to the currency's
+    // precision), say the balance is never repaid: the rounding can leave it a hair
+    // above the interest, which would otherwise promise a payoff decades away.
+    if (suggestedMin !== null && Number((payment || 0).toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits))) {
+      r = { ...r, neverRepaid: true, months: 0, totalInterest: 0, schedule: [] };
     }
 
     setResult(r);
@@ -194,11 +137,10 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
     }
   };
 
-  const paymentNum = parseNumber(paymentInput);
   const isUsingMin =
     suggestedMin !== null &&
-    paymentNum !== null &&
-    Number(paymentNum.toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits));
+    payment !== null &&
+    Number(payment.toFixed(currencyFractionDigits)) === Number(suggestedMin.toFixed(currencyFractionDigits));
 
   const inputsCard = (
     <Card>
@@ -213,12 +155,8 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
         <Input
           label="Interest rate (APR %)"
           value={aprInput}
-          onChangeText={(t) => {
-            // Numbers and one decimal point, max 2 decimal places.
-            const cleaned = t.replace(/[^0-9.]/g, '');
-            const parts = cleaned.split('.');
-            setAprInput(parts.length > 1 ? `${parts[0]}.${parts[1].substring(0, 2)}` : parts[0]);
-          }}
+          // Numbers and one decimal point, max 2 decimal places.
+          onChangeText={(t) => setAprInput(cleanDecimal(t, 2))}
           onBlur={() => {
             onBlurApr();
             validate();
