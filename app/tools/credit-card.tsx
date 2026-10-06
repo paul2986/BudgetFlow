@@ -391,6 +391,7 @@ Total Interest Paid: ${formatCurrency(result.totalInterest)}`;
         style={{ flex: 1 }}
         contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
       >
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
           <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s4 }]}>
