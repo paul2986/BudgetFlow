@@ -13,6 +13,7 @@ import {
   clearAllAppData as storageClearAllAppData,
   saveAppData,
   claimDeviceData,
+  rememberActiveBudget,
   saveCustomExpenseCategories as storageSaveCustomCategories,
   renameCustomExpenseCategory as storageRenameCustomCategory,
   setCategoryBucket as storageSetCategoryBucket,
@@ -328,6 +329,16 @@ const useBudgetDataInternal = () => {
       setData({ people: [], expenses: [], householdSettings: { distributionMethod: 'even' } });
     }
   }, [user, refreshFromStorage]);
+
+  // Signing out wipes the device's budgets, so note which one is open for the
+  // sync to return to after the next sign-in.
+  const openBudgetId = appData.activeBudgetId;
+  useEffect(() => {
+    if (!user || !openBudgetId || claimedForRef.current !== user.id) return;
+    rememberActiveBudget(user.id, openBudgetId).catch((error) =>
+      console.error('useBudgetData: Could not remember the open budget:', error)
+    );
+  }, [user, openBudgetId]);
 
   // Pick up other people's (and other devices') changes as they happen: the
   // server announces changes to budgets and memberships this user can see, and

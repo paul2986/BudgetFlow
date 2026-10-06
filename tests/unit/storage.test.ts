@@ -358,6 +358,95 @@ describe('budget lock', () => {
   });
 });
 
+describe('budget order', () => {
+  it('sorts oldest first, and equal dates keep the order they arrived in', () => {
+    const [a, b, c, d] = [
+      makeBudget({ name: 'a', createdAt: 300 }),
+      makeBudget({ name: 'b', createdAt: 100 }),
+      makeBudget({ name: 'c', createdAt: 200 }),
+      makeBudget({ name: 'd', createdAt: 200 }),
+    ];
+    expect(storage.sortBudgetsByCreated([a, b, c, d]).map((x) => x.name)).toEqual(['b', 'c', 'd', 'a']);
+    expect(storage.sortBudgetsByCreated([d, c]).map((x) => x.name)).toEqual(['d', 'c']);
+  });
+
+  it('puts a device copy in created order when it loads, and falls back to the oldest', async () => {
+    const newest = makeBudget({ name: 'Newest', createdAt: 300 });
+    const oldest = makeBudget({ name: 'Oldest', createdAt: 100 });
+    const middle = makeBudget({ name: 'Middle', createdAt: 200 });
+    seed({ version: 2, budgets: [newest, oldest, middle], activeBudgetId: 'gone' });
+    const data = await storage.loadAppData();
+    expect(data.budgets.map((x) => x.name)).toEqual(['Oldest', 'Middle', 'Newest']);
+    expect(data.activeBudgetId).toBe(oldest.id);
+  });
+
+  it('keeps the chosen budget when it is not the oldest', async () => {
+    const oldest = makeBudget({ createdAt: 100 });
+    const newest = makeBudget({ createdAt: 300 });
+    seed(app([newest, oldest], newest.id));
+    expect((await storage.loadAppData()).activeBudgetId).toBe(newest.id);
+  });
+
+  it('files a new budget after the existing ones', async () => {
+    const old = makeBudget({ createdAt: 100 });
+    seed(app([old]));
+    const res = await storage.addBudget('Newer');
+    const data = await storage.loadAppData();
+    expect(data.budgets.map((x) => x.id)).toEqual([old.id, res.budget!.id]);
+  });
+});
+
+describe('the budget last open', () => {
+  beforeEach(() => device.store.clear());
+
+  it('is kept per account', async () => {
+    await storage.rememberActiveBudget('alice', 'b1');
+    await storage.rememberActiveBudget('bob', 'b2');
+    expect(await storage.loadRememberedBudget('alice')).toBe('b1');
+    expect(await storage.loadRememberedBudget('bob')).toBe('b2');
+    expect(await storage.loadRememberedBudget('carol')).toBeNull();
+  });
+
+  it('survives signing out, which clears the budgets themselves', async () => {
+    seed(app([makeBudget({ id: 'b1' })]), { device_owner_v1: 'alice' });
+    await storage.rememberActiveBudget('alice', 'b1');
+    await storage.clearLocalAppData();
+    expect(await storage.loadRememberedBudget('alice')).toBe('b1');
+    expect((await storage.loadAppData()).budgets).toEqual([]);
+  });
+
+  it('is not rewritten when it has not changed', async () => {
+    await storage.rememberActiveBudget('alice', 'b1');
+    const writes: string[] = [];
+    const setItem = device.setItem;
+    device.setItem = async (key: string, value: string) => {
+      writes.push(key);
+      return setItem(key, value);
+    };
+    await storage.rememberActiveBudget('alice', 'b1');
+    device.setItem = setItem;
+    expect(writes).toEqual([]);
+  });
+
+  it('is dropped with a deleted account, leaving others alone', async () => {
+    await storage.rememberActiveBudget('alice', 'b1');
+    await storage.rememberActiveBudget('bob', 'b2');
+    await storage.forgetRememberedBudget('alice');
+    expect(await storage.loadRememberedBudget('alice')).toBeNull();
+    expect(await storage.loadRememberedBudget('bob')).toBe('b2');
+  });
+
+  it('reads damaged data as nothing remembered', async () => {
+    device.store.set('last_active_budgets_v1', '{not json');
+    expect(await storage.loadRememberedBudget('alice')).toBeNull();
+    device.store.set('last_active_budgets_v1', JSON.stringify(['b1']));
+    expect(await storage.loadRememberedBudget('alice')).toBeNull();
+    device.store.set('last_active_budgets_v1', JSON.stringify({ alice: 7, bob: 'b2' }));
+    expect(await storage.loadRememberedBudget('alice')).toBeNull();
+    expect(await storage.loadRememberedBudget('bob')).toBe('b2');
+  });
+});
+
 describe('expenses sort preference', () => {
   beforeEach(() => device.store.clear());
 

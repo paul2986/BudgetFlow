@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { supabase } from '../utils/supabase';
-import { clearLocalAppData, clearUnownedDeviceData } from '../utils/storage';
+import { clearLocalAppData, clearUnownedDeviceData, forgetRememberedBudget } from '../utils/storage';
 import { setAuthNotice } from '../utils/authNotice';
 import { Session, User } from '@supabase/supabase-js';
 
@@ -71,6 +71,7 @@ export const useAuth = () => {
       console.log('useAuth: deleteAccount called');
       const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' });
       if (error) throw error;
+      if (user) await forgetRememberedBudget(user.id).catch(() => undefined);
       // Shown by AuthGuard on the signed-out screen.
       setAuthNotice('account-deleted');
       // The server session no longer exists, so only clear this device's copy.
