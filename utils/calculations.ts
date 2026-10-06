@@ -17,14 +17,11 @@ export const isExpenseActive = (expense: Expense, asOfDate?: string): boolean =>
   return end >= asOf;
 };
 
+const asList = <T,>(list: readonly T[] | null | undefined): readonly T[] => (Array.isArray(list) ? list : []);
+
 // Returns recurring expenses with an endDate that is either already ended OR
 // will end within the next N days. Sorted by endDate ascending.
 export const getEndingSoon = (expenses: Expense[], days: number = 30): { expiringSoon: Expense[], ended: Expense[] } => {
-  // Add comprehensive null checks for expenses array
-  if (!expenses || !Array.isArray(expenses)) {
-    return { expiringSoon: [], ended: [] };
-  }
-
   const now = new Date();
   const startYMD = toYMD(now);
   const limit = new Date(now);
@@ -33,164 +30,73 @@ export const getEndingSoon = (expenses: Expense[], days: number = 30): { expirin
 
   const expiringSoon: Expense[] = [];
   const ended: Expense[] = [];
+  for (const e of asList(expenses)) {
+    if (!e || e.frequency === 'one-time' || typeof e.endDate !== 'string' || !e.endDate) continue;
+    const end = e.endDate.slice(0, 10);
+    if (end < startYMD) ended.push(e);
+    else if (end <= limitYMD) expiringSoon.push(e);
+  }
 
-  expenses
-    .filter((e) => e && e.frequency !== 'one-time' && typeof e.endDate === 'string' && e.endDate)
-    .forEach((e) => {
-      const end = (e.endDate as string).slice(0, 10);
-      if (end < startYMD) {
-        ended.push(e);
-      } else if (end >= startYMD && end <= limitYMD) {
-        expiringSoon.push(e);
-      }
-    });
-
-  // Sort both arrays by endDate ascending
-  const sortByEndDate = (a: Expense, b: Expense) => {
-    const ea = (a.endDate as string).slice(0, 10);
-    const eb = (b.endDate as string).slice(0, 10);
-    return ea.localeCompare(eb);
+  // Soonest end date first, then each expense once.
+  const tidy = (list: Expense[]) => {
+    list.sort((a, b) => (a.endDate as string).slice(0, 10).localeCompare((b.endDate as string).slice(0, 10)));
+    return Array.from(new Map(list.filter((e) => e.id).map((e) => [e.id, e])).values());
   };
-
-  expiringSoon.sort(sortByEndDate);
-  ended.sort(sortByEndDate);
-
-  // Remove duplicates by ID
-  const dedupeById = (arr: Expense[]) => {
-    const byId = new Map<string, Expense>();
-    arr.forEach((e) => {
-      if (e && e.id) {
-        byId.set(e.id, e);
-      }
-    });
-    return Array.from(byId.values());
-  };
-
-  return {
-    expiringSoon: dedupeById(expiringSoon),
-    ended: dedupeById(ended)
-  };
+  return { expiringSoon: tidy(expiringSoon), ended: tidy(ended) };
 };
 
+/** Times a year each frequency happens; a one-time amount counts once. */
+export const ANNUAL_MULTIPLIER: Record<Frequency, number> = {
+  daily: 365,
+  weekly: 52,
+  monthly: 12,
+  yearly: 1,
+  'one-time': 1,
+};
+
+// Money is added up in whole pennies, so fractions of a penny never creep in.
 const toCents = (num: number): number => Math.round(num * 100);
 const fromCents = (cents: number): number => cents / 100;
 
-export const calculateAnnualAmount = (amount: number, frequency: Frequency): number => {
-  if (typeof amount !== 'number' || isNaN(amount)) return 0;
-  
-  const cents = toCents(amount);
-  let annualCents = 0;
-  switch (frequency) {
-    case 'daily':
-      annualCents = cents * 365;
-      break;
-    case 'weekly':
-      annualCents = cents * 52;
-      break;
-    case 'monthly':
-      annualCents = cents * 12;
-      break;
-    case 'yearly':
-    case 'one-time':
-    default:
-      annualCents = cents;
-      break;
+/** The yearly cost of an amount, in pennies; nothing when it isn't a number. */
+const annualCents = (amount: number, frequency: Frequency): number =>
+  typeof amount === 'number' && !isNaN(amount) ? toCents(amount) * (ANNUAL_MULTIPLIER[frequency] ?? 1) : 0;
+
+export const calculateAnnualAmount = (amount: number, frequency: Frequency): number => fromCents(annualCents(amount, frequency));
+
+export const calculateMonthlyAmount = (amount: number, frequency: Frequency): number =>
+  fromCents(Math.round(annualCents(amount, frequency) / 12));
+
+const personIncomeCents = (person: Person): number => {
+  let cents = 0;
+  for (const income of asList(person?.income)) {
+    if (income) cents += annualCents(income.amount, income.frequency);
   }
-  return fromCents(annualCents);
+  return cents;
 };
 
-export const calculateMonthlyAmount = (amount: number, frequency: Frequency): number => {
-  const annualCents = toCents(calculateAnnualAmount(amount, frequency));
-  return fromCents(Math.round(annualCents / 12));
-};
+export const calculateTotalIncome = (people: Person[]): number =>
+  fromCents(asList(people).reduce((cents, person) => cents + personIncomeCents(person), 0));
 
-export const calculateTotalIncome = (people: Person[]): number => {
-  // Add comprehensive null checks for people array
-  if (!people || !Array.isArray(people)) {
-    return 0;
-  }
+export const calculatePersonIncome = (person: Person): number => fromCents(personIncomeCents(person));
 
-  let totalCents = 0;
-  people.forEach((person) => {
-    if (person && person.income && Array.isArray(person.income)) {
-      person.income.forEach((income) => {
-        if (income && typeof income.amount === 'number' && !isNaN(income.amount)) {
-          totalCents += toCents(calculateAnnualAmount(income.amount, income.frequency));
-        }
-      });
-    }
-  });
-  return fromCents(totalCents);
-};
-
-export const calculatePersonIncome = (person: Person): number => {
-  // Add comprehensive null checks for person and person.income
-  if (!person || !person.income || !Array.isArray(person.income)) {
-    return 0;
-  }
-
-  let totalCents = 0;
-  person.income.forEach((income) => {
-    if (income && typeof income.amount === 'number' && !isNaN(income.amount)) {
-      totalCents += toCents(calculateAnnualAmount(income.amount, income.frequency));
-    }
-  });
-  return fromCents(totalCents);
-};
-
-export const calculateTotalExpenses = (expenses: Expense[]): number => {
-  // Add comprehensive null checks for expenses array
-  if (!expenses || !Array.isArray(expenses)) {
-    return 0;
-  }
-
+/** The yearly total of the expenses that pass `include` and still count today. */
+const expenseTotal = (expenses: Expense[], include: (expense: Expense) => boolean): number => {
   const asOf = todayYMD();
-  let totalCents = 0;
-  expenses.forEach((expense) => {
-    if (expense && typeof expense.amount === 'number' && !isNaN(expense.amount) && isExpenseActive(expense, asOf)) {
-      totalCents += toCents(calculateAnnualAmount(expense.amount, expense.frequency));
-    }
-  });
-  return fromCents(totalCents);
-};
-
-export const calculateHouseholdExpenses = (expenses: Expense[]): number => {
-  // Add comprehensive null checks for expenses array
-  if (!expenses || !Array.isArray(expenses)) {
-    return 0;
+  let cents = 0;
+  for (const expense of asList(expenses)) {
+    if (expense && include(expense) && isExpenseActive(expense, asOf)) cents += annualCents(expense.amount, expense.frequency);
   }
-
-  const asOf = todayYMD();
-  let totalCents = 0;
-  expenses
-    .filter((expense) => expense && expense.category === 'household')
-    .filter((expense) => isExpenseActive(expense, asOf))
-    .forEach((expense) => {
-      if (expense && typeof expense.amount === 'number' && !isNaN(expense.amount)) {
-        totalCents += toCents(calculateAnnualAmount(expense.amount, expense.frequency));
-      }
-    });
-  return fromCents(totalCents);
+  return fromCents(cents);
 };
 
-export const calculatePersonalExpenses = (expenses: Expense[], personId?: string): number => {
-  // Add comprehensive null checks for expenses array
-  if (!expenses || !Array.isArray(expenses)) {
-    return 0;
-  }
+export const calculateTotalExpenses = (expenses: Expense[]): number => expenseTotal(expenses, () => true);
 
-  const asOf = todayYMD();
-  let totalCents = 0;
-  expenses
-    .filter((expense) => expense && expense.category === 'personal' && (!personId || expense.personId === personId))
-    .filter((expense) => isExpenseActive(expense, asOf))
-    .forEach((expense) => {
-      if (expense && typeof expense.amount === 'number' && !isNaN(expense.amount)) {
-        totalCents += toCents(calculateAnnualAmount(expense.amount, expense.frequency));
-      }
-    });
-  return fromCents(totalCents);
-};
+export const calculateHouseholdExpenses = (expenses: Expense[]): number =>
+  expenseTotal(expenses, (e) => e.category === 'household');
+
+export const calculatePersonalExpenses = (expenses: Expense[], personId?: string): number =>
+  expenseTotal(expenses, (e) => e.category === 'personal' && (!personId || e.personId === personId));
 
 export const calculateHouseholdShare = (
   householdExpenses: number,
@@ -198,37 +104,23 @@ export const calculateHouseholdShare = (
   distributionMethod: 'even' | 'income-based',
   personId: string
 ): number => {
-  // Add comprehensive null checks for people array
-  if (!people || !Array.isArray(people) || people.length === 0) {
-    return 0;
-  }
-
-  if (typeof householdExpenses !== 'number' || isNaN(householdExpenses)) {
-    return 0;
-  }
-
+  if (asList(people).length === 0 || typeof householdExpenses !== 'number' || isNaN(householdExpenses)) return 0;
   const householdCents = toCents(householdExpenses);
 
   // People excluded from the household share pay nothing toward it and the
   // rest split it. If everyone is excluded, someone still has to cover the
   // costs, so fall back to splitting between everyone.
-  const included = people.filter((p) => p && !p.excludeFromHouseholdShare);
-  const payers = included.length > 0 ? included : people;
-  if (!payers.some((p) => p && p.id === personId)) return 0;
+  const included = asList(people).filter((p) => p && !p.excludeFromHouseholdShare);
+  const payers = included.length > 0 ? included : asList(people);
+  const payer = payers.find((p) => p && p.id === personId);
+  if (!payer) return 0;
 
-  if (distributionMethod === 'even') {
-    return fromCents(Math.round(householdCents / payers.length));
-  } else {
-    const totalIncome = calculateTotalIncome(payers);
-    if (totalIncome === 0) return fromCents(Math.round(householdCents / payers.length));
+  const evenShare = fromCents(Math.round(householdCents / payers.length));
+  if (distributionMethod === 'even') return evenShare;
 
-    const person = payers.find((p) => p && p.id === personId);
-    if (!person) return 0;
-
-    const personIncome = calculatePersonIncome(person);
-    const shareCents = Math.round((personIncome / totalIncome) * householdCents);
-    return fromCents(shareCents);
-  }
+  const totalIncome = calculateTotalIncome([...payers]);
+  if (totalIncome === 0) return evenShare;
+  return fromCents(Math.round((calculatePersonIncome(payer) / totalIncome) * householdCents));
 };
 
 const roundTo = (val: number, digits: number): number => {
