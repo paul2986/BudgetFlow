@@ -43,6 +43,8 @@ export interface ColorTokens {
   expenseSubtle: string;
   warning: string;
   warningSubtle: string;
+  /** Amber for fills and icons (a progress bar nearing its end), brighter than `warning`, which is tuned for text. */
+  caution: string;
   danger: string;
   onDanger: string;
   dangerSubtle: string;
@@ -94,6 +96,7 @@ export const lightColors: ColorTokens = {
   expenseSubtle: '#FFF1F2',
   warning: '#A16207',
   warningSubtle: '#FEFCE8',
+  caution: '#D97706', // 3.2:1 on surfaceSunken, the 3:1 non-text minimum
   danger: '#C81E1E',
   onDanger: '#FFFFFF',
   dangerSubtle: '#FEF2F2',
@@ -137,6 +140,7 @@ export const darkColors: ColorTokens = {
   expenseSubtle: '#88133756',
   warning: '#FACC15',
   warningSubtle: '#713F124D',
+  caution: '#FACC15',
   danger: '#F87171',
   onDanger: '#450A0A',
   dangerSubtle: '#7F1D1D4D',

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, ViewStyle, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, ViewStyle, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import Icon from '../Icon';
-import { type, radius, space } from '../../styles/tokens';
+import { type, radius, space, motion } from '../../styles/tokens';
 
 /**
  * ListRow per DESIGN.md §2.8: 64px min, leading glyph circle, primary +
@@ -10,6 +11,8 @@ import { type, radius, space } from '../../styles/tokens';
  * secondary control (e.g. a "more" button) goes in `accessory`, which renders
  * beside the row button, never inside it, so web never nests <button>s.
  */
+
+const GLYPH_SIZE = 36;
 
 interface ListRowProps {
   title: string;
@@ -27,6 +30,8 @@ interface ListRowProps {
   trailing?: React.ReactNode;
   /** Extra content under the caption (e.g. chip row). */
   children?: React.ReactNode;
+  /** Full-width content under the whole row (e.g. a progress bar), lined up with the text when there is a glyph. */
+  detail?: React.ReactNode;
   onPress?: () => void;
   /** Separate trailing control (its own button), rendered outside the row button. */
   accessory?: React.ReactNode;
@@ -50,6 +55,7 @@ export default function ListRow({
   leading,
   trailing,
   children,
+  detail,
   onPress,
   accessory,
   accessibilityLabel,
@@ -60,31 +66,68 @@ export default function ListRow({
 }: ListRowProps) {
   const { tokens } = useTheme();
   const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const highlighted = !!onPress && (pressed || hovered);
+  const reducedMotion = useReducedMotion();
+
+  // One fill for the whole row (button, side control and detail), faded by one value, so
+  // its parts can never change at different moments.
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fade, {
+      toValue: highlighted ? 1 : 0,
+      duration: reducedMotion ? 0 : motion.fast,
+      useNativeDriver: false,
+    }).start();
+  }, [highlighted, reducedMotion, fade]);
+  const fill = fade.interpolate({
+    inputRange: [0, 1],
+    // The same colour fully transparent, so the fade doesn't pass through grey.
+    outputRange: [`${tokens.colors.surfaceHover}00`, tokens.colors.surfaceHover],
+  });
+
+  // The pointer crosses from the button to the side control (and the detail) through
+  // gaps between them; waiting a moment before "left" keeps the fill from dipping.
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(leaveTimer.current), []);
+  const hoverIn = () => {
+    clearTimeout(leaveTimer.current);
+    setHovered(true);
+  };
+  const hoverOut = () => {
+    clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => setHovered(false), 40);
+  };
   const hasGlyph = !!(icon || glyphText);
   const glyphColor = destructive ? tokens.colors.danger : iconColor || tokens.colors.textMuted;
 
   return (
-    <View style={[{ flexDirection: 'row', alignItems: 'center' }, style]}>
+    <Animated.View
+      style={[
+        { flexDirection: 'row', alignItems: 'center', flexWrap: detail ? 'wrap' : 'nowrap', backgroundColor: fill },
+        style as any,
+      ]}
+    >
       <Pressable
         onPress={onPress}
         disabled={!onPress}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
+        onHoverIn={hoverIn}
+        onHoverOut={hoverOut}
+        onPressIn={() => setPressed(true)}
+        onPressOut={() => setPressed(false)}
         accessibilityRole={onPress ? 'button' : undefined}
         accessibilityLabel={accessibilityLabel || title}
-        style={({ pressed }) => [
+        style={[
           {
             minHeight: 64,
             flexDirection: 'row',
             alignItems: 'center',
-            paddingVertical: space.s3,
+            paddingTop: space.s3,
+            paddingBottom: detail ? space.s2 : space.s3,
             paddingHorizontal: space.s4,
             // Only tappable rows highlight; static rows (e.g. a switch row) stay flat.
-            backgroundColor: onPress && (pressed || hovered) ? tokens.colors.surfaceHover : 'transparent',
             flex: 1,
             paddingRight: accessory ? space.s2 : space.s4,
-            // @ts-ignore web transition
-            transitionDuration: '150ms',
           },
         ]}
       >
@@ -92,8 +135,8 @@ export default function ListRow({
           (hasGlyph ? (
             <View
               style={{
-                width: 36,
-                height: 36,
+                width: GLYPH_SIZE,
+                height: GLYPH_SIZE,
                 borderRadius: radius.full,
                 backgroundColor: destructive ? tokens.colors.dangerSubtle : tokens.colors.surfaceSunken,
                 alignItems: 'center',
@@ -137,7 +180,44 @@ export default function ListRow({
         ) : null}
       </Pressable>
 
-      {accessory ? <View style={{ paddingRight: space.s2 }}>{accessory}</View> : null}
+      {accessory ? (
+        // Shares the row's hover and fill so the highlight is one block, not a block with a notch
+        // where the control sits; the control inside keeps its own presses.
+        <Pressable
+          accessible={false}
+          onHoverIn={hoverIn}
+          onHoverOut={hoverOut}
+          style={{
+            alignSelf: 'stretch',
+            justifyContent: 'center',
+            paddingRight: space.s2,
+          }}
+        >
+          {accessory}
+        </Pressable>
+      ) : null}
+
+      {detail ? (
+        // Wraps onto its own line below the row button and accessory. It shares the
+        // button's press and hover state so the row highlights, and opens, as one.
+        <Pressable
+          onPress={onPress}
+          disabled={!onPress}
+          accessible={false}
+          onHoverIn={hoverIn}
+          onHoverOut={hoverOut}
+          onPressIn={() => setPressed(true)}
+          onPressOut={() => setPressed(false)}
+          style={{
+            width: '100%',
+            paddingBottom: space.s3,
+            paddingLeft: space.s4 + (hasGlyph ? GLYPH_SIZE + space.s3 : 0),
+            paddingRight: space.s4,
+          }}
+        >
+          {detail}
+        </Pressable>
+      ) : null}
 
       {showSeparator ? (
         <View
@@ -153,6 +233,6 @@ export default function ListRow({
           }}
         />
       ) : null}
-    </View>
+    </Animated.View>
   );
 }

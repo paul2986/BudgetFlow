@@ -9,7 +9,6 @@ import {
   calculatePersonalExpenses,
   calculateTotalExpenses,
   calculateTotalIncome,
-  getEndingSoon,
   isExpenseActive,
 } from '../../utils/calculations';
 import type { Expense, Frequency, Income, Person } from '../../types/budget';
@@ -203,41 +202,5 @@ describe('a person’s share of the household costs', () => {
     expect(share(1000, [], 'even', 'alex')).toBe(0);
     expect(share(1000, undefined as any, 'even', 'alex')).toBe(0);
     expect(share(NaN, [alex], 'even', 'alex')).toBe(0);
-  });
-});
-
-describe('expenses ending soon', () => {
-  const list: Expense[] = [
-    exp({ id: 'gone', endDate: '2026-09-01' }),
-    exp({ id: 'yesterday', endDate: '2026-10-05' }),
-    exp({ id: 'today', endDate: '2026-10-06' }),
-    exp({ id: 'soon', endDate: '2026-10-20' }),
-    exp({ id: 'edge', endDate: '2026-11-05' }),
-    exp({ id: 'later', endDate: '2026-11-06' }),
-    exp({ id: 'none' }),
-    exp({ id: 'once', frequency: 'one-time', endDate: '2026-10-10' }),
-  ];
-  const ids = (xs: Expense[]) => xs.map((e) => e.id);
-
-  it('lists what has ended and what ends within 30 days, soonest first', () => {
-    const r = getEndingSoon(list);
-    expect(ids(r.ended)).toEqual(['gone', 'yesterday']);
-    expect(ids(r.expiringSoon)).toEqual(['today', 'soon', 'edge']);
-  });
-
-  it('takes the number of days', () => {
-    expect(ids(getEndingSoon(list, 5).expiringSoon)).toEqual(['today']);
-    expect(ids(getEndingSoon(list, 365).expiringSoon)).toEqual(['today', 'soon', 'edge', 'later']);
-  });
-
-  it('sorts by end date whatever order they come in, and lists an id once', () => {
-    const shuffled = [list[3], list[0], list[2], exp({ id: 'soon', endDate: '2026-10-20' }), list[1]];
-    const r = getEndingSoon(shuffled);
-    expect(ids(r.ended)).toEqual(['gone', 'yesterday']);
-    expect(ids(r.expiringSoon)).toEqual(['today', 'soon']);
-  });
-
-  it('reads a missing list as nothing', () => {
-    expect(getEndingSoon(undefined as any)).toEqual({ expiringSoon: [], ended: [] });
   });
 });

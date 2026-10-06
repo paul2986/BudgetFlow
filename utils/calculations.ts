@@ -19,32 +19,6 @@ export const isExpenseActive = (expense: Expense, asOfDate?: string): boolean =>
 
 const asList = <T,>(list: readonly T[] | null | undefined): readonly T[] => (Array.isArray(list) ? list : []);
 
-// Returns recurring expenses with an endDate that is either already ended OR
-// will end within the next N days. Sorted by endDate ascending.
-export const getEndingSoon = (expenses: Expense[], days: number = 30): { expiringSoon: Expense[], ended: Expense[] } => {
-  const now = new Date();
-  const startYMD = toYMD(now);
-  const limit = new Date(now);
-  limit.setDate(limit.getDate() + days);
-  const limitYMD = toYMD(limit);
-
-  const expiringSoon: Expense[] = [];
-  const ended: Expense[] = [];
-  for (const e of asList(expenses)) {
-    if (!e || e.frequency === 'one-time' || typeof e.endDate !== 'string' || !e.endDate) continue;
-    const end = e.endDate.slice(0, 10);
-    if (end < startYMD) ended.push(e);
-    else if (end <= limitYMD) expiringSoon.push(e);
-  }
-
-  // Soonest end date first, then each expense once.
-  const tidy = (list: Expense[]) => {
-    list.sort((a, b) => (a.endDate as string).slice(0, 10).localeCompare((b.endDate as string).slice(0, 10)));
-    return Array.from(new Map(list.filter((e) => e.id).map((e) => [e.id, e])).values());
-  };
-  return { expiringSoon: tidy(expiringSoon), ended: tidy(ended) };
-};
-
 /** Times a year each frequency happens; a one-time amount counts once. */
 export const ANNUAL_MULTIPLIER: Record<Frequency, number> = {
   daily: 365,
