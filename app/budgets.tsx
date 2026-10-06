@@ -16,9 +16,7 @@ import Button from '../components/Button';
 import { EmptyState, IconButton, Input, ListGroup, ListRow, Menu, Sheet, type MenuAnchor, type MenuSection } from '../components/ui';
 import { space } from '../styles/tokens';
 import { buildBudgetWorkbook, fractionDigitsFor, workbookFileName } from '../utils/budgetWorkbook/export';
-import { parseBudgetWorkbook } from '../utils/budgetWorkbook/import';
-import { pickWorkbook, saveWorkbook } from '../utils/fileTransfer';
-import { importHandoff } from '../utils/importHandoff';
+import { saveWorkbook } from '../utils/fileTransfer';
 
 const formatDate = (timestamp: number): string => {
   const d = new Date(timestamp);
@@ -50,8 +48,6 @@ export default function BudgetsScreen() {
   };
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [operationInProgress, setOperationInProgress] = useState(false);
-  // Import from Excel: choosing the file; the preview is its own screen (/import-budget).
-  const [pickingFile, setPickingFile] = useState(false);
 
   // Refresh data when screen comes into focus
   useFocusEffect(
@@ -211,27 +207,6 @@ export default function BudgetsScreen() {
       showToast('Couldn’t export the budget. Please try again.', 'error');
     }
   }, [currency, showToast]);
-
-  const handleImportPress = useCallback(async () => {
-    setPickingFile(true);
-    try {
-      const picked = await pickWorkbook();
-      if (!picked) return;
-      const result = parseBudgetWorkbook(picked.bytes, { fileName: picked.fileName, currencyCode: currency.code });
-      // The workbook may be one exported from a budget that's still here; don't give two the same name.
-      let name = result.budget?.name ?? '';
-      if (name && budgets.some((b) => b.name.trim().toLowerCase() === name.toLowerCase())) {
-        name = `${name.slice(0, 39)} (imported)`;
-      }
-      importHandoff.put(result, name);
-      router.push('/import-budget');
-    } catch (error) {
-      console.error('Error reading workbook:', error);
-      showToast('Couldn’t open that file. Please try again.', 'error');
-    } finally {
-      setPickingFile(false);
-    }
-  }, [budgets, currency, showToast]);
 
   const handleSetActiveBudget = useCallback(async (budgetId: string) => {
     setOperationInProgress(true);
@@ -479,14 +454,15 @@ export default function BudgetsScreen() {
 
           <ListGroup
             header="Spreadsheets"
-            footer="Import adds a new budget from an Excel workbook, such as one you exported here and edited. It never changes an existing budget."
+            footer="Importing always adds a new budget. It never changes an existing one."
           >
             <ListRow
-              title="Import from Excel"
-              caption="Add a budget from an .xlsx file"
+              title="Import a workbook"
+              caption="From a Budget Flow export or template, in Excel format"
+              captionLines={2}
               icon="document-outline"
               chevron
-              onPress={pickingFile || operationInProgress ? undefined : handleImportPress}
+              onPress={operationInProgress ? undefined : () => router.push('/import-budget')}
               showSeparator={false}
             />
           </ListGroup>
