@@ -20,7 +20,7 @@ import { useToast, ToastProvider } from '../hooks/useToast';
 import { useBudgetData, BudgetDataProvider } from '../hooks/useBudgetData';
 import { initCurrency } from '../hooks/useCurrency';
 import { useAuth, AuthProvider } from '../hooks/useAuth';
-import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
+import { useBreakpoint, STATUS_BAND, formsArePopups } from '../hooks/useBreakpoint';
 import { useEditorTransitions } from '../hooks/useEditorTransitions';
 import { rememberInviteFromUrl } from '../utils/sharing';
 
@@ -59,7 +59,10 @@ function RootLayoutContent() {
   const bp = useBreakpoint();
   const { width: windowWidth } = useWindowDimensions();
   const [contentWidth, setContentWidth] = useState(0);
-  const editorTransitions = useEditorTransitions(contentWidth || windowWidth, bp.isCompact);
+  const editorTransitions = useEditorTransitions(
+    contentWidth || windowWidth,
+    bp.isCompact ? 'slide' : formsArePopups(bp.isCompact) ? 'popup' : 'off'
+  );
 
   const loading = authLoading || (user && budgetLoading);
   const [isInitialLoad, setIsInitialLoad] = useState(true);

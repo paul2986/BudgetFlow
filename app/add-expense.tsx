@@ -25,7 +25,7 @@ export default function AddExpenseScreen() {
   // Reached without a budget (a stale link): there is nothing to save into.
   if (!loading && !activeBudget) {
     return (
-      <View style={themedStyles.container}>
+      <View style={themedStyles.formContainer}>
         <FormScreen>
           <StandardHeader title="New expense" onLeftPress={handleClose} />
           <NoBudgetState />
@@ -35,7 +35,7 @@ export default function AddExpenseScreen() {
   }
 
   return (
-    <View style={themedStyles.container}>
+    <View style={themedStyles.formContainer}>
       <FormScreen>
         {/* Fresh form per expense and per visit (the screen stays mounted). */}
         <ExpenseForm key={`${params.id ?? 'new'}:${session}`} id={params.id} onClose={handleClose} />

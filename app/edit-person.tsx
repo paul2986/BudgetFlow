@@ -28,7 +28,7 @@ export default function EditPersonScreen() {
   // Reached without a budget (a stale link): there is nothing to save into.
   if (!loading && !activeBudget) {
     return (
-      <View style={themedStyles.container}>
+      <View style={themedStyles.formContainer}>
         <FormScreen>
           <StandardHeader title="Add person" onLeftPress={handleClose} />
           <NoBudgetState />
@@ -38,7 +38,7 @@ export default function EditPersonScreen() {
   }
 
   return (
-    <View style={themedStyles.container}>
+    <View style={themedStyles.formContainer}>
       <FormScreen>
         {/* Fresh form per person and per visit (the screen stays mounted).
             No personId: adding someone new (People's + button). */}

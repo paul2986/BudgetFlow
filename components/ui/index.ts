@@ -11,7 +11,7 @@ export { default as Chip } from './Chip';
 export { default as ConfirmDialog } from './ConfirmDialog';
 export { default as DateField } from './DateField';
 export { default as EmptyState } from './EmptyState';
-export { default as FormScreen } from './FormScreen';
+export { default as FormScreen, useFormInsets } from './FormScreen';
 export { default as IconButton } from './IconButton';
 export { default as Input } from './Input';
 export { default as ListGroup } from './ListGroup';

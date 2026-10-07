@@ -14,7 +14,7 @@ import { Budget } from '../types/budget';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import Icon from '../components/Icon';
 import Button from '../components/Button';
-import { EmptyState, IconButton, Input, ListGroup, ListRow, Menu, Sheet, type MenuAnchor, type MenuSection } from '../components/ui';
+import { EmptyState, FormScreen, IconButton, Input, ListGroup, ListRow, Menu, Sheet, useFormInsets, type MenuAnchor, type MenuSection } from '../components/ui';
 import { space } from '../styles/tokens';
 import { buildBudgetWorkbook, fractionDigitsFor, workbookFileName } from '../utils/budgetWorkbook/export';
 import { saveWorkbook } from '../utils/fileTransfer';
@@ -30,6 +30,7 @@ export default function BudgetsScreen() {
   const { tokens } = useTheme();
   const { currency } = useCurrency();
   const { themedStyles, breakpoint } = useThemedStyles();
+  const formInsets = useFormInsets();
   const { showToast } = useToast();
   const { isLocked } = useBudgetLock();
 
@@ -341,132 +342,134 @@ export default function BudgetsScreen() {
   };
 
   return (
-    <View style={themedStyles.container}>
-      <StandardHeader
-        title="Budgets"
-        maxWidth={LAYOUT.listMaxWidth}
-        onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/'))}
-        loading={operationInProgress}
-        rightButtons={[{ icon: 'add', onPress: () => setShowCreateModal(true), accessibilityLabel: 'New budget' }]}
-      />
+    <View style={themedStyles.formContainer}>
+      <FormScreen>
+        <StandardHeader
+          title="Budgets"
+          onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/'))}
+          loading={operationInProgress}
+          rightButtons={[{ icon: 'add', onPress: () => setShowCreateModal(true), accessibilityLabel: 'New budget' }]}
+        />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[
-          themedStyles.scrollContent,
-          { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 },
-        ]}
-      >
-        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
-          {budgets.length === 0 ? (
-            <ListGroup>
-              <EmptyState
-                icon="folder-open-outline"
-                title="No budgets yet"
-                caption="A budget holds the people, income and expenses you track together."
-                actionLabel="New budget"
-                onAction={() => setShowCreateModal(true)}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={
+            breakpoint.isCompact
+              ? [themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]
+              : formInsets
+          }
+        >
+          <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
+            {budgets.length === 0 ? (
+              <ListGroup>
+                <EmptyState
+                  icon="folder-open-outline"
+                  title="No budgets yet"
+                  caption="A budget holds the people, income and expenses you track together."
+                  actionLabel="New budget"
+                  onAction={() => setShowCreateModal(true)}
+                />
+              </ListGroup>
+            ) : (
+              <ListGroup
+                header="Your budgets"
+                footer="Tap a budget to switch to it. Use ⋯ to share, rename, duplicate, export, lock or delete."
+              >
+                {budgets.map((budget, i) => {
+                  const isActive = activeBudget?.id === budget.id;
+                  const locked = hasLock(budget);
+                  const renaming = editingBudgetId === budget.id;
+                  if (renaming) {
+                    // Rename takes over the row: a labelled field and text actions,
+                    // so nothing reads as the active-budget tick. Other rows dim.
+                    return (
+                      <View
+                        key={budget.id}
+                        style={{
+                          padding: space.s4,
+                          borderBottomWidth: i < budgets.length - 1 ? StyleSheet.hairlineWidth : 0,
+                          borderBottomColor: tokens.colors.border,
+                        }}
+                      >
+                        <Input
+                          ref={renameInput}
+                          label="Budget name"
+                          value={editingName}
+                          onChangeText={setEditingName}
+                          selectTextOnFocus
+                          maxLength={50}
+                          editable={!operationInProgress}
+                          returnKeyType="done"
+                          onSubmitEditing={() => commitRename(budget)}
+                          onKeyPress={(e) => {
+                            if (e.nativeEvent.key === 'Escape') closeRename();
+                          }}
+                        />
+                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space.s2, marginTop: space.s3 }}>
+                          <Button
+                            text="Cancel"
+                            variant="secondary"
+                            onPress={closeRename}
+                            disabled={operationInProgress}
+                            style={{ width: 'auto', marginTop: 0, paddingHorizontal: space.s5 }}
+                          />
+                          <Button
+                            text="Save"
+                            onPress={() => commitRename(budget)}
+                            disabled={!editingName.trim() || operationInProgress}
+                            loading={operationInProgress}
+                            style={{ width: 'auto', marginTop: 0, paddingHorizontal: space.s5 }}
+                          />
+                        </View>
+                      </View>
+                    );
+                  }
+                  const dimmed = !!editingBudgetId;
+                  return (
+                    <ListRow
+                      key={budget.id}
+                      title={budget.name}
+                      caption={describe(budget)}
+                      icon={locked ? 'lock-closed-outline' : isShared(budget) ? 'people-outline' : 'folder-outline'}
+                      iconColor={isActive ? tokens.colors.brand : undefined}
+                      trailing={isActive ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
+                      onPress={isActive || operationInProgress || dimmed ? undefined : () => handleSetActiveBudget(budget.id)}
+                      accessibilityLabel={`${budget.name}${isActive ? ', active budget' : ', switch to this budget'}${isShared(budget) ? ', shared' : ''}${locked ? ', locked' : ''}`}
+                      accessory={
+                        <View ref={(el) => { moreButtons.current[budget.id] = el; }} collapsable={false}>
+                          <IconButton
+                            icon="ellipsis-horizontal"
+                            accessibilityLabel={`More actions for ${budget.name}`}
+                            onPress={() => openActions(budget.id)}
+                            disabled={operationInProgress || dimmed}
+                          />
+                        </View>
+                      }
+                      showSeparator={i < budgets.length - 1}
+                      style={dimmed ? { opacity: 0.4 } : undefined}
+                    />
+                  );
+                })}
+              </ListGroup>
+            )}
+
+            <ListGroup
+              header="Spreadsheets"
+              footer="Importing always adds a new budget. It never changes an existing one."
+            >
+              <ListRow
+                title="Import a workbook"
+                caption="From a Budget Flow export or template, in Excel format"
+                captionLines={2}
+                icon="document-outline"
+                chevron
+                onPress={operationInProgress ? undefined : () => router.push('/import-budget')}
+                showSeparator={false}
               />
             </ListGroup>
-          ) : (
-            <ListGroup
-              header="Your budgets"
-              footer="Tap a budget to switch to it. Use ⋯ to share, rename, duplicate, export, lock or delete."
-            >
-              {budgets.map((budget, i) => {
-                const isActive = activeBudget?.id === budget.id;
-                const locked = hasLock(budget);
-                const renaming = editingBudgetId === budget.id;
-                if (renaming) {
-                  // Rename takes over the row: a labelled field and text actions,
-                  // so nothing reads as the active-budget tick. Other rows dim.
-                  return (
-                    <View
-                      key={budget.id}
-                      style={{
-                        padding: space.s4,
-                        borderBottomWidth: i < budgets.length - 1 ? StyleSheet.hairlineWidth : 0,
-                        borderBottomColor: tokens.colors.border,
-                      }}
-                    >
-                      <Input
-                        ref={renameInput}
-                        label="Budget name"
-                        value={editingName}
-                        onChangeText={setEditingName}
-                        selectTextOnFocus
-                        maxLength={50}
-                        editable={!operationInProgress}
-                        returnKeyType="done"
-                        onSubmitEditing={() => commitRename(budget)}
-                        onKeyPress={(e) => {
-                          if (e.nativeEvent.key === 'Escape') closeRename();
-                        }}
-                      />
-                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space.s2, marginTop: space.s3 }}>
-                        <Button
-                          text="Cancel"
-                          variant="secondary"
-                          onPress={closeRename}
-                          disabled={operationInProgress}
-                          style={{ width: 'auto', marginTop: 0, paddingHorizontal: space.s5 }}
-                        />
-                        <Button
-                          text="Save"
-                          onPress={() => commitRename(budget)}
-                          disabled={!editingName.trim() || operationInProgress}
-                          loading={operationInProgress}
-                          style={{ width: 'auto', marginTop: 0, paddingHorizontal: space.s5 }}
-                        />
-                      </View>
-                    </View>
-                  );
-                }
-                const dimmed = !!editingBudgetId;
-                return (
-                  <ListRow
-                    key={budget.id}
-                    title={budget.name}
-                    caption={describe(budget)}
-                    icon={locked ? 'lock-closed-outline' : isShared(budget) ? 'people-outline' : 'folder-outline'}
-                    iconColor={isActive ? tokens.colors.brand : undefined}
-                    trailing={isActive ? <Icon name="checkmark" size={20} color={tokens.colors.brand} /> : undefined}
-                    onPress={isActive || operationInProgress || dimmed ? undefined : () => handleSetActiveBudget(budget.id)}
-                    accessibilityLabel={`${budget.name}${isActive ? ', active budget' : ', switch to this budget'}${isShared(budget) ? ', shared' : ''}${locked ? ', locked' : ''}`}
-                    accessory={
-                      <View ref={(el) => { moreButtons.current[budget.id] = el; }} collapsable={false}>
-                        <IconButton
-                          icon="ellipsis-horizontal"
-                          accessibilityLabel={`More actions for ${budget.name}`}
-                          onPress={() => openActions(budget.id)}
-                          disabled={operationInProgress || dimmed}
-                        />
-                      </View>
-                    }
-                    showSeparator={i < budgets.length - 1}
-                    style={dimmed ? { opacity: 0.4 } : undefined}
-                  />
-                );
-              })}
-            </ListGroup>
-          )}
-
-          <ListGroup
-            header="Spreadsheets"
-            footer="Importing always adds a new budget. It never changes an existing one."
-          >
-            <ListRow
-              title="Import a workbook"
-              caption="From a Budget Flow export or template, in Excel format"
-              captionLines={2}
-              icon="document-outline"
-              chevron
-              onPress={operationInProgress ? undefined : () => router.push('/import-budget')}
-              showSeparator={false}
-            />
-          </ListGroup>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </FormScreen>
 
       {/* Per-budget actions */}
       <Menu

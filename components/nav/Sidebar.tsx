@@ -5,13 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Rect, Line } from 'react-native-svg';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { LAYOUT, bottomClearance, useBottomInset, useBreakpoint } from '../../hooks/useBreakpoint';
 import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
-import { Avatar, ConfirmDialog } from '../ui';
+import { Avatar, ConfirmDialog, Menu, type MenuAnchor, type MenuSection } from '../ui';
+import { hasLock } from '../../utils/budgetLock';
+import { haptics } from '../../utils/haptics';
 import { type, space, radius, elevation, motion } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
 import GlassPanel from './GlassPanel';
@@ -26,7 +29,8 @@ import GlassPanel from './GlassPanel';
  *   is remembered on the device. Starts open.
  * - Medium: closed; opening it floats over the content above a scrim, and a
  *   tap outside, Escape or navigating closes it.
- * Toggle: the sidebar button at the top, or ⌘\ / Ctrl+\ on web.
+ * Toggle: the sidebar button pinned top-right (closed: the logo, which shows
+ * the sidebar glyph on hover), or ⌘\ / Ctrl+\ on web.
  */
 
 const OPEN = LAYOUT.sidebarWidth;
@@ -51,6 +55,17 @@ function SidebarGlyph({ color }: { color: string }) {
   );
 }
 
+function BrandMark() {
+  return (
+    <Image
+      source={require('../../assets/images/icon.png')}
+      style={{ width: 28, height: 28, borderRadius: radius.sm }}
+      resizeMode="cover"
+      accessibilityIgnoresInvertColors
+    />
+  );
+}
+
 /** Reports a pressable's vertical centre for the hover tooltip (web only). */
 function useTipTarget(label: string, showTip: ShowTip) {
   const ref = useRef<View>(null);
@@ -71,6 +86,10 @@ interface RowProps {
   variant?: 'nav' | 'primary' | 'destructive' | 'outlined';
   accessibilityLabel?: string;
   trailing?: React.ReactNode;
+  /** Also receives the row, e.g. to measure it for a menu that drops from it. */
+  anchorRef?: React.MutableRefObject<View | null>;
+  /** The sidebar is closed (primary rows centre their icon alone then). */
+  collapsed?: boolean;
 }
 
 function SidebarRow({
@@ -83,6 +102,8 @@ function SidebarRow({
   variant = 'nav',
   accessibilityLabel,
   trailing,
+  anchorRef,
+  collapsed,
 }: RowProps) {
   const { tokens } = useTheme();
   const tip = useTipTarget(label, showTip);
@@ -91,10 +112,16 @@ function SidebarRow({
     variant === 'primary' ? c.onBrand : variant === 'destructive' ? c.danger : active ? c.onBrandSubtle : c.textMuted;
   const textColor =
     variant === 'primary' ? c.onBrand : variant === 'destructive' ? c.danger : active ? c.onBrandSubtle : c.text;
+  // The primary action reads as a button, as ui/Button does: content centred,
+  // and the same hover and press feedback.
+  const primary = variant === 'primary';
 
   return (
     <Pressable
-      ref={tip.ref}
+      ref={(node) => {
+        tip.ref.current = node;
+        if (anchorRef) anchorRef.current = node;
+      }}
       onPress={onPress}
       onHoverIn={tip.onHoverIn}
       onHoverOut={tip.onHoverOut}
@@ -104,6 +131,7 @@ function SidebarRow({
       style={({ pressed, hovered }: any) => ({
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: primary ? 'center' : 'flex-start',
         minHeight: 44,
         borderRadius: radius.md,
         backgroundColor:
@@ -116,27 +144,44 @@ function SidebarRow({
                   ? c.dangerSubtle
                   : c.surfaceHover
                 : 'transparent',
-        opacity: variant === 'primary' && pressed ? 0.85 : 1,
+        opacity: primary ? (pressed ? 0.85 : hovered ? 0.92 : 1) : 1,
+        transform: primary && pressed ? [{ scale: 0.98 }] : [],
         borderWidth: variant === 'outlined' ? 1 : 0,
         borderColor: c.border,
         // @ts-ignore web transition
         transitionDuration: `${motion.fast}ms`,
       })}
     >
-      <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
-        <Icon name={icon as any} size={20} color={iconColor} />
-      </View>
-      <Animated.View
-        style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
-      >
-        <Text
-          numberOfLines={1}
-          style={[active || variant !== 'nav' ? type.bodyMed : type.body, { color: textColor, flex: 1 }]}
-        >
-          {label}
-        </Text>
-        {trailing ? <View style={{ marginHorizontal: space.s3 }}>{trailing}</View> : null}
-      </Animated.View>
+      {primary ? (
+        <>
+          <Icon name={icon as any} size={20} color={iconColor} />
+          {collapsed ? null : (
+            <Animated.Text
+              numberOfLines={1}
+              style={[type.bodyMed, { color: textColor, marginLeft: space.s2, flexShrink: 1, opacity: labelOpacity }]}
+            >
+              {label}
+            </Animated.Text>
+          )}
+        </>
+      ) : (
+        <>
+          <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+            <Icon name={icon as any} size={20} color={iconColor} />
+          </View>
+          <Animated.View
+            style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
+          >
+            <Text
+              numberOfLines={1}
+              style={[active || variant !== 'nav' ? type.bodyMed : type.body, { color: textColor, flex: 1 }]}
+            >
+              {label}
+            </Text>
+            {trailing ? <View style={{ marginHorizontal: space.s3 }}>{trailing}</View> : null}
+          </Animated.View>
+        </>
+      )}
     </Pressable>
   );
 }
@@ -144,7 +189,10 @@ function SidebarRow({
 export default function Sidebar() {
   const { tokens, isDarkMode } = useTheme();
   const { user, signOut } = useAuth();
-  const { activeBudget } = useBudgetData();
+  const { appData, activeBudget, setActiveBudget } = useBudgetData();
+  const { showToast } = useToast();
+  const switcherRef = useRef<View | null>(null);
+  const [budgetMenu, setBudgetMenu] = useState<MenuAnchor | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -178,6 +226,9 @@ export default function Sidebar() {
   }, [pathname, docked]);
 
   const toggle = () => (docked ? setCollapsed(!collapsed) : setOverlayOpen((o) => !o));
+  // The budget menu takes Escape itself while it's open.
+  const budgetMenuOpen = useRef(false);
+  budgetMenuOpen.current = !!budgetMenu;
   const toggleRef = useRef(toggle);
   toggleRef.current = toggle;
 
@@ -187,7 +238,7 @@ export default function Sidebar() {
       if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
         e.preventDefault();
         toggleRef.current();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && !budgetMenuOpen.current) {
         setOverlayOpen(false);
       }
     };
@@ -205,6 +256,49 @@ export default function Sidebar() {
   const toggleTip = useTipTarget(`${open ? 'Hide' : 'Show'} sidebar  ${SHORTCUT}`, showTip);
 
   const go = (route: string) => releaseDiscardGuard(() => router.navigate(route as any));
+
+  // The switcher is a menu: budgets (oldest first, as everywhere) with a ✓ on
+  // the open one and a lock on locked ones, then Manage budgets… for the rest.
+  const openBudgetMenu = () =>
+    switcherRef.current?.measureInWindow((x, y, width, height) => setBudgetMenu({ x, y, width, height }));
+  const switchTo = async (budgetId: string) => {
+    setBudgetMenu(null);
+    setOverlayOpen(false);
+    if (budgetId === activeBudget?.id) return;
+    haptics.selection();
+    try {
+      const result = await setActiveBudget(budgetId);
+      if (!result.success) showToast(result.error?.message || 'Couldn’t switch budget. Please try again.', 'error');
+    } catch (error) {
+      console.error('Error switching budget:', error);
+      showToast('Couldn’t switch budget. Please try again.', 'error');
+    }
+  };
+  const budgetSections: MenuSection[] = [
+    {
+      items: appData.budgets.map((budget) => ({
+        key: budget.id,
+        label: budget.name,
+        checked: budget.id === activeBudget?.id,
+        icon: hasLock(budget) ? 'lock-closed-outline' : undefined,
+        detail: hasLock(budget) ? 'Locked' : undefined,
+        onPress: () => switchTo(budget.id),
+      })),
+    },
+    {
+      items: [
+        {
+          key: 'manage',
+          label: 'Manage budgets…',
+          icon: 'settings-outline',
+          onPress: () => {
+            setBudgetMenu(null);
+            push('/budgets');
+          },
+        },
+      ],
+    },
+  ];
   const push = (route: string) => releaseDiscardGuard(() => router.push(route as any));
 
   return (
@@ -239,17 +333,51 @@ export default function Sidebar() {
       >
         <GlassPanel borderRadius={radius.xl} fill style={{ flex: 1 }}>
           <View style={{ flex: 1, overflow: 'hidden', borderRadius: radius.xl, padding: PAD }}>
-            {/* Sidebar toggle + brand */}
+            {/* Brand, with the sidebar button pinned right. Closed, the
+                button is clipped away and the logo opens the sidebar
+                instead, showing the sidebar glyph on hover. */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.s3 }}>
               <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+                {open ? (
+                  <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                    <BrandMark />
+                  </View>
+                ) : (
+                  <Pressable
+                    ref={toggleTip.ref}
+                    onPress={toggle}
+                    onHoverIn={toggleTip.onHoverIn}
+                    onHoverOut={toggleTip.onHoverOut}
+                    accessibilityRole="button"
+                    accessibilityLabel="Show sidebar"
+                    accessibilityState={{ expanded: false }}
+                    style={({ pressed, hovered }: any) => ({
+                      width: 44,
+                      height: 44,
+                      borderRadius: radius.md,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : 'transparent',
+                    })}
+                  >
+                    {({ hovered }: any) => (hovered ? <SidebarGlyph color={tokens.colors.textMuted} /> : <BrandMark />)}
+                  </Pressable>
+                )}
+              </View>
+              <Animated.View
+                style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
+              >
+                <Text style={[type.h3, { color: tokens.colors.text, flex: 1 }]} numberOfLines={1}>
+                  Budget Flow
+                </Text>
                 <Pressable
-                  ref={toggleTip.ref}
                   onPress={toggle}
-                  onHoverIn={toggleTip.onHoverIn}
-                  onHoverOut={toggleTip.onHoverOut}
                   accessibilityRole="button"
-                  accessibilityLabel={open ? 'Hide sidebar' : 'Show sidebar'}
-                  accessibilityState={{ expanded: open }}
+                  accessibilityLabel="Hide sidebar"
+                  accessibilityState={{ expanded: true }}
+                  // Out of reach while it's clipped away (closed).
+                  aria-hidden={!open}
+                  disabled={!open}
                   style={({ pressed, hovered }: any) => ({
                     width: 44,
                     height: 44,
@@ -261,19 +389,6 @@ export default function Sidebar() {
                 >
                   <SidebarGlyph color={tokens.colors.textMuted} />
                 </Pressable>
-              </View>
-              <Animated.View
-                style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
-              >
-                <Image
-                  source={require('../../assets/images/icon.png')}
-                  style={{ width: 28, height: 28, borderRadius: radius.sm, marginRight: space.s2 }}
-                  resizeMode="cover"
-                  accessibilityIgnoresInvertColors
-                />
-                <Text style={[type.h3, { color: tokens.colors.text, flex: 1 }]} numberOfLines={1}>
-                  Budget Flow
-                </Text>
               </Animated.View>
             </View>
 
@@ -282,7 +397,8 @@ export default function Sidebar() {
               label={activeBudget?.name || 'Select budget'}
               accessibilityLabel={`Switch budget. Current budget: ${activeBudget?.name || 'none'}`}
               variant="outlined"
-              onPress={() => push('/budgets')}
+              onPress={openBudgetMenu}
+              anchorRef={switcherRef}
               labelOpacity={labelOpacity}
               showTip={showTip}
               trailing={<Icon name="chevron-expand-outline" size={16} color={tokens.colors.textFaint} />}
@@ -314,6 +430,7 @@ export default function Sidebar() {
                   icon="add"
                   label="Add expense"
                   variant="primary"
+                  collapsed={!open}
                   onPress={() => push('/add-expense')}
                   labelOpacity={labelOpacity}
                   showTip={showTip}
@@ -380,6 +497,15 @@ export default function Sidebar() {
           </Text>
         </View>
       ) : null}
+
+      <Menu
+        visible={!!budgetMenu}
+        onClose={() => setBudgetMenu(null)}
+        anchor={budgetMenu}
+        label="Switch budget"
+        align="start"
+        sections={budgetSections}
+      />
 
       <ConfirmDialog
         visible={confirmSignOut}

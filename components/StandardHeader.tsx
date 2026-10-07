@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator, Platform, StyleSheet, Animate
 import { useTheme } from '../hooks/useTheme';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import type { LargeTitleState } from '../hooks/useLargeTitle';
-import { FormCardContext } from './ui/FormScreen';
+import { FormCardContext, FORM_CARD_HEADER_INSET } from './ui/FormScreen';
 import Icon from './Icon';
 import { type, radius, space } from '../styles/tokens';
 
@@ -106,7 +106,8 @@ export default function StandardHeader({
   maxWidth,
 }: StandardHeaderProps) {
   const { tokens } = useTheme();
-  const inFormCard = useContext(FormCardContext);
+  const formCard = useContext(FormCardContext);
+  const inFormCard = !!formCard;
   const bp = useBreakpoint();
   const large = largeTitle?.enabled ? largeTitle : undefined;
 
@@ -199,6 +200,11 @@ export default function StandardHeader({
             : { icon: leftIcon ?? 'arrow-back', onPress: onLeftPress, iconColor: leftIconColor },
         ]
       : [];
+  // In a pop-up form, Escape and the backdrop do what the leading button does.
+  React.useEffect(() => {
+    if (formCard) formCard.dismissRef.current = left[0]?.onPress ?? null;
+  });
+
   const right = rightButtons && rightButtons.length > 0
     ? rightButtons
     : !confirm && showRightIcon && onRightPress
@@ -386,6 +392,10 @@ export default function StandardHeader({
         paddingHorizontal: bp.gutter,
         paddingVertical: space.s2,
         ...(pageTitle ? { paddingTop: space.s7, justifyContent: 'center' as const } : null),
+        // In the form card: the buttons evenly inset from the card's top and sides.
+        ...(inFormCard
+          ? { paddingHorizontal: FORM_CARD_HEADER_INSET, paddingTop: FORM_CARD_HEADER_INSET, paddingBottom: space.s3 }
+          : null),
         // The subtitle hangs below the bar at rest, over the scroll content,
         // so the bar paints above its sibling scroller.
         ...(large ? { zIndex: 1 } : null),

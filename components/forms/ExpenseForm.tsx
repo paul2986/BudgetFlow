@@ -5,12 +5,12 @@ import { View, Text, ScrollView, TextInput } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import { useTheme } from '../../hooks/useTheme';
-import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
+import { BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
 import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import Button from '../Button';
 import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
-import { ChoicePills, DateField, Input, SegmentedControl } from '../ui';
+import { ChoicePills, DateField, Input, SegmentedControl, useFormInsets } from '../ui';
 import { type, space } from '../../styles/tokens';
 import { BucketId, Expense, ExpenseCategory, DEFAULT_CATEGORIES, CATEGORY_BY_DEBT_REPAYMENT, debtRepaymentForCategory } from '../../types/budget';
 import { categoryBucketLookup, isBucketId, resolveBucket } from '../../utils/budgetReview';
@@ -57,7 +57,7 @@ interface ExpenseFormProps {
 export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps) {
     const { data, activeBudget, addExpense, updateExpense, removeExpense } = useBudgetData();
     const { tokens } = useTheme();
-    const scrollBottomPadding = useScrollBottomPadding();
+    const formInsets = useFormInsets();
 
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
@@ -284,7 +284,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
         <ScrollView
             ref={scrollViewRef}
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
+            contentContainerStyle={{ ...formInsets, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
             keyboardShouldPersistTaps="handled"
             automaticallyAdjustKeyboardInsets
         >

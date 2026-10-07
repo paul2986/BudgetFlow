@@ -3,13 +3,13 @@ import { View, ScrollView, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
-import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
+import { BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
 import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import { useCurrency } from '../../hooks/useCurrency';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import Button from '../Button';
 import StandardHeader from '../StandardHeader';
-import { AmountText, Input, ListGroup, ListRow, Skeleton } from '../ui';
+import { AmountText, Input, ListGroup, ListRow, Skeleton, useFormInsets } from '../ui';
 import { calculatePersonIncome, calculateMonthlyAmount } from '../../utils/calculations';
 import { space } from '../../styles/tokens';
 
@@ -31,7 +31,7 @@ interface PersonFormProps {
 export default function PersonForm({ personId, onClose, onSuccess }: PersonFormProps) {
     const { data, updatePerson, removePerson, saving } = useBudgetData();
     const { tokens } = useTheme();
-    const scrollBottomPadding = useScrollBottomPadding();
+    const formInsets = useFormInsets();
     const { formatCurrency } = useCurrency();
 
     const person = data.people.find(p => p.id === personId) || null;
@@ -92,7 +92,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
         return (
             <>
                 <StandardHeader title="Edit person" onLeftPress={onClose} confirm={{ onPress: () => {}, disabled: true }} />
-                <View style={{ padding: space.s5, gap: space.s3 }}>
+                <View style={{ ...formInsets, gap: space.s3 }}>
                     <Skeleton height={48} />
                     <Skeleton height={160} />
                 </View>
@@ -121,7 +121,7 @@ export default function PersonForm({ personId, onClose, onSuccess }: PersonFormP
             />
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
+                contentContainerStyle={{ ...formInsets, minHeight: BOUNCE_MIN_HEIGHT }}
                 keyboardShouldPersistTaps="handled"
                 automaticallyAdjustKeyboardInsets
             >
