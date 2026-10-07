@@ -1,13 +1,12 @@
-import { View, Pressable, Platform, StyleSheet } from 'react-native';
+import { View, Pressable, Platform } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
-import { BlurView } from 'expo-blur';
-import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useTheme } from '../../hooks/useTheme';
 import { LAYOUT, bottomClearance, IS_IOS_SAFARI_TAB, useBottomInset, tabBarBottomOffset } from '../../hooks/useBreakpoint';
 import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
-import { space, radius, elevation } from '../../styles/tokens';
+import { space, radius } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
+import GlassPanel from './GlassPanel';
 
 /**
  * Compact-class bottom tab bar (DESIGN.md §2.6), as a floating pill.
@@ -16,12 +15,9 @@ import { NAV_TABS, isTabActive } from './navConfig';
  * - Never hidden: sub-screens and empty states keep primary navigation.
  * - Floats inside the home-indicator zone (like iOS 26 / Instagram) rather
  *   than stacking a full safe-area band under a flat bar.
- * - iOS 26+: Liquid Glass material. Older iOS: `chrome` blur. Web: CSS
- *   backdrop blur. Android: opaque raised surface.
+ * - Material: GlassPanel (Liquid Glass / blur / backdrop blur), shared with
+ *   the sidebar.
  */
-
-// Checked once: availability is fixed for the lifetime of the process.
-const USE_LIQUID_GLASS = Platform.OS === 'ios' && isLiquidGlassAvailable();
 
 function TabItem({
   label,
@@ -61,7 +57,6 @@ function TabItem({
 }
 
 export default function BottomTabBar() {
-  const { tokens, isDarkMode } = useTheme();
   const router = useRouter();
   const pathname = usePathname();
   const bottomInset = useBottomInset();
@@ -84,8 +79,6 @@ export default function BottomTabBar() {
     </View>
   );
 
-  const pill = { borderRadius: radius.full };
-
   return (
     <View
       pointerEvents="box-none"
@@ -100,48 +93,7 @@ export default function BottomTabBar() {
         zIndex: 1000,
       }}
     >
-      {USE_LIQUID_GLASS ? (
-        // Glass draws its own edge highlight and depth, so no hairline or
-        // shadow. colorScheme follows the in-app theme, not the system.
-        <GlassView
-          glassEffectStyle="regular"
-          colorScheme={isDarkMode ? 'dark' : 'light'}
-          style={pill}
-        >
-          {tabs}
-        </GlassView>
-      ) : (
-        <View
-          style={[
-            pill,
-            {
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: tokens.colors.borderStrong,
-              overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
-              backgroundColor:
-                Platform.OS === 'android'
-                  ? tokens.colors.surfaceRaised
-                  : Platform.OS === 'ios'
-                    ? 'transparent' // BlurView supplies the material
-                    : tokens.colors.chrome,
-              // @ts-ignore web blur
-              ...(Platform.OS === 'web'
-                ? { backdropFilter: 'blur(12px) saturate(160%)', WebkitBackdropFilter: 'blur(12px) saturate(160%)' }
-                : {}),
-            },
-            // Dark mode separates by surface + hairline, not shadow.
-            isDarkMode ? null : elevation.e2,
-          ]}
-        >
-          {Platform.OS === 'ios' ? (
-            <BlurView intensity={60} tint={isDarkMode ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'}>
-              {tabs}
-            </BlurView>
-          ) : (
-            tabs
-          )}
-        </View>
-      )}
+      <GlassPanel borderRadius={radius.full}>{tabs}</GlassPanel>
     </View>
   );
 }
