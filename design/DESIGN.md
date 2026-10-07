@@ -213,7 +213,7 @@ Rules:
 | `sheet` | spring (damping 28, stiffness 260) — bottom sheets, dialogs (scale 0.96→1 + fade) |
 | `stagger` | 40ms/item, max 6 items — dashboard cards & list entrance |
 | `theme` | 320ms, ease-in-out — light/dark switch cross-fades the whole screen (web: View Transitions; native: a veil in the old background fades out). Instant under reduced motion |
-| `unlock` | `theme` timing (320ms, ease-in-out) — a budget fades in from nothing when its lock opens, instead of replacing the code pad at full strength (`components/UnlockFade`; opacity only, native driver; 150ms under reduced motion). Only after an unlock: the wrapper is a plain pass-through on every other visit |
+| `unlock` | 500ms, ease-out — a budget fades in when its lock opens, instead of replacing the code pad at full strength (`components/UnlockFade`): a veil in the page colour over the content fades out and is then removed (opacity only, native driver; 150ms under reduced motion). A veil, not the content's own opacity going 0 to 1 and being reset: that version left the screen blank on iOS. Only after an unlock: otherwise the wrapper is just a View |
 
 Rules: animate transform/opacity only; exactly one attention animation per screen; **respect `prefers-reduced-motion` / `AccessibilityInfo.isReduceMotionEnabled`** globally (disable stagger, springs → 150ms fades); delete the auth screen's infinite floating circles (replace with static radial tint); press feedback within 100ms on all touchables (opacity 0.85 or scale 0.98).
 

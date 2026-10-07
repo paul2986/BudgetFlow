@@ -352,6 +352,8 @@ export const motion = {
   theme: 320,
   /** Amounts counting up/down to a new value (ease-out), e.g. a period switch. */
   count: 420,
+  /** A budget fading into view when its lock opens (ease-out): long enough to be seen as a fade, not a flicker. */
+  unlock: 500,
   /** Bottom sheets & dialogs (scale 0.96 -> 1 + fade). */
   spring: { damping: 28, stiffness: 260 },
   /** List/dashboard entrance stagger; cap at 6 items. */
