@@ -88,6 +88,8 @@ interface RowProps {
   trailing?: React.ReactNode;
   /** Also receives the row, e.g. to measure it for a menu that drops from it. */
   anchorRef?: React.MutableRefObject<View | null>;
+  /** The sidebar is closed (primary rows centre their icon alone then). */
+  collapsed?: boolean;
 }
 
 function SidebarRow({
@@ -101,6 +103,7 @@ function SidebarRow({
   accessibilityLabel,
   trailing,
   anchorRef,
+  collapsed,
 }: RowProps) {
   const { tokens } = useTheme();
   const tip = useTipTarget(label, showTip);
@@ -109,6 +112,9 @@ function SidebarRow({
     variant === 'primary' ? c.onBrand : variant === 'destructive' ? c.danger : active ? c.onBrandSubtle : c.textMuted;
   const textColor =
     variant === 'primary' ? c.onBrand : variant === 'destructive' ? c.danger : active ? c.onBrandSubtle : c.text;
+  // The primary action reads as a button, as ui/Button does: content centred,
+  // and the same hover and press feedback.
+  const primary = variant === 'primary';
 
   return (
     <Pressable
@@ -125,6 +131,7 @@ function SidebarRow({
       style={({ pressed, hovered }: any) => ({
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: primary ? 'center' : 'flex-start',
         minHeight: 44,
         borderRadius: radius.md,
         backgroundColor:
@@ -137,27 +144,44 @@ function SidebarRow({
                   ? c.dangerSubtle
                   : c.surfaceHover
                 : 'transparent',
-        opacity: variant === 'primary' && pressed ? 0.85 : 1,
+        opacity: primary ? (pressed ? 0.85 : hovered ? 0.92 : 1) : 1,
+        transform: primary && pressed ? [{ scale: 0.98 }] : [],
         borderWidth: variant === 'outlined' ? 1 : 0,
         borderColor: c.border,
         // @ts-ignore web transition
         transitionDuration: `${motion.fast}ms`,
       })}
     >
-      <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
-        <Icon name={icon as any} size={20} color={iconColor} />
-      </View>
-      <Animated.View
-        style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
-      >
-        <Text
-          numberOfLines={1}
-          style={[active || variant !== 'nav' ? type.bodyMed : type.body, { color: textColor, flex: 1 }]}
-        >
-          {label}
-        </Text>
-        {trailing ? <View style={{ marginHorizontal: space.s3 }}>{trailing}</View> : null}
-      </Animated.View>
+      {primary ? (
+        <>
+          <Icon name={icon as any} size={20} color={iconColor} />
+          {collapsed ? null : (
+            <Animated.Text
+              numberOfLines={1}
+              style={[type.bodyMed, { color: textColor, marginLeft: space.s2, flexShrink: 1, opacity: labelOpacity }]}
+            >
+              {label}
+            </Animated.Text>
+          )}
+        </>
+      ) : (
+        <>
+          <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+            <Icon name={icon as any} size={20} color={iconColor} />
+          </View>
+          <Animated.View
+            style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
+          >
+            <Text
+              numberOfLines={1}
+              style={[active || variant !== 'nav' ? type.bodyMed : type.body, { color: textColor, flex: 1 }]}
+            >
+              {label}
+            </Text>
+            {trailing ? <View style={{ marginHorizontal: space.s3 }}>{trailing}</View> : null}
+          </Animated.View>
+        </>
+      )}
     </Pressable>
   );
 }
@@ -406,6 +430,7 @@ export default function Sidebar() {
                   icon="add"
                   label="Add expense"
                   variant="primary"
+                  collapsed={!open}
                   onPress={() => push('/add-expense')}
                   labelOpacity={labelOpacity}
                   showTip={showTip}

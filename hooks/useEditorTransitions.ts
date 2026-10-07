@@ -149,7 +149,10 @@ export function useEditorTransitions(width: number, mode: EditorTransitionMode) 
       const state = navigation.getState();
       if (mode === 'popup') {
         if (POPUP_ROUTES.has(route.name)) return { sceneStyle: { backgroundColor: 'transparent' } };
-        return route.key === screenBeneath(state) ? ({ sceneVisible: true } as Options) : {};
+        // Web keeps every visited screen in the page, stacked in route order,
+        // and the pop-up's own scene is transparent: lift the one it opened
+        // over above the rest, or whichever comes last in route order shows.
+        return route.key === screenBeneath(state) ? ({ sceneVisible: true, sceneZIndex: 1 } as Options) : {};
       }
       const memo = last.current;
       if (state !== memo.state) {
