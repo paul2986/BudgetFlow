@@ -5,13 +5,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Rect, Line } from 'react-native-svg';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../hooks/useToast';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { LAYOUT, bottomClearance, useBottomInset, useBreakpoint } from '../../hooks/useBreakpoint';
 import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
-import { Avatar, ConfirmDialog } from '../ui';
+import { Avatar, ConfirmDialog, Menu, type MenuAnchor, type MenuSection } from '../ui';
+import { hasLock } from '../../utils/budgetLock';
+import { haptics } from '../../utils/haptics';
 import { type, space, radius, elevation, motion } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
 import GlassPanel from './GlassPanel';
@@ -83,6 +86,8 @@ interface RowProps {
   variant?: 'nav' | 'primary' | 'destructive' | 'outlined';
   accessibilityLabel?: string;
   trailing?: React.ReactNode;
+  /** Also receives the row, e.g. to measure it for a menu that drops from it. */
+  anchorRef?: React.MutableRefObject<View | null>;
 }
 
 function SidebarRow({
@@ -95,6 +100,7 @@ function SidebarRow({
   variant = 'nav',
   accessibilityLabel,
   trailing,
+  anchorRef,
 }: RowProps) {
   const { tokens } = useTheme();
   const tip = useTipTarget(label, showTip);
@@ -106,7 +112,10 @@ function SidebarRow({
 
   return (
     <Pressable
-      ref={tip.ref}
+      ref={(node) => {
+        tip.ref.current = node;
+        if (anchorRef) anchorRef.current = node;
+      }}
       onPress={onPress}
       onHoverIn={tip.onHoverIn}
       onHoverOut={tip.onHoverOut}
@@ -156,7 +165,10 @@ function SidebarRow({
 export default function Sidebar() {
   const { tokens, isDarkMode } = useTheme();
   const { user, signOut } = useAuth();
-  const { activeBudget } = useBudgetData();
+  const { appData, activeBudget, setActiveBudget } = useBudgetData();
+  const { showToast } = useToast();
+  const switcherRef = useRef<View | null>(null);
+  const [budgetMenu, setBudgetMenu] = useState<MenuAnchor | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
@@ -190,6 +202,9 @@ export default function Sidebar() {
   }, [pathname, docked]);
 
   const toggle = () => (docked ? setCollapsed(!collapsed) : setOverlayOpen((o) => !o));
+  // The budget menu takes Escape itself while it's open.
+  const budgetMenuOpen = useRef(false);
+  budgetMenuOpen.current = !!budgetMenu;
   const toggleRef = useRef(toggle);
   toggleRef.current = toggle;
 
@@ -199,7 +214,7 @@ export default function Sidebar() {
       if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
         e.preventDefault();
         toggleRef.current();
-      } else if (e.key === 'Escape') {
+      } else if (e.key === 'Escape' && !budgetMenuOpen.current) {
         setOverlayOpen(false);
       }
     };
@@ -217,6 +232,49 @@ export default function Sidebar() {
   const toggleTip = useTipTarget(`${open ? 'Hide' : 'Show'} sidebar  ${SHORTCUT}`, showTip);
 
   const go = (route: string) => releaseDiscardGuard(() => router.navigate(route as any));
+
+  // The switcher is a menu: budgets (oldest first, as everywhere) with a ✓ on
+  // the open one and a lock on locked ones, then Manage budgets… for the rest.
+  const openBudgetMenu = () =>
+    switcherRef.current?.measureInWindow((x, y, width, height) => setBudgetMenu({ x, y, width, height }));
+  const switchTo = async (budgetId: string) => {
+    setBudgetMenu(null);
+    setOverlayOpen(false);
+    if (budgetId === activeBudget?.id) return;
+    haptics.selection();
+    try {
+      const result = await setActiveBudget(budgetId);
+      if (!result.success) showToast(result.error?.message || 'Couldn’t switch budget. Please try again.', 'error');
+    } catch (error) {
+      console.error('Error switching budget:', error);
+      showToast('Couldn’t switch budget. Please try again.', 'error');
+    }
+  };
+  const budgetSections: MenuSection[] = [
+    {
+      items: appData.budgets.map((budget) => ({
+        key: budget.id,
+        label: budget.name,
+        checked: budget.id === activeBudget?.id,
+        icon: hasLock(budget) ? 'lock-closed-outline' : undefined,
+        detail: hasLock(budget) ? 'Locked' : undefined,
+        onPress: () => switchTo(budget.id),
+      })),
+    },
+    {
+      items: [
+        {
+          key: 'manage',
+          label: 'Manage budgets…',
+          icon: 'settings-outline',
+          onPress: () => {
+            setBudgetMenu(null);
+            push('/budgets');
+          },
+        },
+      ],
+    },
+  ];
   const push = (route: string) => releaseDiscardGuard(() => router.push(route as any));
 
   return (
@@ -315,7 +373,8 @@ export default function Sidebar() {
               label={activeBudget?.name || 'Select budget'}
               accessibilityLabel={`Switch budget. Current budget: ${activeBudget?.name || 'none'}`}
               variant="outlined"
-              onPress={() => push('/budgets')}
+              onPress={openBudgetMenu}
+              anchorRef={switcherRef}
               labelOpacity={labelOpacity}
               showTip={showTip}
               trailing={<Icon name="chevron-expand-outline" size={16} color={tokens.colors.textFaint} />}
@@ -413,6 +472,15 @@ export default function Sidebar() {
           </Text>
         </View>
       ) : null}
+
+      <Menu
+        visible={!!budgetMenu}
+        onClose={() => setBudgetMenu(null)}
+        anchor={budgetMenu}
+        label="Switch budget"
+        align="start"
+        sections={budgetSections}
+      />
 
       <ConfirmDialog
         visible={confirmSignOut}

@@ -9,9 +9,9 @@ import { type, space, radius, elevation, motion } from '../../styles/tokens';
  * Pull-down menu (iOS UIMenu idiom): a small panel that drops from the button
  * that opened it, grouped items with a checkmark on the current choice, and a
  * clear scrim that dismisses on tap. Pass the trigger's window rect as
- * `anchor` (from `measureInWindow`); the panel right-aligns to it and opens
- * upward when there isn't room below. Destructive items are red and go last
- * in their own section, as on iOS.
+ * `anchor` (from `measureInWindow`); the panel right-aligns to it (or left,
+ * with `align="start"`) and opens upward when there isn't room below.
+ * Destructive items are red and go last in their own section, as on iOS.
  */
 
 export interface MenuItem {
@@ -46,9 +46,11 @@ interface MenuProps {
   /** Accessible name for the menu. */
   label: string;
   width?: number;
+  /** Which edge of the anchor the panel lines up with: 'end' (default, right) or 'start' (left, e.g. in a sidebar). */
+  align?: 'start' | 'end';
 }
 
-export default function Menu({ visible, onClose, anchor, sections, label, width = 248 }: MenuProps) {
+export default function Menu({ visible, onClose, anchor, sections, label, width = 248, align = 'end' }: MenuProps) {
   const { tokens } = useTheme();
   const reduceMotion = useReducedMotion();
   const window = useWindowDimensions();
@@ -67,7 +69,10 @@ export default function Menu({ visible, onClose, anchor, sections, label, width 
 
   if (!anchor) return null;
 
-  const right = Math.max(space.s4, window.width - (anchor.x + anchor.width));
+  const horizontal =
+    align === 'start'
+      ? { left: Math.max(space.s4, Math.min(anchor.x, window.width - width - space.s4)) }
+      : { right: Math.max(space.s4, window.width - (anchor.x + anchor.width)) };
   const below = anchor.y + anchor.height + space.s2;
   const fitsBelow = below + panelHeight <= window.height - space.s4;
   const top = fitsBelow ? below : Math.max(space.s4, anchor.y - space.s2 - panelHeight);
@@ -85,7 +90,7 @@ export default function Menu({ visible, onClose, anchor, sections, label, width 
         style={{
           position: 'absolute',
           top,
-          right,
+          ...horizontal,
           width,
           maxWidth: window.width - space.s4 * 2,
           backgroundColor: tokens.colors.surfaceRaised,
@@ -132,6 +137,8 @@ export default function Menu({ visible, onClose, anchor, sections, label, width 
                   accessibilityRole="menuitem"
                   accessibilityLabel={item.detail ? `${item.label}, ${item.detail}` : item.label}
                   accessibilityState={{ checked: item.checked, disabled: !!item.disabled }}
+                  // Web: accessibilityState.checked isn't passed through for menu items.
+                  aria-checked={item.checked}
                   style={({ pressed, hovered }: any) => ({
                     minHeight: 44,
                     flexDirection: 'row',
