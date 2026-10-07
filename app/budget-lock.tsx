@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { View, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useThemedStyles } from '../hooks/useThemedStyles';
@@ -83,7 +84,7 @@ export default function BudgetLockScreen() {
   if (dataLoading || !budget) {
     return (
       <View style={themedStyles.container}>
-        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} />
+        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} maxWidth={LAYOUT.listMaxWidth} />
         <View style={{ padding: breakpoint.gutter, paddingTop: space.s6, gap: space.s3 }}>
           <Skeleton height={64} borderRadius={radius.lg} />
           <Skeleton height={160} borderRadius={radius.lg} />
@@ -98,7 +99,7 @@ export default function BudgetLockScreen() {
     return (
       <UnlockFade locked style={{ flex: 1 }}>
         <View style={themedStyles.container}>
-          <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} />
+          <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} maxWidth={420} />
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
@@ -157,13 +158,13 @@ export default function BudgetLockScreen() {
   return (
     <UnlockFade locked={false} style={{ flex: 1 }}>
       <View style={themedStyles.container}>
-        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} loading={saving} />
+        <StandardHeader title="Budget lock" onLeftPress={() => router.back()} showRightIcon={false} loading={saving} maxWidth={LAYOUT.listMaxWidth} />
 
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
         >
-          <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+          <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
             <ListGroup
               header={budget.name}
               footer={

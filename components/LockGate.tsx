@@ -26,7 +26,7 @@ export default function LockGate({ title, children }: { title: string; children:
     <UnlockFade locked={locked} style={{ flex: 1 }}>
       {locked && activeBudget ? (
         <View style={themedStyles.container}>
-          <StandardHeader title={title} showLeftIcon={false} showRightIcon={false} />
+          <StandardHeader title={title} showLeftIcon={false} showRightIcon={false} maxWidth={420} />
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}

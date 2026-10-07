@@ -1,5 +1,6 @@
 
 import { useEffect, useState, useCallback } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { View, ScrollView, Text } from 'react-native';
 import { Alert } from '../utils/alert';
 import StandardHeader from '../components/StandardHeader';
@@ -203,6 +204,7 @@ export default function ManageCategoriesScreen() {
     <View style={themedStyles.container}>
       <StandardHeader
         title="Categories"
+        maxWidth={LAYOUT.listMaxWidth}
         onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/settings'))}
         rightButtons={[{ icon: 'add', onPress: handleCreateCategory, accessibilityLabel: 'New category' }]}
       />
@@ -211,7 +213,7 @@ export default function ManageCategoriesScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
       >
-        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
           {loading ? (
             <ListGroup header="Your categories">
               <View style={{ padding: space.s4, gap: space.s3 }}>

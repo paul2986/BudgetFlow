@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { Text, View, Platform, Animated, Linking } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
@@ -36,7 +37,7 @@ import { haptics } from '../utils/haptics';
 type ThemeMode = 'system' | 'light' | 'dark';
 
 /** Settings reads best as a narrow column, even on desktop. */
-const SETTINGS_MAX_WIDTH = 680;
+const SETTINGS_MAX_WIDTH = LAYOUT.listMaxWidth;
 
 export default function SettingsScreen() {
   const { tokens, themeMode, setThemeMode } = useTheme();
@@ -104,7 +105,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Settings" largeTitle={largeTitle} showLeftIcon={false} showRightIcon={false} />
+      <StandardHeader title="Settings" largeTitle={largeTitle} maxWidth={SETTINGS_MAX_WIDTH} showLeftIcon={false} showRightIcon={false} />
 
       <Animated.ScrollView
         {...largeTitle.scrollProps}

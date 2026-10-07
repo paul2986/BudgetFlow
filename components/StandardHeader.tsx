@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Platform, StyleSheet, Animated } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import { useBreakpoint, STATUS_BAND } from '../hooks/useBreakpoint';
 import type { LargeTitleState } from '../hooks/useLargeTitle';
+import { FormCardContext } from './ui/FormScreen';
 import Icon from './Icon';
 import { type, radius, space } from '../styles/tokens';
 
@@ -61,6 +62,12 @@ interface StandardHeaderProps {
    * the content (`<LargeTitle>`), collapsing to this header on scroll.
    */
   largeTitle?: LargeTitleState;
+  /**
+   * Medium+: width of the screen's content column, so the title lines up
+   * with it (defaults to the breakpoint's content width). Narrow screens
+   * (settings, lists, forms) pass their own.
+   */
+  maxWidth?: number;
 }
 
 // Fallback spoken labels for common icon-only header buttons.
@@ -96,8 +103,10 @@ export default function StandardHeader({
   backgroundColor,
   confirm,
   largeTitle,
+  maxWidth,
 }: StandardHeaderProps) {
   const { tokens } = useTheme();
+  const inFormCard = useContext(FormCardContext);
   const bp = useBreakpoint();
   const large = largeTitle?.enabled ? largeTitle : undefined;
 
@@ -233,6 +242,10 @@ export default function StandardHeader({
     setGeometry?.({ collapseDistance, spacerHeight });
   }, [setGeometry, collapseDistance, spacerHeight]);
 
+  // Medium+ screens (not the form card): a page title in the content column.
+  const pageTitle = !bp.isCompact && !inFormCard && !large;
+  const columnWidth = pageTitle ? (maxWidth ?? bp.contentMaxWidth) : undefined;
+
   let chromeOpacity: Animated.AnimatedInterpolation<number> | number = 1;
   let titleSlot: React.ReactNode;
   if (large) {
@@ -319,6 +332,21 @@ export default function StandardHeader({
         ) : null}
       </View>
     );
+  } else if (pageTitle) {
+    // Medium+ page: a large title over the content column, as on a phone at
+    // rest, with the subtitle at body size beneath it.
+    titleSlot = (
+      <View style={{ flex: 1, marginRight: space.s2 }}>
+        <Text accessibilityRole="header" style={[type.display, { color: tokens.colors.text }]} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[type.body, { color: tokens.colors.textMuted, marginTop: space.s1 }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+    );
   } else {
     titleSlot = (
       // Pinned to the button row's height so a subtitle can't grow the bar.
@@ -357,6 +385,7 @@ export default function StandardHeader({
         minHeight,
         paddingHorizontal: bp.gutter,
         paddingVertical: space.s2,
+        ...(pageTitle ? { paddingTop: space.s7, justifyContent: 'center' as const } : null),
         // The subtitle hangs below the bar at rest, over the scroll content,
         // so the bar paints above its sibling scroller.
         ...(large ? { zIndex: 1 } : null),
@@ -391,12 +420,14 @@ export default function StandardHeader({
         />
       ) : null}
 
-      {left.map((btn, idx) => renderButton(btn, 'left', idx))}
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', maxWidth: columnWidth }}>
+        {left.map((btn, idx) => renderButton(btn, 'left', idx))}
 
-      {titleSlot}
+        {titleSlot}
 
-      {right.map((btn, idx) => renderButton(btn, 'right', idx))}
-      {confirm ? renderConfirm(confirm) : null}
+        {right.map((btn, idx) => renderButton(btn, 'right', idx))}
+        {confirm ? renderConfirm(confirm) : null}
+      </View>
     </View>
   );
 }

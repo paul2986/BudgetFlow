@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { createContext } from 'react';
 import { View, ViewStyle } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 import { useBreakpoint, LAYOUT } from '../../hooks/useBreakpoint';
@@ -10,6 +10,9 @@ import { radius, space, elevation } from '../../styles/tokens';
  * Because it's a route (not an overlay), every form is deep-linkable and the
  * browser back button behaves identically on all platforms.
  */
+
+/** True inside the medium+ form card, where a page-size title would overpower the dialog. */
+export const FormCardContext = createContext(false);
 
 interface FormScreenProps {
   children: React.ReactNode;
@@ -39,7 +42,7 @@ export default function FormScreen({ children, style }: FormScreenProps) {
           ...(tokens.isDark ? { backgroundColor: tokens.colors.surfaceRaised } : elevation.e2),
         }}
       >
-        {children}
+        <FormCardContext.Provider value={true}>{children}</FormCardContext.Provider>
       </View>
     </View>
   );

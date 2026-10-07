@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { RefreshControl, ScrollView, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
@@ -25,7 +26,7 @@ import { radius, space } from '../styles/tokens';
  * when they chose to share it.
  */
 
-const MAX_WIDTH = 680;
+const MAX_WIDTH = LAYOUT.listMaxWidth;
 
 type Filter = 'needs_you' | FeedbackStatus | 'all';
 
@@ -168,6 +169,7 @@ export default function AdminFeedbackScreen() {
       <StandardHeader
         title="Feedback"
         onLeftPress={goBack}
+        maxWidth={MAX_WIDTH}
         rightButtons={[{ icon: 'refresh-outline', onPress: () => load(filter), accessibilityLabel: 'Refresh' }]}
         loading={loading}
       />

@@ -225,7 +225,7 @@ Breakpoints (single source `useBreakpoint()` hook — delete all scattered `widt
 |---|---|---|---|
 | **compact** | < 640 | Floating pill tab bar (5 icon-only items with accessibility labels, selected tab on a capsule; always visible incl. sub-screens) | Single column, 16px gutters, full-bleed lists |
 | **medium** (tablet portrait / landscape phones) | 640–1023 | **Icon+label nav rail, 84px**, left edge (not the 280px sidebar) | Content max 720 centered; dashboard 2-col grid; forms max 560 |
-| **expanded** | ≥ 1024 | Full sidebar 264px (nav + budget switcher + account) | Content max **1120** centered, 32px gutters; dashboard 12-col grid |
+| **expanded** | ≥ 1024 | Full sidebar 264px (nav + budget switcher + account) | Content max **1440** centered, 32px gutters; dashboard 12-col grid; list/settings screens 680 |
 
 Non-negotiables:
 - One JSX tree per screen; breakpoint changes grid/columns via style only (fixes L3).
@@ -246,7 +246,7 @@ Route-driven (`/expenses/new`, `/expenses/:id/edit`), so back button/deep links 
 
 **Sidebar (medium + expanded):** one floating glass panel in the tab bar's material (`GlassPanel`: `chrome` + backdrop blur on web, Liquid Glass on iOS 26+, hairline `borderStrong`, `e2` in light only), inset `s3` from the window edge, `radius.xl`. It opens to 264px (icon + label rows) and closes to 72px (the same rows clipped to their 48px icon column; on web a hover tooltip names each). The sidebar button (SF `sidebar.left`) sits top-left; ⌘\ / Ctrl+\ toggles on web. Width springs with `motion.spring` (no overshoot), labels fade, reduced motion snaps. Expanded: docked, content reflows, starts open, open/closed remembered per device. Medium: closed; opening floats it over the content above the `overlay` scrim, and a tap outside, Escape or navigating closes it. Active row = `brandSubtle` pill + filled icon, as on the tab bar. Five destinations only, no section headers. Contents: (1) logo + budget switcher (current budget name + chevron opens switcher popover — replaces buried Settings entry), (2) nav list (icon + label, `brandSubtle` active pill), (3) "＋ Add expense" primary button, (4) footer: account row (avatar-initial, email) and a Sign out row (destructive, in-app themed confirm dialog — no `window.confirm`, fixes N4).
 
-**Headers:** compact/medium keep a slim 56px header: left-aligned `h1` title (no centered duplication — Y2/N5), right-side action slot. Expanded: no header bar; the page begins with `h1` + caption inline over content; primary page action sits top-right of the content column.
+**Headers:** compact keeps the slim bar (fill + hairline), with the tab roots' large title collapsing into it on scroll (no centered duplication — Y2/N5), right-side action slot. Medium/expanded: no bar (no fill, no hairline); a `display` page title with a `body` `textMuted` subtitle sits in the content column (StandardHeader `maxWidth`, defaulting to the breakpoint's content width; 680 list screens pass theirs), so the title's left edge lines up with the content and a back button sits at the column edge; actions sit at the column's right edge. Overview takes "Overview" + its caption there (the sidebar names the budget). Headers inside the medium+ form card keep the `h2` bar title.
 
 ## 2.7 Screen blueprints
 

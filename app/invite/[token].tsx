@@ -139,7 +139,7 @@ export default function InviteScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Invitation" onLeftPress={() => router.replace('/')} showRightIcon={false} />
+      <StandardHeader title="Invitation" onLeftPress={() => router.replace('/')} showRightIcon={false} maxWidth={480} />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}

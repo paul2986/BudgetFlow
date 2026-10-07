@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
-import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useBreakpoint, LAYOUT } from '../hooks/useBreakpoint';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { useIsAdmin } from '../hooks/useIsAdmin';
@@ -22,7 +22,7 @@ import { type, radius, space, tabularNums } from '../styles/tokens';
  * request; this screen only keeps everyone else from landing on an error.
  */
 
-const MAX_WIDTH = 680;
+const MAX_WIDTH = LAYOUT.listMaxWidth;
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const { tokens } = useTheme();
@@ -268,6 +268,7 @@ export default function AdminScreen() {
       <StandardHeader
         title="Admin"
         onLeftPress={goBack}
+        maxWidth={MAX_WIDTH}
         rightButtons={[{ icon: 'refresh-outline', onPress: load, accessibilityLabel: 'Refresh' }]}
         loading={loading}
       />

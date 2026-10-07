@@ -1,4 +1,5 @@
 import { View, ScrollView } from 'react-native';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { router } from 'expo-router';
 import StandardHeader from '../components/StandardHeader';
 import PrivacyContent from '../components/PrivacyContent';
@@ -12,12 +13,12 @@ export default function PrivacyScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Privacy" onLeftPress={goBack} />
+      <StandardHeader title="Privacy" onLeftPress={goBack} maxWidth={LAYOUT.listMaxWidth} />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
       >
-        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
           <PrivacyContent />
         </View>
       </ScrollView>
