@@ -2,7 +2,7 @@ import React, { createContext, useEffect, useRef, useState } from 'react';
 import { View, ViewStyle, Animated, Pressable, StyleSheet } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
-import { useBreakpoint, LAYOUT, formsArePopups } from '../../hooks/useBreakpoint';
+import { useBreakpoint, LAYOUT, formsArePopups, useScrollBottomPadding } from '../../hooks/useBreakpoint';
 import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { radius, space, elevation, motion } from '../../styles/tokens';
 import Portal from './Portal';
@@ -29,6 +29,28 @@ interface FormCard {
 
 /** Set inside the medium+ form card, where a page-size title would overpower the dialog. */
 export const FormCardContext = createContext<FormCard | null>(null);
+
+/**
+ * In the form card, the header's buttons sit this far from the card's top and
+ * side edges (StandardHeader), so the filled ✓ is evenly inset in its corner.
+ */
+export const FORM_CARD_HEADER_INSET = space.s5;
+
+/**
+ * Padding for a form's scrolling content. In the card (pop-up / iPad): roomy
+ * 32pt sides and end, which lines the fields up with the ← icon above them.
+ * Full screen (phone): 20pt, ending clear of the floating tab bar.
+ */
+export function useFormInsets() {
+  // FormScreen is a card on every medium+ layout. Read from the breakpoint,
+  // not FormCardContext, so routes that build their body outside FormScreen
+  // (edit-income, import-budget) get the same insets.
+  const { isCompact } = useBreakpoint();
+  const scrollBottomPadding = useScrollBottomPadding();
+  return !isCompact
+    ? { paddingHorizontal: space.s7, paddingTop: space.s4, paddingBottom: space.s7 }
+    : { paddingHorizontal: space.s5, paddingTop: space.s5, paddingBottom: scrollBottomPadding };
+}
 
 interface FormScreenProps {
   children: React.ReactNode;

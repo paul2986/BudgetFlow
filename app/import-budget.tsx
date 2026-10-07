@@ -7,10 +7,10 @@ import { useTheme } from '../hooks/useTheme';
 import { useThemedStyles } from '../hooks/useThemedStyles';
 import { useToast } from '../hooks/useToast';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
-import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
+import { BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import StandardHeader from '../components/StandardHeader';
 import Button from '../components/Button';
-import { EmptyState, FormScreen, Input, ListGroup, ListRow } from '../components/ui';
+import { EmptyState, FormScreen, Input, ListGroup, ListRow, useFormInsets } from '../components/ui';
 import { type, space, tabularNums } from '../styles/tokens';
 import { buildTemplateWorkbook, fractionDigitsFor, TEMPLATE_FILE_NAME } from '../utils/budgetWorkbook/export';
 import { describeIssue, parseBudgetWorkbook, type ImportFailure, type ImportResult } from '../utils/budgetWorkbook/import';
@@ -33,7 +33,7 @@ export default function ImportBudgetScreen() {
   const { appData, importBudget } = useBudgetData();
   const { currency } = useCurrency();
   const { showToast } = useToast();
-  const scrollBottomPadding = useScrollBottomPadding();
+  const formInsets = useFormInsets();
   const entry = useImportEntry();
 
   const [name, setName] = useState('');
@@ -154,7 +154,7 @@ export default function ImportBudgetScreen() {
         />
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
+          contentContainerStyle={{ ...formInsets, minHeight: BOUNCE_MIN_HEIGHT }}
           keyboardShouldPersistTaps="handled"
         >
           {entry ? (

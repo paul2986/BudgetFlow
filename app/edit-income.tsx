@@ -10,10 +10,10 @@ import { Income } from '../types/budget';
 import Button from '../components/Button';
 import CurrencyInput from '../components/CurrencyInput';
 import StandardHeader from '../components/StandardHeader';
-import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton } from '../components/ui';
+import { EmptyState, FormScreen, Input, SegmentedControl, Skeleton, useFormInsets } from '../components/ui';
 import { type, space } from '../styles/tokens';
 import { newId } from '../utils/ids';
-import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
+import { BOUNCE_MIN_HEIGHT } from '../hooks/useBreakpoint';
 import { useDiscardGuard } from '../hooks/useDiscardGuard';
 import { useFormSessionKey } from '../hooks/useFormSessionKey';
 
@@ -37,7 +37,7 @@ function EditIncomeForm() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   const { tokens } = useTheme();
-  const scrollBottomPadding = useScrollBottomPadding();
+  const formInsets = useFormInsets();
   const { themedStyles } = useThemedStyles();
   const params = useLocalSearchParams<{ personId: string; incomeId: string }>();
   const { personId, incomeId } = params;
@@ -193,7 +193,7 @@ function EditIncomeForm() {
     // after the load effect (which also lets the focus effect find the input).
     if (isNew ? loading && !person : !isDataLoaded || loading) {
       return (
-        <View style={{ padding: space.s5, gap: space.s4 }}>
+        <View style={{ ...formInsets, gap: space.s4 }}>
           <Skeleton height={48} />
           <Skeleton height={48} />
           <Skeleton height={40} />
@@ -226,7 +226,7 @@ function EditIncomeForm() {
     return (
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
+        contentContainerStyle={{ ...formInsets, gap: space.s5, minHeight: BOUNCE_MIN_HEIGHT }}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >

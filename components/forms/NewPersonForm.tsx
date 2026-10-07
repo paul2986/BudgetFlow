@@ -3,12 +3,12 @@ import { View, Text, ScrollView, TextInput, StyleSheet, Switch } from 'react-nat
 import { useFocusEffect } from 'expo-router';
 import { useBudgetData } from '../../hooks/useBudgetData';
 import { useTheme } from '../../hooks/useTheme';
-import { useScrollBottomPadding, BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
+import { BOUNCE_MIN_HEIGHT } from '../../hooks/useBreakpoint';
 import { useDiscardGuard } from '../../hooks/useDiscardGuard';
 import { Alert, confirmDiscard } from '../../utils/alert';
 import StandardHeader from '../StandardHeader';
 import CurrencyInput from '../CurrencyInput';
-import { IconButton, Input, ListGroup, ListRow, SegmentedControl } from '../ui';
+import { IconButton, Input, ListGroup, ListRow, SegmentedControl, useFormInsets } from '../ui';
 import { Income, Person } from '../../types/budget';
 import { type, space } from '../../styles/tokens';
 import { newId } from '../../utils/ids';
@@ -47,7 +47,7 @@ interface NewPersonFormProps {
 export default function NewPersonForm({ onClose, onCreated }: NewPersonFormProps) {
     const { data, addPerson, saving } = useBudgetData();
     const { tokens } = useTheme();
-    const scrollBottomPadding = useScrollBottomPadding();
+    const formInsets = useFormInsets();
 
     const [name, setName] = useState('');
     const [sharesHousehold, setSharesHousehold] = useState(true);
@@ -120,7 +120,7 @@ export default function NewPersonForm({ onClose, onCreated }: NewPersonFormProps
             />
             <ScrollView
                 style={{ flex: 1 }}
-                contentContainerStyle={{ padding: space.s5, paddingBottom: scrollBottomPadding, minHeight: BOUNCE_MIN_HEIGHT }}
+                contentContainerStyle={{ ...formInsets, minHeight: BOUNCE_MIN_HEIGHT }}
                 keyboardShouldPersistTaps="handled"
                 automaticallyAdjustKeyboardInsets
             >
