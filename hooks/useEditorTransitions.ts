@@ -58,7 +58,16 @@ const EDITOR_ROUTES = new Set([
 ]);
 
 /** Routes hosted in FormScreen: pop-ups on medium+ web. */
-const POPUP_ROUTES = new Set(['add-expense', 'edit-person', 'edit-income', 'import-budget']);
+const POPUP_ROUTES = new Set([
+  'add-expense',
+  'edit-person',
+  'edit-income',
+  'import-budget',
+  // Short pick-and-manage lists, opened from the sidebar and Settings.
+  'budgets',
+  'manage-categories',
+  'currency',
+]);
 
 export type EditorTransitionMode = 'slide' | 'popup' | 'off';
 

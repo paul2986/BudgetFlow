@@ -26,7 +26,8 @@ import GlassPanel from './GlassPanel';
  *   is remembered on the device. Starts open.
  * - Medium: closed; opening it floats over the content above a scrim, and a
  *   tap outside, Escape or navigating closes it.
- * Toggle: the sidebar button at the top, or ⌘\ / Ctrl+\ on web.
+ * Toggle: the sidebar button pinned top-right (closed: the logo, which shows
+ * the sidebar glyph on hover), or ⌘\ / Ctrl+\ on web.
  */
 
 const OPEN = LAYOUT.sidebarWidth;
@@ -48,6 +49,17 @@ function SidebarGlyph({ color }: { color: string }) {
       <Rect x={2} y={3.5} width={16} height={13} rx={3} stroke={color} strokeWidth={1.6} />
       <Line x1={7.5} y1={3.5} x2={7.5} y2={16.5} stroke={color} strokeWidth={1.6} />
     </Svg>
+  );
+}
+
+function BrandMark() {
+  return (
+    <Image
+      source={require('../../assets/images/icon.png')}
+      style={{ width: 28, height: 28, borderRadius: radius.sm }}
+      resizeMode="cover"
+      accessibilityIgnoresInvertColors
+    />
   );
 }
 
@@ -239,17 +251,51 @@ export default function Sidebar() {
       >
         <GlassPanel borderRadius={radius.xl} fill style={{ flex: 1 }}>
           <View style={{ flex: 1, overflow: 'hidden', borderRadius: radius.xl, padding: PAD }}>
-            {/* Sidebar toggle + brand */}
+            {/* Brand, with the sidebar button pinned right. Closed, the
+                button is clipped away and the logo opens the sidebar
+                instead, showing the sidebar glyph on hover. */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.s3 }}>
               <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+                {open ? (
+                  <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+                    <BrandMark />
+                  </View>
+                ) : (
+                  <Pressable
+                    ref={toggleTip.ref}
+                    onPress={toggle}
+                    onHoverIn={toggleTip.onHoverIn}
+                    onHoverOut={toggleTip.onHoverOut}
+                    accessibilityRole="button"
+                    accessibilityLabel="Show sidebar"
+                    accessibilityState={{ expanded: false }}
+                    style={({ pressed, hovered }: any) => ({
+                      width: 44,
+                      height: 44,
+                      borderRadius: radius.md,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : 'transparent',
+                    })}
+                  >
+                    {({ hovered }: any) => (hovered ? <SidebarGlyph color={tokens.colors.textMuted} /> : <BrandMark />)}
+                  </Pressable>
+                )}
+              </View>
+              <Animated.View
+                style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
+              >
+                <Text style={[type.h3, { color: tokens.colors.text, flex: 1 }]} numberOfLines={1}>
+                  Budget Flow
+                </Text>
                 <Pressable
-                  ref={toggleTip.ref}
                   onPress={toggle}
-                  onHoverIn={toggleTip.onHoverIn}
-                  onHoverOut={toggleTip.onHoverOut}
                   accessibilityRole="button"
-                  accessibilityLabel={open ? 'Hide sidebar' : 'Show sidebar'}
-                  accessibilityState={{ expanded: open }}
+                  accessibilityLabel="Hide sidebar"
+                  accessibilityState={{ expanded: true }}
+                  // Out of reach while it's clipped away (closed).
+                  aria-hidden={!open}
+                  disabled={!open}
                   style={({ pressed, hovered }: any) => ({
                     width: 44,
                     height: 44,
@@ -261,19 +307,6 @@ export default function Sidebar() {
                 >
                   <SidebarGlyph color={tokens.colors.textMuted} />
                 </Pressable>
-              </View>
-              <Animated.View
-                style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
-              >
-                <Image
-                  source={require('../../assets/images/icon.png')}
-                  style={{ width: 28, height: 28, borderRadius: radius.sm, marginRight: space.s2 }}
-                  resizeMode="cover"
-                  accessibilityIgnoresInvertColors
-                />
-                <Text style={[type.h3, { color: tokens.colors.text, flex: 1 }]} numberOfLines={1}>
-                  Budget Flow
-                </Text>
               </Animated.View>
             </View>
 

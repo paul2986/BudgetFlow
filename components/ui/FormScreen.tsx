@@ -93,7 +93,12 @@ export default function FormScreen({ children, style }: FormScreenProps) {
   useEffect(() => {
     if (!popup || !focused) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') dismissRef.current?.();
+      if (e.key !== 'Escape') return;
+      // A menu, sheet or dialog open above the pop-up takes Escape itself.
+      const above = [...document.querySelectorAll('[aria-modal="true"]')].some(
+        (el) => !el.closest('[data-form-popup]') && el.getClientRects().length > 0
+      );
+      if (!above) dismissRef.current?.();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -117,6 +122,7 @@ export default function FormScreen({ children, style }: FormScreenProps) {
     return (
       <Portal>
         <View
+          {...({ dataSet: { formPopup: 'true' } } as object)}
           style={[
             {
               position: 'fixed' as any,

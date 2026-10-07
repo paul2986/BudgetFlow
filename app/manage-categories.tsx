@@ -10,13 +10,14 @@ import { DEFAULT_CATEGORIES, type BucketId } from '../types/budget';
 import { getCustomExpenseCategories, normalizeCategoryName } from '../utils/storage';
 import { useBudgetData } from '../hooks/useBudgetData';
 import { router } from 'expo-router';
-import { Chip, EmptyState, IconButton, Input, ListGroup, ListRow, SegmentedControl, Sheet, Skeleton } from '../components/ui';
+import { Chip, EmptyState, FormScreen, IconButton, Input, ListGroup, ListRow, SegmentedControl, Sheet, Skeleton, useFormInsets } from '../components/ui';
 import { BUCKET_META, BUCKET_OPTIONS } from '../components/tools/bucketMeta';
 import { bucketToStore, categoryBucketLookup, resolveBucket } from '../utils/budgetReview';
 import { space, type } from '../styles/tokens';
 
 export default function ManageCategoriesScreen() {
   const { themedStyles, breakpoint } = useThemedStyles();
+  const formInsets = useFormInsets();
   const { tokens } = useTheme();
   const { data, activeBudget, customCategories, saveCustomCategories, renameCustomCategory, setCategoryBucket } = useBudgetData();
 
@@ -201,73 +202,78 @@ export default function ManageCategoriesScreen() {
   };
 
   return (
-    <View style={themedStyles.container}>
-      <StandardHeader
-        title="Categories"
-        maxWidth={LAYOUT.listMaxWidth}
-        onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/settings'))}
-        rightButtons={[{ icon: 'add', onPress: handleCreateCategory, accessibilityLabel: 'New category' }]}
-      />
+    <View style={themedStyles.formContainer}>
+      <FormScreen>
+        <StandardHeader
+          title="Categories"
+          onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/settings'))}
+          rightButtons={[{ icon: 'add', onPress: handleCreateCategory, accessibilityLabel: 'New category' }]}
+        />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
-      >
-        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
-          {loading ? (
-            <ListGroup header="Your categories">
-              <View style={{ padding: space.s4, gap: space.s3 }}>
-                <Skeleton width="60%" />
-                <Skeleton width="40%" />
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={
+            breakpoint.isCompact
+              ? [themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]
+              : formInsets
+          }
+        >
+          <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
+            {loading ? (
+              <ListGroup header="Your categories">
+                <View style={{ padding: space.s4, gap: space.s3 }}>
+                  <Skeleton width="60%" />
+                  <Skeleton width="40%" />
+                </View>
+              </ListGroup>
+            ) : customs.length === 0 ? (
+              <ListGroup header="Your categories">
+                <EmptyState
+                  icon="pricetags-outline"
+                  title="No custom categories"
+                  caption="Add your own to tag expenses beyond the built-in set."
+                  actionLabel="New category"
+                  onAction={handleCreateCategory}
+                />
+              </ListGroup>
+            ) : (
+              <ListGroup header="Your categories" footer="Tap a category to rename it or change where it counts in the budget review. Categories in use can't be deleted.">
+                {customs.map((c, i) => {
+                  const count = usageCount(c);
+                  return (
+                    <ListRow
+                      key={c}
+                      title={c}
+                      caption={`${count > 0 ? `Used by ${count} ${count === 1 ? 'expense' : 'expenses'}` : 'Not used yet'} · Counts as ${BUCKET_META[bucketOf(c)].name}`}
+                      icon="pricetag-outline"
+                      onPress={() => handleRename(c)}
+                      accessibilityLabel={`${c}, counts as ${BUCKET_META[bucketOf(c)].name}, edit`}
+                      accessory={
+                        <IconButton
+                          icon="trash-outline"
+                          accessibilityLabel={count > 0 ? `${c} is in use and can't be deleted` : `Delete ${c}`}
+                          onPress={() => handleDelete(c)}
+                          disabled={count > 0}
+                          color={count > 0 ? tokens.colors.textFaint : tokens.colors.danger}
+                        />
+                      }
+                      showSeparator={i < customs.length - 1}
+                    />
+                  );
+                })}
+              </ListGroup>
+            )}
+
+            <ListGroup header="Built in" footer="Built-in categories are always available and can't be changed.">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s2, padding: space.s4 }}>
+                {DEFAULT_CATEGORIES.map((c) => (
+                  <Chip key={c} label={c} />
+                ))}
               </View>
             </ListGroup>
-          ) : customs.length === 0 ? (
-            <ListGroup header="Your categories">
-              <EmptyState
-                icon="pricetags-outline"
-                title="No custom categories"
-                caption="Add your own to tag expenses beyond the built-in set."
-                actionLabel="New category"
-                onAction={handleCreateCategory}
-              />
-            </ListGroup>
-          ) : (
-            <ListGroup header="Your categories" footer="Tap a category to rename it or change where it counts in the budget review. Categories in use can't be deleted.">
-              {customs.map((c, i) => {
-                const count = usageCount(c);
-                return (
-                  <ListRow
-                    key={c}
-                    title={c}
-                    caption={`${count > 0 ? `Used by ${count} ${count === 1 ? 'expense' : 'expenses'}` : 'Not used yet'} · Counts as ${BUCKET_META[bucketOf(c)].name}`}
-                    icon="pricetag-outline"
-                    onPress={() => handleRename(c)}
-                    accessibilityLabel={`${c}, counts as ${BUCKET_META[bucketOf(c)].name}, edit`}
-                    accessory={
-                      <IconButton
-                        icon="trash-outline"
-                        accessibilityLabel={count > 0 ? `${c} is in use and can't be deleted` : `Delete ${c}`}
-                        onPress={() => handleDelete(c)}
-                        disabled={count > 0}
-                        color={count > 0 ? tokens.colors.textFaint : tokens.colors.danger}
-                      />
-                    }
-                    showSeparator={i < customs.length - 1}
-                  />
-                );
-              })}
-            </ListGroup>
-          )}
-
-          <ListGroup header="Built in" footer="Built-in categories are always available and can't be changed.">
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s2, padding: space.s4 }}>
-              {DEFAULT_CATEGORIES.map((c) => (
-                <Chip key={c} label={c} />
-              ))}
-            </View>
-          </ListGroup>
-        </View>
-      </ScrollView>
+          </View>
+        </ScrollView>
+      </FormScreen>
 
       <Sheet
         visible={createModalVisible}
