@@ -277,7 +277,7 @@ function EditIncomeForm() {
   };
 
   return (
-    <View style={themedStyles.container}>
+    <View style={themedStyles.formContainer}>
       <FormScreen>
         <StandardHeader
           title={isNew ? 'Add income' : 'Edit income'}

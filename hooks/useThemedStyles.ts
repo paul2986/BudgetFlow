@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, Platform } from 'react-native';
 import { useTheme } from './useTheme';
-import { useBreakpoint, LAYOUT, bottomClearance, STATUS_BAND, BOUNCE_MIN_HEIGHT } from './useBreakpoint';
+import { useBreakpoint, LAYOUT, bottomClearance, STATUS_BAND, BOUNCE_MIN_HEIGHT, formsArePopups } from './useBreakpoint';
 import { type, space, radius, elevation } from '../styles/tokens';
 
 /**
@@ -23,6 +23,15 @@ export const useThemedStyles = () => {
       // (the shell only draws it for the auth screens), so a screen's header
       // can paint its fill up behind the status bar; the tab view clips
       // anything drawn above a screen.
+      ...(Platform.OS === 'web' && bp.isCompact ? { paddingTop: STATUS_BAND } : null),
+    },
+    /** A FormScreen route's root: transparent when the form is a pop-up, so the screen beneath shows. */
+    formContainer: {
+      flex: 1,
+      width: '100%',
+      height: '100%',
+      position: 'relative',
+      backgroundColor: formsArePopups(bp.isCompact) ? 'transparent' : tokens.colors.bg,
       ...(Platform.OS === 'web' && bp.isCompact ? { paddingTop: STATUS_BAND } : null),
     },
     scrollContent: {

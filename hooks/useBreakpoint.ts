@@ -81,6 +81,13 @@ export function bottomClearance(px: number): number {
  */
 export const STATUS_BAND = 'calc(env(safe-area-inset-top) + var(--status-gap, 0px))' as unknown as number;
 
+/**
+ * Forms (FormScreen routes) open as pop-ups over the screen beneath: medium+
+ * on web. The iPad app keeps the centred card (its tab view detaches the
+ * screen beneath).
+ */
+export const formsArePopups = (isCompact: boolean): boolean => Platform.OS === 'web' && !isCompact;
+
 /** Layout chrome dimensions — derive scroll insets from these, never magic numbers. */
 export const LAYOUT = {
   /** Bottom tab bar height, excluding safe-area inset. */

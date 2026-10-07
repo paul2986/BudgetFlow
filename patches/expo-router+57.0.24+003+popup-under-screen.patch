@@ -1,0 +1,13 @@
+diff --git a/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js b/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js
+index dd5ee71..fd0e0c5 100644
+--- a/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js
++++ b/node_modules/expo-router/build/react-navigation/bottom-tabs/views/BottomTabView.js
+@@ -210,6 +210,8 @@ function BottomTabView(props) {
+                     const animationEnabled = hasAnimation(descriptor.options);
+                     const activityState = isFocused
+                         ? STATE_ON_TOP // the screen is on top after the transition
++                        : descriptor.options.sceneVisible // BudgetFlow patch: stays shown under a pop-up form
++                            ? STATE_TRANSITIONING_OR_BELOW_TOP
+                         : animationEnabled && react_native_1.Platform.OS !== 'web' // BudgetFlow patch
+                             // Native: a plain number, not an interpolation of the tab's
+                             // progress. Handing a screen between an animated and a static

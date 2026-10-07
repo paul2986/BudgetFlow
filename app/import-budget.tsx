@@ -136,7 +136,7 @@ export default function ImportBudgetScreen() {
   }, [currency, showToast]);
 
   return (
-    <View style={themedStyles.container}>
+    <View style={themedStyles.formContainer}>
       <FormScreen>
         <StandardHeader
           title="Import a workbook"

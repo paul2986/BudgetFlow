@@ -106,7 +106,8 @@ export default function StandardHeader({
   maxWidth,
 }: StandardHeaderProps) {
   const { tokens } = useTheme();
-  const inFormCard = useContext(FormCardContext);
+  const formCard = useContext(FormCardContext);
+  const inFormCard = !!formCard;
   const bp = useBreakpoint();
   const large = largeTitle?.enabled ? largeTitle : undefined;
 
@@ -199,6 +200,11 @@ export default function StandardHeader({
             : { icon: leftIcon ?? 'arrow-back', onPress: onLeftPress, iconColor: leftIconColor },
         ]
       : [];
+  // In a pop-up form, Escape and the backdrop do what the leading button does.
+  React.useEffect(() => {
+    if (formCard) formCard.dismissRef.current = left[0]?.onPress ?? null;
+  });
+
   const right = rightButtons && rightButtons.length > 0
     ? rightButtons
     : !confirm && showRightIcon && onRightPress

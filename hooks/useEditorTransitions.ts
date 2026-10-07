@@ -28,8 +28,14 @@ import { useReducedMotion } from './useReducedMotion';
  * Tab-to-tab switches stay instant. The static screens still get a spring so
  * they stay attached, visible beneath, until the moving one settles.
  *
- * Compact (phone) only; wider layouts show forms as a centered card, which
- * keeps its instant swap. Reduced motion swaps the slide for a short fade.
+ * Compact (phone) only. Reduced motion swaps the slide for a short fade.
+ *
+ * Medium+ on web ('popup'): the form routes (FormScreen) open as pop-ups,
+ * which FormScreen draws (backdrop, card and their motion) in a portal above
+ * the whole app. Here the pop-up's own scene is made transparent, and the
+ * screen it opened over stays shown beneath it (the `sceneVisible` option,
+ * patches/expo-router+*+003). Everything else keeps the instant swap.
+ * Native medium+ (iPad app) keeps the instant swap to a centred card.
  */
 
 const EDITOR_ROUTES = new Set([
@@ -51,6 +57,11 @@ const EDITOR_ROUTES = new Set([
   'tools/debt-help',
 ]);
 
+/** Routes hosted in FormScreen: pop-ups on medium+ web. */
+const POPUP_ROUTES = new Set(['add-expense', 'edit-person', 'edit-income', 'import-budget']);
+
+export type EditorTransitionMode = 'slide' | 'popup' | 'off';
+
 /**
  * Upper bound on how long an editor stays visible after it loses focus while
  * it slides out; useFormSessionKey waits this long before resetting the form.
@@ -66,13 +77,16 @@ const FADE = { animation: 'timing', config: { duration: motion.exit } } as const
 
 type Transition = { moving?: string; under?: string };
 
-type Options = BottomTabNavigationOptions & { sceneZIndex?: number };
+type Options = BottomTabNavigationOptions & { sceneZIndex?: number; sceneVisible?: boolean };
 
 type SceneStyle = ReturnType<NonNullable<BottomTabNavigationOptions['sceneStyleInterpolator']>>;
 
+const historyKeys = (state: NavigationState) =>
+  ((state as { history?: { key?: string }[] }).history ?? []).map((entry) => entry.key);
+
 function nextTransition(prev: NavigationState['routes'][number] | undefined, state: NavigationState): Transition {
   const focused = state.routes[state.index];
-  const history = ((state as { history?: { key?: string }[] }).history ?? []).map((entry) => entry.key);
+  const history = historyKeys(state);
   const isEditor = (name?: string) => !!name && EDITOR_ROUTES.has(name);
   if (!prev) return {};
   // Pushed on top: from a non-editor, or from an editor that is still in the
@@ -84,7 +98,23 @@ function nextTransition(prev: NavigationState['routes'][number] | undefined, sta
   return {};
 }
 
-export function useEditorTransitions(width: number, enabled: boolean) {
+/**
+ * While a pop-up is focused, the screen it opened over: the nearest earlier
+ * screen in the tab history that isn't itself a pop-up (person → income
+ * still shows the list beneath).
+ */
+function screenBeneath(state: NavigationState): string | undefined {
+  if (!POPUP_ROUTES.has(state.routes[state.index].name)) return undefined;
+  const byKey = new Map(state.routes.map((r) => [r.key, r]));
+  const history = historyKeys(state);
+  for (let i = history.length - 2; i >= 0; i--) {
+    const route = history[i] ? byKey.get(history[i]!) : undefined;
+    if (route && !POPUP_ROUTES.has(route.name)) return route.key;
+  }
+  return undefined;
+}
+
+export function useEditorTransitions(width: number, mode: EditorTransitionMode) {
   const reduced = useReducedMotion();
   // Derived per navigation, so it has to remember the previous focus. Keyed on
   // the state object, which is immutable, so repeat renders agree.
@@ -106,8 +136,12 @@ export function useEditorTransitions(width: number, enabled: boolean) {
 
   return useCallback(
     ({ route, navigation }: { route: RouteProp<ParamListBase>; navigation: { getState: () => NavigationState } }): Options => {
-      if (!enabled) return {};
+      if (mode === 'off') return {};
       const state = navigation.getState();
+      if (mode === 'popup') {
+        if (POPUP_ROUTES.has(route.name)) return { sceneStyle: { backgroundColor: 'transparent' } };
+        return route.key === screenBeneath(state) ? ({ sceneVisible: true } as Options) : {};
+      }
       const memo = last.current;
       if (state !== memo.state) {
         const focusKey = state.routes[state.index].key;
@@ -153,6 +187,6 @@ export function useEditorTransitions(width: number, enabled: boolean) {
         }));
       return options;
     },
-    [enabled, reduced, width]
+    [mode, reduced, width]
   );
 }
