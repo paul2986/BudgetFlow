@@ -474,35 +474,50 @@ describe('expenses filters', () => {
   beforeEach(() => device.store.clear());
 
   it('starts with nothing filtered', async () => {
-    expect(await storage.getExpensesFilters()).toEqual(NO_FILTERS);
+    expect(await storage.getExpensesFilters('b1')).toEqual(NO_FILTERS);
   });
 
   it('remembers a bucket filter, and ignores junk', async () => {
-    await storage.saveExpensesFilters({ ...NO_FILTERS, bucket: 'wants' });
-    expect((await storage.getExpensesFilters()).bucket).toBe('wants');
+    await storage.saveExpensesFilters('b1', { ...NO_FILTERS, bucket: 'wants' });
+    expect((await storage.getExpensesFilters('b1')).bucket).toBe('wants');
 
-    await storage.saveExpensesFilters({ ...NO_FILTERS, bucket: 'sideways' as any });
-    expect((await storage.getExpensesFilters()).bucket).toBe('all');
+    await storage.saveExpensesFilters('b1', { ...NO_FILTERS, bucket: 'sideways' as any });
+    expect((await storage.getExpensesFilters('b1')).bucket).toBe('all');
 
-    device.store.set('expenses_filters_v1', JSON.stringify({ bucketFilter: 7 }));
-    expect((await storage.getExpensesFilters()).bucket).toBe('all');
+    device.store.set('expenses_filters_v2', JSON.stringify({ b1: { bucketFilter: 7 } }));
+    expect((await storage.getExpensesFilters('b1')).bucket).toBe('all');
   });
 
   it('remembers every selected category, not just the first', async () => {
-    await storage.saveExpensesFilters({ ...NO_FILTERS, categories: ['Loan', 'groceries'], personId: 'p1', type: 'personal' });
-    expect(await storage.getExpensesFilters()).toEqual({ ...NO_FILTERS, categories: ['Loan', 'Groceries'], personId: 'p1', type: 'personal' });
-    // An older version of the app reads the first one.
-    expect(JSON.parse(device.store.get('expenses_filters_v1')!).category).toBe('Loan');
+    await storage.saveExpensesFilters('b1', { ...NO_FILTERS, categories: ['Loan', 'groceries'], personId: 'p1', type: 'personal' });
+    expect(await storage.getExpensesFilters('b1')).toEqual({ ...NO_FILTERS, categories: ['Loan', 'Groceries'], personId: 'p1', type: 'personal' });
   });
 
-  it('reads filters saved by older versions (one category, no bucket filter) as before', async () => {
-    device.store.set('expenses_filters_v1', JSON.stringify({ category: 'Loan', search: '', hasEndDate: false, filter: 'all', personFilter: null, debtFilter: 'any' }));
-    expect(await storage.getExpensesFilters()).toEqual({ ...NO_FILTERS, categories: ['Loan'], debt: 'any' });
+  it('keeps each budget\'s filters to itself', async () => {
+    await storage.saveExpensesFilters('b1', { ...NO_FILTERS, categories: ['Loan'], personId: 'p1' });
+    await storage.saveExpensesFilters('b2', { ...NO_FILTERS, type: 'household' });
+
+    expect(await storage.getExpensesFilters('b1')).toEqual({ ...NO_FILTERS, categories: ['Loan'], personId: 'p1' });
+    expect(await storage.getExpensesFilters('b2')).toEqual({ ...NO_FILTERS, type: 'household' });
+    expect(await storage.getExpensesFilters('b3')).toEqual(NO_FILTERS);
+
+    // Clearing one budget's filters leaves the other's.
+    await storage.saveExpensesFilters('b1', NO_FILTERS);
+    expect(await storage.getExpensesFilters('b1')).toEqual(NO_FILTERS);
+    expect(await storage.getExpensesFilters('b2')).toEqual({ ...NO_FILTERS, type: 'household' });
+  });
+
+  it('drops the retired device-wide filters instead of applying them to every budget', async () => {
+    device.store.set('expenses_filters_v1', JSON.stringify({ category: 'Loan', debtFilter: 'any' }));
+    expect(await storage.getExpensesFilters('b1')).toEqual(NO_FILTERS);
+
+    await storage.saveExpensesFilters('b1', { ...NO_FILTERS, type: 'personal' });
+    expect(device.store.has('expenses_filters_v1')).toBe(false);
   });
 
   it('reads damaged filters as none', async () => {
-    device.store.set('expenses_filters_v1', 'not json');
-    expect(await storage.getExpensesFilters()).toEqual(NO_FILTERS);
+    device.store.set('expenses_filters_v2', 'not json');
+    expect(await storage.getExpensesFilters('b1')).toEqual(NO_FILTERS);
   });
 });
 

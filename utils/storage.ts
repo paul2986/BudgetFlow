@@ -5,7 +5,7 @@ import { AppDataV2, BucketId, Budget, CategoryBucketEntry, CustomCategory, Expen
 import { NO_ATTEMPTS, unlockSession, type AttemptState } from './budgetLock';
 import { newId } from './ids';
 import { normalizeCategoryName } from './categories';
-import { DEFAULT_EXPENSES_SORT, NO_FILTERS, SORT_FIELDS, parseSavedFilters, toSavedFilters, type ExpenseFilters, type ExpensesSort } from './expenseFilters';
+import { DEFAULT_EXPENSES_SORT, NO_FILTERS, SORT_FIELDS, hasActiveFilters, parseSavedFilters, toSavedFilters, type ExpenseFilters, type ExpensesSort } from './expenseFilters';
 
 // Where it used to live; most callers still import it from here.
 export { normalizeCategoryName };
@@ -19,7 +19,11 @@ const STORAGE_KEYS = {
   BUDGET_DATA: 'budget_data',
   // New multi-budget app data key (v2)
   APP_DATA_V2: 'app_data_v2',
-  EXPENSES_FILTERS: 'expenses_filters_v1',
+  // The Expenses filters, per budget id: filters name a budget's people, categories
+  // and review buckets, so one budget's must not follow you into another.
+  EXPENSES_FILTERS: 'expenses_filters_v2',
+  // The retired device-wide filters. Never read; removed on the next save and on sign-out.
+  EXPENSES_FILTERS_V1: 'expenses_filters_v1',
   // This account's chosen expense list sort, kept on the device like filters.
   EXPENSES_SORT: 'expenses_sort_v1',
   // Legacy device-only custom categories; now synced on each budget and
@@ -132,6 +136,7 @@ export const clearLocalAppData = async (): Promise<void> => {
       STORAGE_KEYS.BUDGET_DATA,
       STORAGE_KEYS.CUSTOM_EXPENSE_CATEGORIES,
       STORAGE_KEYS.EXPENSES_FILTERS,
+      STORAGE_KEYS.EXPENSES_FILTERS_V1,
       STORAGE_KEYS.EXPENSES_SORT,
       STORAGE_KEYS.SYNCED_BUDGET_IDS,
       STORAGE_KEYS.DEVICE_OWNER,
@@ -351,19 +356,28 @@ export const renameCustomExpenseCategory = async (oldName: string, newName: stri
   }
 };
 
-export const getExpensesFilters = async (): Promise<ExpenseFilters> => {
+const loadSavedFilters = async (): Promise<Record<string, unknown>> => {
+  const raw = await AsyncStorage.getItem(STORAGE_KEYS.EXPENSES_FILTERS);
+  const parsed = raw ? JSON.parse(raw) : null;
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+};
+
+export const getExpensesFilters = async (budgetId: string): Promise<ExpenseFilters> => {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEYS.EXPENSES_FILTERS);
-    return raw ? parseSavedFilters(JSON.parse(raw)) : NO_FILTERS;
+    const saved = (await loadSavedFilters())[budgetId];
+    return saved ? parseSavedFilters(saved) : NO_FILTERS;
   } catch (e) {
     console.error('storage: getExpensesFilters error', e);
     return NO_FILTERS;
   }
 };
 
-export const saveExpensesFilters = async (filters: ExpenseFilters): Promise<void> => {
+export const saveExpensesFilters = async (budgetId: string, filters: ExpenseFilters): Promise<void> => {
   try {
-    await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(toSavedFilters(filters)));
+    const { [budgetId]: _previous, ...others } = await loadSavedFilters();
+    const next = hasActiveFilters(filters) ? { ...others, [budgetId]: toSavedFilters(filters) } : others;
+    await AsyncStorage.setItem(STORAGE_KEYS.EXPENSES_FILTERS, JSON.stringify(next));
+    await AsyncStorage.removeItem(STORAGE_KEYS.EXPENSES_FILTERS_V1);
   } catch (e) {
     console.error('storage: saveExpensesFilters error', e);
   }

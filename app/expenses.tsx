@@ -135,6 +135,11 @@ function ExpensesScreenContent() {
 
   // FIXED: Better state management for filter loading
   const filtersLoaded = useRef(false);
+  // Filters belong to one budget: this is the one the filters on screen were loaded for.
+  const budgetId = activeBudget?.id;
+  const filtersBudgetId = useRef<string | null>(null);
+  const latestFilters = useRef(filters);
+  latestFilters.current = filters;
   const isInitialLoad = useRef(true);
   const lastDashboardParams = useRef<string>(''); // Track dashboard navigation changes
 
@@ -151,12 +156,14 @@ function ExpensesScreenContent() {
 
   // FIXED: Load persisted filters function with better error handling
   const loadPersistedFilters = useCallback(async () => {
-    if (filtersLoaded.current) {
+    if (filtersLoaded.current || !budgetId) {
       return;
     }
 
     try {
-      const saved = await getExpensesFilters();
+      const saved = await getExpensesFilters(budgetId);
+      // Another budget was opened while this was reading.
+      if (filtersBudgetId.current !== budgetId) return;
       setFilters(saved);
       setSearchTerm(saved.search.trim());
 
@@ -165,7 +172,21 @@ function ExpensesScreenContent() {
       console.error('ExpensesScreen: Failed to load persisted filters:', e);
       filtersLoaded.current = true; // Mark as loaded even on error to prevent infinite retries
     }
-  }, []);
+  }, [budgetId]);
+
+  // Opening another budget (the tab stays mounted): keep the old budget's filters
+  // with it and start the new one from its own saved ones.
+  useEffect(() => {
+    if (!budgetId) return;
+    const previous = filtersBudgetId.current;
+    filtersBudgetId.current = budgetId;
+    if (previous && previous !== budgetId) {
+      if (filtersLoaded.current) saveExpensesFilters(previous, latestFilters.current);
+      filtersLoaded.current = false;
+      setFilters(NO_FILTERS);
+      setSearchTerm('');
+    }
+  }, [budgetId]);
 
   // FIXED: Better dashboard navigation handling with proper filter persistence
   useEffect(() => {
@@ -239,7 +260,7 @@ function ExpensesScreenContent() {
       // Handle subsequent navigation changes
       loadInitialData();
     }
-  }, [params.filter, params.category, params.fromDashboard, params.personId, announceFilter, data.people, loadPersistedFilters]);
+  }, [params.filter, params.category, params.fromDashboard, params.personId, announceFilter, data.people, loadPersistedFilters, budgetId]);
 
   // Reload custom categories when data changes (e.g., after clearing all data)
   useEffect(() => {
@@ -260,8 +281,9 @@ function ExpensesScreenContent() {
 
   // Remember the filters, dashboard ones included, once they have loaded.
   useEffect(() => {
-    if (filtersLoaded.current && !isInitialLoad.current) {
-      const timeoutId = setTimeout(() => saveExpensesFilters(filters), 500);
+    const id = filtersBudgetId.current;
+    if (filtersLoaded.current && !isInitialLoad.current && id) {
+      const timeoutId = setTimeout(() => saveExpensesFilters(id, filters), 500);
       return () => clearTimeout(timeoutId);
     }
   }, [filters]);
@@ -341,8 +363,8 @@ function ExpensesScreenContent() {
     setFilters(NO_FILTERS);
     setSearchTerm('');
     announceFilter('All filters cleared');
-    saveExpensesFilters(NO_FILTERS);
-  }, [announceFilter]);
+    if (budgetId) saveExpensesFilters(budgetId, NO_FILTERS);
+  }, [announceFilter, budgetId]);
 
   // Enhanced sort button handler
   const handleSortPress = useCallback((sortType: SortOption) => {
