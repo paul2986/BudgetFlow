@@ -95,9 +95,6 @@ export default function ToolsHubScreen() {
       >
         <View style={{ width: '100%', maxWidth: breakpoint.contentMaxWidth, alignSelf: 'center' }}>
           <LargeTitle largeTitle={largeTitle} />
-          <Text style={[type.caption, { color: tokens.colors.textMuted, marginBottom: space.s4 }]}>
-            Calculators and a budget check for the big numbers: what a debt costs, what savings can become and how your spending compares.
-          </Text>
 
           <View style={{ gap: space.s4 }}>
             {rows.map((row) => (
