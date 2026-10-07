@@ -8,8 +8,10 @@ import { toYMD } from '../../utils/dates';
 
 /**
  * Optional date field styled like ui/Input: caption label, field fill, one
- * focus ring. Web uses the native <input type="date">; iOS/Android open the
- * platform picker. A "Clear" action appears once a date is set.
+ * focus ring. Web uses the native <input type="date">; Android opens the
+ * platform dialog; iOS expands an inline calendar under the field (the default
+ * "compact" picker needs a second tap on its own pill). A "Clear" action
+ * appears once a date is set.
  */
 
 interface DateFieldProps {
@@ -18,9 +20,11 @@ interface DateFieldProps {
   onChange: (value: Date | null) => void;
   placeholder?: string;
   helperText?: string;
+  /** iOS: called once the inline calendar has opened, so a scrolling parent can bring it into view. */
+  onExpand?: () => void;
 }
 
-export default function DateField({ label, value, onChange, placeholder = 'None', helperText }: DateFieldProps) {
+export default function DateField({ label, value, onChange, placeholder = 'None', helperText, onExpand }: DateFieldProps) {
   const { tokens } = useTheme();
   const [focused, setFocused] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -32,7 +36,7 @@ export default function DateField({ label, value, onChange, placeholder = 'None'
     paddingHorizontal: space.s4,
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: focused ? tokens.colors.brand : tokens.colors.borderStrong,
+    borderColor: focused || (Platform.OS === 'ios' && showPicker) ? tokens.colors.brand : tokens.colors.borderStrong,
     backgroundColor: tokens.colors.field,
     overflow: 'hidden' as const,
     ...(Platform.OS === 'web' && focused
@@ -46,7 +50,10 @@ export default function DateField({ label, value, onChange, placeholder = 'None'
         <Text style={[type.caption, { color: tokens.colors.textMuted }]}>{label}</Text>
         {value ? (
           <Pressable
-            onPress={() => onChange(null)}
+            onPress={() => {
+              setShowPicker(false);
+              onChange(null);
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Clear ${label}`}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -96,7 +103,17 @@ export default function DateField({ label, value, onChange, placeholder = 'None'
       ) : (
         <>
           <Pressable
-            onPress={() => setShowPicker(true)}
+            onPress={() => {
+              // iOS: toggle the inline calendar; opening on an empty field
+              // selects today (as Reminders does) because tapping the
+              // already-highlighted day wouldn't fire onChange.
+              if (Platform.OS === 'ios') {
+                if (!showPicker && !value) onChange(new Date());
+                setShowPicker(!showPicker);
+              } else {
+                setShowPicker(true);
+              }
+            }}
             accessibilityRole="button"
             accessibilityLabel={`${label}, ${value ? value.toDateString() : placeholder}`}
             style={({ pressed }) => [fieldStyle, pressed ? { backgroundColor: tokens.colors.border } : null]}
@@ -107,14 +124,21 @@ export default function DateField({ label, value, onChange, placeholder = 'None'
             </Text>
           </Pressable>
           {showPicker ? (
-            <DateTimePicker
-              value={value || new Date()}
-              mode="date"
-              onChange={(_, d) => {
-                setShowPicker(false);
-                if (d) onChange(d);
-              }}
-            />
+            // The native calendar reports its height after mounting; only then
+            // has the parent's content grown enough to scroll it into view.
+            <View onLayout={(e) => (e.nativeEvent.layout.height > 0 ? setTimeout(() => onExpand?.(), 50) : undefined)}>
+              <DateTimePicker
+                value={value || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                themeVariant={tokens.isDark ? 'dark' : 'light'}
+                accentColor={tokens.colors.brand}
+                onChange={(_, d) => {
+                  if (Platform.OS !== 'ios') setShowPicker(false);
+                  if (d) onChange(d);
+                }}
+              />
+            </View>
           ) : null}
         </>
       )}

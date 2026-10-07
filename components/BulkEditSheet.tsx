@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import Button from './Button';
@@ -58,6 +58,7 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
   const [who, setWho] = useState<string>(KEEP); // KEEP | 'household' | `person:<id>`
   const [categoryTag, setCategoryTag] = useState<string>(KEEP);
   const [countsAs, setCountsAs] = useState<string>(KEEP); // KEEP | 'category' (follow it) | BucketId
+  const scrollRef = useRef<ScrollView>(null);
   const [endMode, setEndMode] = useState<EndDateMode>(KEEP);
   const [endDate, setEndDate] = useState<Date | null>(null);
 
@@ -171,6 +172,7 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
       }
     >
       <ScrollView
+        ref={scrollRef}
         style={{ flexShrink: 1 }}
         contentContainerStyle={{ padding: space.s5, paddingBottom: space.s4, gap: space.s5 }}
         keyboardShouldPersistTaps="handled"
@@ -244,7 +246,13 @@ export default function BulkEditSheet({ visible, onClose, expenses, people, cate
               ]}
             />
             {endMode === 'set' ? (
-              <DateField label="Ends on" value={endDate} onChange={setEndDate} placeholder="Choose a date" />
+              <DateField
+                label="Ends on"
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="Choose a date"
+                onExpand={() => scrollRef.current?.scrollToEnd({ animated: true })}
+              />
             ) : null}
           </View>
         )}

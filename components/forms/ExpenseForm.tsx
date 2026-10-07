@@ -370,6 +370,7 @@ export default function ExpenseForm({ id, onClose, onSuccess }: ExpenseFormProps
                     onChange={setEndDate}
                     placeholder="No end date"
                     helperText="Optional. The expense stops counting after this date."
+                    onExpand={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
                 />
             ) : null}
 
