@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
@@ -19,7 +20,7 @@ import { type, radius, space } from '../styles/tokens';
  * and a box to add to it. Opening it marks the developer's replies as read.
  */
 
-const MAX_WIDTH = 680;
+const MAX_WIDTH = LAYOUT.listMaxWidth;
 
 export default function FeedbackThreadScreen() {
   const { tokens } = useTheme();
@@ -137,7 +138,7 @@ export default function FeedbackThreadScreen() {
 
   return (
     <KeyboardAvoidingView style={themedStyles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StandardHeader title="Feedback" onLeftPress={goBack} loading={loading && !!current} />
+      <StandardHeader title="Feedback" onLeftPress={goBack} loading={loading && !!current} maxWidth={MAX_WIDTH} />
 
       <ScrollView
         style={{ flex: 1 }}

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { View, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
@@ -38,14 +39,14 @@ export default function CurrencyScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title="Currency" onLeftPress={goBack} />
+      <StandardHeader title="Currency" onLeftPress={goBack} maxWidth={LAYOUT.listMaxWidth} />
 
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
           <View style={{ marginBottom: space.s4 }}>
             <SearchField value={query} onChangeText={setQuery} placeholder="Search currencies" />
           </View>

@@ -44,13 +44,16 @@ import { useDebtHelpNudge } from '../hooks/useDebtHelpNudge';
  * Dashboard section header (DESIGN.md §2.7): h2 title + one-line caption.
  * Replaces the legacy info-modal ⓘ buttons — the caption explains the section.
  */
+const OVERVIEW_CAPTION = "Income, spending and what's left for the period.";
+
 function DashboardSection({
   title,
   caption,
   children,
   style,
 }: {
-  title: string;
+  /** Left out when the page header already says it (Overview on medium+). */
+  title?: string;
   caption: string;
   children: ReactNode;
   style?: any;
@@ -59,12 +62,16 @@ function DashboardSection({
   // Plain title + caption: the hero figure is the only loud element on Overview.
   return (
     <View style={[{ marginBottom: space.s7 }, style]}>
-      <Text accessibilityRole="header" style={[type.h2, { color: tokens.colors.text }]} numberOfLines={1}>
-        {title}
-      </Text>
-      <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1, marginBottom: space.s4 }]}>
-        {caption}
-      </Text>
+      {title ? (
+        <>
+          <Text accessibilityRole="header" style={[type.h2, { color: tokens.colors.text }]} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={[type.caption, { color: tokens.colors.textMuted, marginTop: space.s1, marginBottom: space.s4 }]}>
+            {caption}
+          </Text>
+        </>
+      ) : null}
       {children}
     </View>
   );
@@ -385,7 +392,11 @@ export default function HomeScreen() {
       case 'dashboard':
         return calculations ? (
           <>
-            <DashboardSection title="Overview" caption="Income, spending and what's left for the period.">
+            <DashboardSection
+              // Medium+: the page header carries the title and this caption.
+              title={breakpoint.isCompact ? 'Overview' : undefined}
+              caption={OVERVIEW_CAPTION}
+            >
               <OverviewSection
                 calculations={calculations}
                 people={people}
@@ -459,11 +470,12 @@ export default function HomeScreen() {
     }
   };
 
-  // The rail and sidebar already name the budget on medium+; the first-budget
-  // screen is a welcome, so it has no header at all.
-  const showHeader = breakpoint.isCompact && state !== 'noBudget';
+  // Compact: the budget's name, as a large title. Medium+: the sidebar names
+  // the budget, so the page is titled Overview, and setup has its own intro.
+  // The first-budget screen is a welcome, so it has no header at all.
+  const showHeader = state !== 'noBudget' && (breakpoint.isCompact || state !== 'setup');
   const largeTitle = useLargeTitle();
-  const headerTitle = state === 'loading' ? '' : budgetTitle;
+  const headerTitle = !breakpoint.isCompact ? 'Overview' : state === 'loading' ? '' : budgetTitle;
 
   return (
     <KeyboardAvoidingView
@@ -477,7 +489,9 @@ export default function HomeScreen() {
           // Setup opens with its own "Set up …" intro, so a plain header.
           largeTitle={state === 'setup' ? undefined : largeTitle}
           showLeftIcon={false}
-          showRightIcon={state !== 'loading'}
+          subtitle={breakpoint.isCompact ? undefined : OVERVIEW_CAPTION}
+          // The sidebar's budget switcher does this on medium+.
+          showRightIcon={breakpoint.isCompact && state !== 'loading'}
           rightIcon="wallet-outline"
           onRightPress={() => router.push('/budgets')}
         />

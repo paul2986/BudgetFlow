@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Switch, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
@@ -21,7 +22,7 @@ import { type, radius, space } from '../styles/tokens';
  * each item's thread.
  */
 
-const MAX_WIDTH = 680;
+const MAX_WIDTH = LAYOUT.listMaxWidth;
 
 export default function FeedbackScreen() {
   const { tokens } = useTheme();
@@ -132,7 +133,7 @@ export default function FeedbackScreen() {
 
   return (
     <KeyboardAvoidingView style={themedStyles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StandardHeader title="Feedback" onLeftPress={goBack} loading={loading && !!items} />
+      <StandardHeader title="Feedback" onLeftPress={goBack} loading={loading && !!items} maxWidth={MAX_WIDTH} />
 
       <ScrollView
         style={{ flex: 1 }}

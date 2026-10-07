@@ -15,7 +15,7 @@ import { space } from '../styles/tokens';
  * |----------|------------|------------------------|--------------------------|
  * | compact  | < 640      | Bottom tab bar         | 1 col, 16px gutters      |
  * | medium   | 640–1023   | Sidebar, closed (72px) | max 720 centered         |
- * | expanded | >= 1024    | Sidebar, open (264px)  | max 1120, 32px gutters   |
+ * | expanded | >= 1024    | Sidebar, open (264px)  | max 1440, 32px gutters   |
  */
 
 export const BREAKPOINTS = {
@@ -90,9 +90,11 @@ export const LAYOUT = {
   /** Sidebar width, closed to its icon column. */
   sidebarCollapsedWidth: 72,
   /** Max content width per class. */
-  contentMaxWidth: { compact: undefined as number | undefined, medium: 720, expanded: 1120 },
+  contentMaxWidth: { compact: undefined as number | undefined, medium: 720, expanded: 1440 },
   /** Horizontal screen padding per class. */
   gutter: { compact: 16, medium: 24, expanded: 32 },
+  /** Single-column list and settings screens, medium+. */
+  listMaxWidth: 680,
   /** Form/dialog max widths. */
   formMaxWidth: { compact: undefined as number | undefined, medium: 560, expanded: 600 },
 } as const;

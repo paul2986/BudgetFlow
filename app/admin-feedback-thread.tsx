@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../hooks/useTheme';
@@ -21,7 +22,7 @@ import { type, radius, space } from '../styles/tokens';
  * both reach the sender, who sees them in their own thread.
  */
 
-const MAX_WIDTH = 680;
+const MAX_WIDTH = LAYOUT.listMaxWidth;
 
 const PLATFORM_NAMES = { ios: 'iPhone or iPad', android: 'Android', web: 'Web' } as const;
 
@@ -193,7 +194,7 @@ export default function AdminFeedbackThreadScreen() {
 
   return (
     <KeyboardAvoidingView style={themedStyles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <StandardHeader title="Feedback" onLeftPress={goBack} loading={loading && !!current} />
+      <StandardHeader title="Feedback" onLeftPress={goBack} loading={loading && !!current} maxWidth={MAX_WIDTH} />
 
       <ScrollView
         style={{ flex: 1 }}

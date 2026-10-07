@@ -1,4 +1,5 @@
 import { useToast } from '../hooks/useToast';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { View, ScrollView, TextInput, StyleSheet } from 'react-native';
 import { Alert } from '../utils/alert';
 import { useBudgetData } from '../hooks/useBudgetData';
@@ -343,6 +344,7 @@ export default function BudgetsScreen() {
     <View style={themedStyles.container}>
       <StandardHeader
         title="Budgets"
+        maxWidth={LAYOUT.listMaxWidth}
         onLeftPress={() => (router.canGoBack() ? router.back() : router.navigate('/'))}
         loading={operationInProgress}
         rightButtons={[{ icon: 'add', onPress: () => setShowCreateModal(true), accessibilityLabel: 'New budget' }]}
@@ -355,7 +357,7 @@ export default function BudgetsScreen() {
           { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 },
         ]}
       >
-        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
+        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>
           {budgets.length === 0 ? (
             <ListGroup>
               <EmptyState

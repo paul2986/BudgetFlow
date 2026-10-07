@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { LAYOUT } from '../hooks/useBreakpoint';
 import { View, ScrollView, Platform, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -252,12 +253,12 @@ export default function ShareBudgetScreen() {
 
   return (
     <View style={themedStyles.container}>
-      <StandardHeader title={budget ? `Share “${budget.name}”` : 'Share budget'} onLeftPress={goBack} showRightIcon={false} loading={busy} />
+      <StandardHeader title={budget ? `Share “${budget.name}”` : 'Share budget'} onLeftPress={goBack} showRightIcon={false} loading={busy} maxWidth={LAYOUT.listMaxWidth} />
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={[themedStyles.scrollContent, { paddingHorizontal: breakpoint.gutter, paddingTop: space.s6 }]}
       >
-        <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>{body()}</View>
+        <View style={{ width: '100%', maxWidth: LAYOUT.listMaxWidth, alignSelf: 'center' }}>{body()}</View>
       </ScrollView>
 
       <ConfirmDialog

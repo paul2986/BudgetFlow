@@ -1,6 +1,6 @@
 {
   "name": "budget-flow",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "main": "index.ts",
   "scripts": {
     "dev": "expo start --tunnel",
