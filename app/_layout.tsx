@@ -31,7 +31,6 @@ import DialogHost from '../components/DialogHost';
 import LockWatcher from '../components/LockWatcher';
 import EndReminderSync from '../components/EndReminderSync';
 import BottomTabBar from '../components/nav/BottomTabBar';
-import NavRail from '../components/nav/NavRail';
 import Sidebar from '../components/nav/Sidebar';
 // Side effect: its popstate listener must be registered before expo-router's.
 import '../hooks/useDiscardGuard';
@@ -46,8 +45,8 @@ initCurrency();
 /**
  * Root shell (DESIGN.md §2.5–2.6):
  * - compact  (<640): bottom tab bar, always visible
- * - medium   (640–1023): left navigation rail (84px)
- * - expanded (>=1024): full sidebar (264px)
+ * - medium   (640–1023): glass sidebar, closed; opens over the content
+ * - expanded (>=1024): glass sidebar, docked; opens and closes
  * One layout tree; the breakpoint only changes which chrome renders.
  */
 
@@ -142,8 +141,7 @@ function RootLayoutContent() {
     }
   }, [tokens, isDarkMode, user]);
 
-  const showRail = user && bp.isMedium;
-  const showSidebar = user && bp.isExpanded;
+  const showSidebar = user && !bp.isCompact;
   const showTabBar = bp.isCompact;
 
   return (
@@ -186,7 +184,6 @@ function RootLayoutContent() {
       />
 
       {showSidebar && <Sidebar />}
-      {showRail && <NavRail />}
 
       <View
         style={{ flex: 1, backgroundColor: 'transparent' }}

@@ -14,8 +14,8 @@ import { space } from '../styles/tokens';
  * | Class    | Width      | Navigation             | Content                  |
  * |----------|------------|------------------------|--------------------------|
  * | compact  | < 640      | Bottom tab bar         | 1 col, 16px gutters      |
- * | medium   | 640–1023   | Icon+label rail (84px) | max 720 centered         |
- * | expanded | >= 1024    | Sidebar (264px)        | max 1120, 32px gutters   |
+ * | medium   | 640–1023   | Sidebar, closed (72px) | max 720 centered         |
+ * | expanded | >= 1024    | Sidebar, open (264px)  | max 1120, 32px gutters   |
  */
 
 export const BREAKPOINTS = {
@@ -85,10 +85,10 @@ export const STATUS_BAND = 'calc(env(safe-area-inset-top) + var(--status-gap, 0p
 export const LAYOUT = {
   /** Bottom tab bar height, excluding safe-area inset. */
   tabBarHeight: 56,
-  /** Tablet navigation rail width. */
-  railWidth: 84,
-  /** Desktop sidebar width. */
+  /** Sidebar width, open. */
   sidebarWidth: 264,
+  /** Sidebar width, closed to its icon column. */
+  sidebarCollapsedWidth: 72,
   /** Max content width per class. */
   contentMaxWidth: { compact: undefined as number | undefined, medium: 720, expanded: 1120 },
   /** Horizontal screen padding per class. */

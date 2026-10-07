@@ -1,179 +1,385 @@
-import { useState } from 'react';
-import { View, Text, Pressable, Image, ScrollView } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable, Image, ScrollView, Animated, Platform, StyleSheet } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Rect, Line } from 'react-native-svg';
 import { useTheme } from '../../hooks/useTheme';
 import { useAuth } from '../../hooks/useAuth';
 import { useBudgetData } from '../../hooks/useBudgetData';
-import { LAYOUT, bottomClearance, useBottomInset } from '../../hooks/useBreakpoint';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
+import { LAYOUT, bottomClearance, useBottomInset, useBreakpoint } from '../../hooks/useBreakpoint';
 import { releaseDiscardGuard } from '../../hooks/useDiscardGuard';
 import Icon from '../Icon';
-import Button from '../Button';
 import { Avatar, ConfirmDialog } from '../ui';
-import { type, space, radius } from '../../styles/tokens';
+import { type, space, radius, elevation, motion } from '../../styles/tokens';
 import { NAV_TABS, isTabActive } from './navConfig';
+import GlassPanel from './GlassPanel';
 
 /**
- * Expanded-class (desktop) sidebar, 264px (DESIGN.md §2.6).
- * Sections: brand + budget switcher, nav list, primary add action,
- * account footer with an in-app themed sign-out confirmation
- * (replaces window.confirm).
+ * Sidebar for medium and expanded classes (DESIGN.md §2.6): a floating glass
+ * panel, inset from the window edge, in the tab bar's material.
+ * - Open (264): icon + label rows, budget switcher, Add expense, account.
+ * - Closed (72): the same rows clipped to their icon column; on web each
+ *   shows its label as a tooltip on hover.
+ * - Expanded: docked. Content reflows as it opens and closes, and the choice
+ *   is remembered on the device. Starts open.
+ * - Medium: closed; opening it floats over the content above a scrim, and a
+ *   tap outside, Escape or navigating closes it.
+ * Toggle: the sidebar button at the top, or ⌘\ / Ctrl+\ on web.
  */
 
-function NavItem({ tab, active, onPress }: { tab: (typeof NAV_TABS)[number]; active: boolean; onPress: () => void }) {
+const OPEN = LAYOUT.sidebarWidth;
+const CLOSED = LAYOUT.sidebarCollapsedWidth;
+/** Gap between the panel and the window edge. */
+const INSET = space.s3;
+/** Panel padding; what's left of the closed width is the icon column. */
+const PAD = space.s3;
+const ICON_COLUMN = CLOSED - 2 * PAD;
+const TIP_HEIGHT = 26;
+const SHORTCUT = Platform.OS === 'web' && typeof navigator !== 'undefined' && /Mac|iP/.test(navigator.platform) ? '⌘\\' : 'Ctrl+\\';
+
+type ShowTip = (label: string | null, centerY?: number) => void;
+
+/** SF Symbols' sidebar.left, which Ionicons lacks. */
+function SidebarGlyph({ color }: { color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
+      <Rect x={2} y={3.5} width={16} height={13} rx={3} stroke={color} strokeWidth={1.6} />
+      <Line x1={7.5} y1={3.5} x2={7.5} y2={16.5} stroke={color} strokeWidth={1.6} />
+    </Svg>
+  );
+}
+
+/** Reports a pressable's vertical centre for the hover tooltip (web only). */
+function useTipTarget(label: string, showTip: ShowTip) {
+  const ref = useRef<View>(null);
+  return {
+    ref,
+    onHoverIn: () => ref.current?.measureInWindow((_x, y, _w, h) => showTip(label, y + h / 2)),
+    onHoverOut: () => showTip(null),
+  };
+}
+
+interface RowProps {
+  icon: string;
+  label: string;
+  onPress: () => void;
+  labelOpacity: Animated.AnimatedInterpolation<number>;
+  showTip: ShowTip;
+  active?: boolean;
+  variant?: 'nav' | 'primary' | 'destructive' | 'outlined';
+  accessibilityLabel?: string;
+  trailing?: React.ReactNode;
+}
+
+function SidebarRow({
+  icon,
+  label,
+  onPress,
+  labelOpacity,
+  showTip,
+  active,
+  variant = 'nav',
+  accessibilityLabel,
+  trailing,
+}: RowProps) {
   const { tokens } = useTheme();
-  const color = active ? tokens.colors.onBrandSubtle : tokens.colors.textMuted;
+  const tip = useTipTarget(label, showTip);
+  const c = tokens.colors;
+  const iconColor =
+    variant === 'primary' ? c.onBrand : variant === 'destructive' ? c.danger : active ? c.onBrandSubtle : c.textMuted;
+  const textColor =
+    variant === 'primary' ? c.onBrand : variant === 'destructive' ? c.danger : active ? c.onBrandSubtle : c.text;
 
   return (
     <Pressable
+      ref={tip.ref}
       onPress={onPress}
-      accessibilityRole="tab"
-      accessibilityLabel={tab.label}
-      accessibilityState={{ selected: active }}
+      onHoverIn={tip.onHoverIn}
+      onHoverOut={tip.onHoverOut}
+      accessibilityRole={variant === 'nav' ? 'tab' : 'button'}
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={variant === 'nav' ? { selected: !!active } : undefined}
       style={({ pressed, hovered }: any) => ({
         flexDirection: 'row',
         alignItems: 'center',
         minHeight: 44,
-        paddingHorizontal: space.s3,
         borderRadius: radius.md,
-        marginBottom: 2,
-        backgroundColor: active
-          ? tokens.colors.brandSubtle
-          : hovered || pressed
-            ? tokens.colors.surfaceSunken
-            : 'transparent',
+        backgroundColor:
+          variant === 'primary'
+            ? c.brand
+            : active
+              ? c.brandSubtle
+              : hovered || pressed
+                ? variant === 'destructive'
+                  ? c.dangerSubtle
+                  : c.surfaceHover
+                : 'transparent',
+        opacity: variant === 'primary' && pressed ? 0.85 : 1,
+        borderWidth: variant === 'outlined' ? 1 : 0,
+        borderColor: c.border,
         // @ts-ignore web transition
-        transitionDuration: '150ms',
+        transitionDuration: `${motion.fast}ms`,
       })}
     >
-      <Icon name={(active ? tab.activeIcon : tab.icon) as any} size={20} color={color} />
-      <Text
-        style={[
-          active ? type.bodyMed : type.body,
-          { color: active ? tokens.colors.onBrandSubtle : tokens.colors.text, marginLeft: space.s3 },
-        ]}
+      <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+        <Icon name={icon as any} size={20} color={iconColor} />
+      </View>
+      <Animated.View
+        style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
       >
-        {tab.label}
-      </Text>
+        <Text
+          numberOfLines={1}
+          style={[active || variant !== 'nav' ? type.bodyMed : type.body, { color: textColor, flex: 1 }]}
+        >
+          {label}
+        </Text>
+        {trailing ? <View style={{ marginHorizontal: space.s3 }}>{trailing}</View> : null}
+      </Animated.View>
     </Pressable>
   );
 }
 
 export default function Sidebar() {
-  const { tokens } = useTheme();
+  const { tokens, isDarkMode } = useTheme();
   const { user, signOut } = useAuth();
   const { activeBudget } = useBudgetData();
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const bottomInset = useBottomInset();
+  const reduceMotion = useReducedMotion();
+  const { isExpanded: docked } = useBreakpoint();
+  const [collapsed, setCollapsed] = useSidebarCollapsed();
+  const [overlayOpen, setOverlayOpen] = useState(false);
+  const [tip, setTip] = useState<{ label: string; y: number } | null>(null);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
 
+  const open = docked ? !collapsed : overlayOpen;
+  const width = useRef(new Animated.Value(open ? OPEN : CLOSED)).current;
+
+  useEffect(() => {
+    const toValue = open ? OPEN : CLOSED;
+    if (reduceMotion) {
+      width.setValue(toValue);
+      return;
+    }
+    const anim = Animated.spring(width, { toValue, ...motion.spring, overshootClamping: true, useNativeDriver: false });
+    anim.start();
+    return () => anim.stop();
+  }, [open, reduceMotion, width]);
+
+  // The floating sidebar closes once you've gone somewhere, or when the
+  // window grows wide enough to dock it.
+  useEffect(() => {
+    setOverlayOpen(false);
+  }, [pathname, docked]);
+
+  const toggle = () => (docked ? setCollapsed(!collapsed) : setOverlayOpen((o) => !o));
+  const toggleRef = useRef(toggle);
+  toggleRef.current = toggle;
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '\\') {
+        e.preventDefault();
+        toggleRef.current();
+      } else if (e.key === 'Escape') {
+        setOverlayOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const labelOpacity = width.interpolate({ inputRange: [CLOSED + 48, OPEN], outputRange: [0, 1], extrapolate: 'clamp' });
+  const scrimOpacity = width.interpolate({ inputRange: [CLOSED, OPEN], outputRange: [0, 1], extrapolate: 'clamp' });
+
+  const showTip: ShowTip = (label, y) => {
+    if (Platform.OS !== 'web' || label === null || y === undefined) setTip(null);
+    else setTip({ label, y });
+  };
+  const toggleTip = useTipTarget(`${open ? 'Hide' : 'Show'} sidebar  ${SHORTCUT}`, showTip);
+
+  const go = (route: string) => releaseDiscardGuard(() => router.navigate(route as any));
+  const push = (route: string) => releaseDiscardGuard(() => router.push(route as any));
+
   return (
-    <View
-      style={{
-        width: LAYOUT.sidebarWidth,
-        backgroundColor: tokens.colors.surface,
-        borderRightWidth: 1,
-        borderRightColor: tokens.colors.border,
-        height: '100%',
-        paddingTop: insets.top,
-        paddingBottom: bottomClearance(bottomInset),
-      }}
-    >
-      {/* Brand + budget switcher */}
-      <View style={{ padding: space.s5, paddingBottom: space.s3 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.s4 }}>
-          <Image
-            source={require('../../assets/images/icon.png')}
-            style={{ width: 32, height: 32, borderRadius: radius.sm, marginRight: space.s3 }}
-            resizeMode="cover"
-            accessibilityIgnoresInvertColors
-          />
-          <Text style={[type.h3, { color: tokens.colors.text }]}>Budget Flow</Text>
-        </View>
+    <>
+      {/* Holds the panel's place in the row, so docked content reflows with it. */}
+      <Animated.View style={{ width: docked ? Animated.add(width, INSET) : INSET + CLOSED, flexShrink: 0 }} />
 
-        <Pressable
-          onPress={() => releaseDiscardGuard(() => router.push('/budgets'))}
-          accessibilityRole="button"
-          accessibilityLabel={`Switch budget. Current budget: ${activeBudget?.name || 'none'}`}
-          style={({ pressed, hovered }: any) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            minHeight: 44,
-            paddingHorizontal: space.s3,
-            borderRadius: radius.md,
-            borderWidth: 1,
-            borderColor: tokens.colors.border,
-            backgroundColor: hovered || pressed ? tokens.colors.surfaceHover : 'transparent',
-          })}
+      {!docked ? (
+        <Animated.View
+          pointerEvents={overlayOpen ? 'auto' : 'none'}
+          style={[StyleSheet.absoluteFill, { zIndex: 30, opacity: scrimOpacity, backgroundColor: tokens.colors.overlay }]}
         >
-          <Icon name="wallet-outline" size={18} color={tokens.colors.textMuted} />
-          <Text
-            style={[type.bodyMed, { color: tokens.colors.text, flex: 1, marginLeft: space.s2 }]}
-            numberOfLines={1}
-          >
-            {activeBudget?.name || 'Select budget'}
-          </Text>
-          <Icon name="chevron-expand-outline" size={16} color={tokens.colors.textFaint} />
-        </Pressable>
-      </View>
+          {overlayOpen ? (
+            <Pressable
+              onPress={() => setOverlayOpen(false)}
+              accessibilityLabel="Close sidebar"
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+        </Animated.View>
+      ) : null}
 
-      {/* Destinations */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: space.s3 }}>
-        {NAV_TABS.map((tab) => (
-          <NavItem
-            key={tab.route}
-            tab={tab}
-            active={isTabActive(pathname, tab.route)}
-            onPress={() => releaseDiscardGuard(() => router.navigate(tab.route as any))}
-          />
-        ))}
-
-        <View style={{ marginTop: space.s5, paddingHorizontal: space.s1 }}>
-          <Button
-            text="Add expense"
-            onPress={() => releaseDiscardGuard(() => router.push('/add-expense'))}
-            variant="primary"
-            icon={<Icon name="add" size={18} color={tokens.colors.onBrand} />}
-          />
-        </View>
-      </ScrollView>
-
-      {/* Account footer */}
-      <View
+      <Animated.View
         style={{
-          borderTopWidth: 1,
-          borderTopColor: tokens.colors.border,
-          padding: space.s4,
-          flexDirection: 'row',
-          alignItems: 'center',
+          position: 'absolute',
+          zIndex: 31,
+          left: insets.left + INSET,
+          top: insets.top + INSET,
+          bottom: bottomClearance(bottomInset + INSET),
+          width,
         }}
       >
-        <Avatar name={user?.email || '?'} seed={user?.id} size={36} />
-        <View style={{ flex: 1, marginLeft: space.s3, marginRight: space.s2 }}>
+        <GlassPanel borderRadius={radius.xl} fill style={{ flex: 1 }}>
+          <View style={{ flex: 1, overflow: 'hidden', borderRadius: radius.xl, padding: PAD }}>
+            {/* Sidebar toggle + brand */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: space.s3 }}>
+              <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+                <Pressable
+                  ref={toggleTip.ref}
+                  onPress={toggle}
+                  onHoverIn={toggleTip.onHoverIn}
+                  onHoverOut={toggleTip.onHoverOut}
+                  accessibilityRole="button"
+                  accessibilityLabel={open ? 'Hide sidebar' : 'Show sidebar'}
+                  accessibilityState={{ expanded: open }}
+                  style={({ pressed, hovered }: any) => ({
+                    width: 44,
+                    height: 44,
+                    borderRadius: radius.md,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: pressed || hovered ? tokens.colors.surfaceHover : 'transparent',
+                  })}
+                >
+                  <SidebarGlyph color={tokens.colors.textMuted} />
+                </Pressable>
+              </View>
+              <Animated.View
+                style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', overflow: 'hidden', opacity: labelOpacity }}
+              >
+                <Image
+                  source={require('../../assets/images/icon.png')}
+                  style={{ width: 28, height: 28, borderRadius: radius.sm, marginRight: space.s2 }}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                />
+                <Text style={[type.h3, { color: tokens.colors.text, flex: 1 }]} numberOfLines={1}>
+                  Budget Flow
+                </Text>
+              </Animated.View>
+            </View>
+
+            <SidebarRow
+              icon="wallet-outline"
+              label={activeBudget?.name || 'Select budget'}
+              accessibilityLabel={`Switch budget. Current budget: ${activeBudget?.name || 'none'}`}
+              variant="outlined"
+              onPress={() => push('/budgets')}
+              labelOpacity={labelOpacity}
+              showTip={showTip}
+              trailing={<Icon name="chevron-expand-outline" size={16} color={tokens.colors.textFaint} />}
+            />
+
+            {/* Destinations */}
+            <ScrollView
+              style={{ flex: 1, marginTop: space.s4 }}
+              contentContainerStyle={{ gap: space.s1 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {NAV_TABS.map((tab) => {
+                const active = isTabActive(pathname, tab.route);
+                return (
+                  <SidebarRow
+                    key={tab.route}
+                    icon={active ? tab.activeIcon : tab.icon}
+                    label={tab.label}
+                    active={active}
+                    onPress={() => go(tab.route)}
+                    labelOpacity={labelOpacity}
+                    showTip={showTip}
+                  />
+                );
+              })}
+
+              <View style={{ marginTop: space.s4 }}>
+                <SidebarRow
+                  icon="add"
+                  label="Add expense"
+                  variant="primary"
+                  onPress={() => push('/add-expense')}
+                  labelOpacity={labelOpacity}
+                  showTip={showTip}
+                />
+              </View>
+            </ScrollView>
+
+            {/* Account */}
+            <View
+              style={{
+                borderTopWidth: StyleSheet.hairlineWidth,
+                borderTopColor: tokens.colors.borderStrong,
+                paddingTop: space.s3,
+                gap: space.s1,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', minHeight: 44 }}>
+                <View style={{ width: ICON_COLUMN, alignItems: 'center' }}>
+                  <Avatar name={user?.email || '?'} seed={user?.id} size={28} />
+                </View>
+                <Animated.View style={{ flex: 1, minWidth: 0, opacity: labelOpacity }}>
+                  <Text style={[type.caption, { color: tokens.colors.textMuted }]} numberOfLines={1}>
+                    {user?.email || 'Signed in'}
+                  </Text>
+                </Animated.View>
+              </View>
+              <SidebarRow
+                icon="log-out-outline"
+                label="Sign out"
+                variant="destructive"
+                onPress={() => setConfirmSignOut(true)}
+                labelOpacity={labelOpacity}
+                showTip={showTip}
+              />
+            </View>
+          </View>
+        </GlassPanel>
+      </Animated.View>
+
+      {/* Tooltips only belong to the closed sidebar (a hover measured just
+          before it opened can land after). */}
+      {tip && !open ? (
+        <View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'fixed' as any,
+              zIndex: 32,
+              left: insets.left + INSET + CLOSED + space.s2,
+              top: tip.y - TIP_HEIGHT / 2,
+              height: TIP_HEIGHT,
+              justifyContent: 'center',
+              paddingHorizontal: space.s2,
+              borderRadius: radius.sm,
+              backgroundColor: tokens.colors.surfaceRaised,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: tokens.colors.borderStrong,
+            },
+            isDarkMode ? null : elevation.e2,
+          ]}
+        >
           <Text style={[type.caption, { color: tokens.colors.text }]} numberOfLines={1}>
-            {user?.email || 'Signed in'}
+            {tip.label}
           </Text>
         </View>
-        <Pressable
-          onPress={() => setConfirmSignOut(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Sign out"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={({ pressed, hovered }: any) => ({
-            width: 36,
-            height: 36,
-            borderRadius: radius.md,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: hovered || pressed ? tokens.colors.dangerSubtle : 'transparent',
-          })}
-        >
-          <Icon name="log-out-outline" size={20} color={tokens.colors.danger} />
-        </Pressable>
-      </View>
+      ) : null}
 
       <ConfirmDialog
         visible={confirmSignOut}
@@ -193,6 +399,6 @@ export default function Sidebar() {
         }}
         onCancel={() => setConfirmSignOut(false)}
       />
-    </View>
+    </>
   );
 }
