@@ -117,8 +117,15 @@ const compare = (a: Expense, b: Expense, by: SortOption, personName: (id?: strin
       if (!eb) return -1;
       return ea.localeCompare(eb);
     }
-    case 'debtRepayment':
-      return (DEBT_SORT_LABEL[a.debtRepayment || ''] ?? 'general').localeCompare(DEBT_SORT_LABEL[b.debtRepayment || ''] ?? 'general');
+    case 'debtRepayment': {
+      // Debt repayments first (grouped by kind), then everything else together.
+      const la = DEBT_SORT_LABEL[a.debtRepayment || ''];
+      const lb = DEBT_SORT_LABEL[b.debtRepayment || ''];
+      if (!la && !lb) return 0;
+      if (!la) return 1;
+      if (!lb) return -1;
+      return la.localeCompare(lb);
+    }
     case 'date':
     default:
       return new Date(a.date).getTime() - new Date(b.date).getTime();

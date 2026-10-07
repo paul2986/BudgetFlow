@@ -104,10 +104,12 @@ describe('sorting expenses', () => {
     expect(sorted('endDate', 'desc').slice(-3)).toEqual(['loan', 'gym', 'holiday']);
   });
 
-  it('sorts debt repayments by kind name, with everything else as "general"', () => {
+  it('groups debt repayments together by kind, then everything else', () => {
     const kinds = sortExpenses(all, { by: 'debtRepayment', order: 'asc' }, people).map((e) => e.debtRepayment ?? 'general');
-    // credit card, general, loan (alphabetical by label)
-    expect(kinds).toEqual(['credit_card', ...Array(5).fill('general'), 'loan']);
+    // credit card, loan (alphabetical by label), then the non-debt expenses
+    expect(kinds).toEqual(['credit_card', 'loan', ...Array(5).fill('general')]);
+    const desc = sortExpenses(all, { by: 'debtRepayment', order: 'desc' }, people).map((e) => e.debtRepayment ?? 'general');
+    expect(desc).toEqual([...Array(5).fill('general'), 'loan', 'credit_card']);
   });
 
   it('returns a new array and leaves the original order alone', () => {
