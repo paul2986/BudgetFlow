@@ -343,6 +343,10 @@ export default function StandardHeader({
   // container holds that band, useThemedStyles), so bar and status bar read
   // as one surface, and a large-title screen at rest is page bg all the way up.
   const underStatusBar = Platform.OS === 'web' && bp.isCompact;
+  // Beside the floating sidebar (medium+) the header has no fill or hairline:
+  // a full-width bar would butt against the panel as a second box. The
+  // content scrolls in its own scroller below, never under the header.
+  const showChrome = bp.isCompact;
 
   return (
     <View
@@ -366,24 +370,26 @@ export default function StandardHeader({
           : {}),
       }}
     >
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          top: underStatusBar ? (`calc(-1 * ${STATUS_BAND})` as unknown as number) : 0,
-          opacity: chromeOpacity,
-          // Web: opaque `surface`, matching the colour iOS 27 extends under
-          // the status bar (a translucent header drifts from it as content
-          // passes underneath). Native: the header sits in flow, so page bg.
-          backgroundColor:
-            backgroundColor || (Platform.OS === 'web' ? tokens.colors.surface : tokens.colors.bg),
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: tokens.colors.borderStrong,
-        }}
-      />
+      {showChrome ? (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            top: underStatusBar ? (`calc(-1 * ${STATUS_BAND})` as unknown as number) : 0,
+            opacity: chromeOpacity,
+            // Web: opaque `surface`, matching the colour iOS 27 extends under
+            // the status bar (a translucent header drifts from it as content
+            // passes underneath). Native: the header sits in flow, so page bg.
+            backgroundColor:
+              backgroundColor || (Platform.OS === 'web' ? tokens.colors.surface : tokens.colors.bg),
+            borderBottomWidth: StyleSheet.hairlineWidth,
+            borderBottomColor: tokens.colors.borderStrong,
+          }}
+        />
+      ) : null}
 
       {left.map((btn, idx) => renderButton(btn, 'left', idx))}
 
